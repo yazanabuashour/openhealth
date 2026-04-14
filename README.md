@@ -30,7 +30,14 @@ Clone the repo normally, then bootstrap the Beads database from the GitHub remot
 git clone git@github.com:yazanabuashour/openhealth.git
 cd openhealth
 bd bootstrap
+bd hooks install
 bd list
+```
+
+If Beads warns that `beads.role` is not configured in a maintainer clone, set it once:
+
+```bash
+git config beads.role maintainer
 ```
 
 ### Daily Sync

@@ -25,6 +25,13 @@ On a second machine:
 git clone git@github.com:yazanabuashour/openhealth.git
 cd openhealth
 bd bootstrap
+bd hooks install
+```
+
+If a maintainer clone warns about role detection, set:
+
+```bash
+git config beads.role maintainer
 ```
 
 When switching machines:

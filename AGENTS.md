@@ -13,6 +13,7 @@ bd show <id>          # View issue details
 bd update <id> --claim  # Claim work atomically
 bd close <id>         # Complete work
 bd bootstrap          # Set up Beads in a fresh clone
+bd hooks install      # Install local Git hooks after bootstrap
 bd dolt pull          # Pull Beads state when switching machines
 bd dolt push          # Push beads data to remote
 ```

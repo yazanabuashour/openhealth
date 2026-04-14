@@ -1,42 +1,9 @@
 # Contributing
 
-## Beads Policy
+Outside contributors do not need to install or use Beads to contribute to this repository.
 
-This repository uses **Beads** (`bd`) as a maintainer workflow tool.
+Pull requests should be reviewable without access to Beads state and should include the code, tests, and documentation needed for the change.
 
-- Outside contributors are not required to install or use Beads.
-- Pull requests must be reviewable without access to Beads state.
-- CI, checks, and merge gates must not depend on Beads.
+Maintainers may use Beads separately for planning and follow-up work, but CI, checks, and merge decisions must not depend on Beads.
 
-If you are contributing code, focus on the code changes, tests, and documentation required for your PR. Maintainers may separately use Beads to track planning and follow-up work.
-
-## Maintainer Notes
-
-Maintainers use Beads in embedded mode with the repository GitHub remote as the Dolt remote.
-
-```bash
-bd init --prefix oh
-bd dolt remote add origin git+ssh://git@github.com/yazanabuashour/openhealth.git
-```
-
-On a second machine:
-
-```bash
-git clone git@github.com:yazanabuashour/openhealth.git
-cd openhealth
-bd bootstrap
-bd hooks install
-```
-
-If a maintainer clone warns about role detection, set:
-
-```bash
-git config beads.role maintainer
-```
-
-When switching machines:
-
-```bash
-bd dolt push
-bd dolt pull
-```
+Maintainer workflow notes live in [docs/maintainers.md](docs/maintainers.md).

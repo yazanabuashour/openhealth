@@ -22,15 +22,15 @@ bd close <id>         # Complete work
 
 ## Session Completion
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds, unless the user has explicitly requested a manual review hold after quality gates and issue update.
+**When ending a work session**, you MUST complete steps 1-4 below, then stop for manual review. The workflow is paused for manual review at step 4 and the work session is NOT complete until steps 5-8 are finished and `git push` succeeds.
 
 **MANDATORY WORKFLOW:**
 
 1. **File issues for remaining work** - Create issues for anything that needs follow-up
 2. **Run quality gates** (if code changed) - Tests, linters, builds
 3. **Update issue status** - Close finished work, update in-progress items
-4. **Optional manual review hold** - Only if the user explicitly requested manual review, stop here in `awaiting manual review` state and do not push yet
-5. **PUSH TO REMOTE** - This is MANDATORY once review is approved or if no manual review hold was requested:
+4. **Manual review** - Stop here by default, report that the workflow is paused for manual review, and wait for explicit instruction to complete the remaining steps
+5. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
    bd dolt push
@@ -38,17 +38,13 @@ bd close <id>         # Complete work
    git status  # MUST show "up to date with origin"
    ```
 6. **Clean up** - Clear stashes, prune remote branches
-7. **Verify** - All changes committed AND pushed, or explicitly paused in `awaiting manual review`
+7. **Verify** - All changes committed AND pushed
 8. **Hand off** - Provide context for next session
 
-**POST-REVIEW RESUME RULES:**
-- If review finds issues, address them, rerun the relevant quality gates, update issue status again, and return to the manual review hold if more review was requested
-- If review approves, resume at the push step without reopening earlier workflow steps
-
 **CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds; a session may pause before push only if the user explicitly requested a manual review hold after quality gates and issue update
-- If paused for manual review, report the repo state as `awaiting manual review`
-- NEVER stop before pushing except for that explicit manual-review hold - that leaves work stranded locally
+- The workflow pauses for manual review after step 4 and the work session is NOT complete until `git push` succeeds
+- Do NOT continue past `Manual review` unless explicitly instructed to complete the remaining workflow steps
+- Once instructed to continue after review, complete the remaining workflow and push; do NOT stop again with local-only changes
 - NEVER say "ready to push when you are" after review approval - YOU must push
 - If push fails, resolve and retry until it succeeds
 <!-- END BEADS INTEGRATION -->

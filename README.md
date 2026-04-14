@@ -1,56 +1,42 @@
 # openhealth
 
-## Maintainer Task Tracking
+Open source project scaffold with maintainer task tracking managed through Beads.
 
-This repository uses **Beads** (`bd`) for maintainer task tracking in **embedded mode**.
-Beads is optional for outside contributors and is not required to open or review PRs.
+## For Contributors
 
-### Maintainer Setup
+Beads is optional for outside contributors and is not required to open, review, or merge PRs.
 
-Install these tools on each maintainer machine:
+## For Maintainers
+
+This repo uses **Beads** (`bd`) in embedded mode for maintainer task tracking.
+
+Preferred tool install:
+
+```bash
+mise install
+```
+
+Alternative:
 
 ```bash
 brew install beads dolt
-bd version
-dolt version
 ```
 
-This repository is initialized with:
-
-```bash
-bd init --prefix oh
-bd dolt remote add origin git+ssh://git@github.com/yazanabuashour/openhealth.git
-```
-
-### Second Machine Bootstrap
-
-Clone the repo normally, then bootstrap the Beads database from the GitHub remote:
+Second machine bootstrap:
 
 ```bash
 git clone git@github.com:yazanabuashour/openhealth.git
 cd openhealth
 bd bootstrap
 bd hooks install
+git config beads.role maintainer
 bd list
 ```
 
-If Beads warns that `beads.role` is not configured in a maintainer clone, set it once:
-
-```bash
-git config beads.role maintainer
-```
-
-### Daily Sync
-
-Before leaving one machine:
+Sync between machines:
 
 ```bash
 bd dolt push
-```
-
-After arriving on another machine:
-
-```bash
 bd dolt pull
 ```
 
@@ -60,7 +46,3 @@ If `bd dolt pull` reports uncommitted Dolt changes:
 bd dolt commit
 bd dolt pull
 ```
-
-### Contributor Policy
-
-External contributors may ignore Beads entirely. CI, review, and merge decisions must not depend on reviewer access to local Beads state.

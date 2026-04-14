@@ -1,15 +1,39 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
+This project uses **bd** (beads) for maintainer task tracking in embedded mode.
+If you are acting as a maintainer or local coding agent, prefer `bd --json` for scripted access.
+Outside contributors are not expected to use Beads, and PRs must remain reviewable without Beads state.
 
 ## Quick Reference
 
 ```bash
+bd list --json        # Inspect issues programmatically
 bd ready              # Find available work
 bd show <id>          # View issue details
 bd update <id> --claim  # Claim work atomically
 bd close <id>         # Complete work
+bd bootstrap          # Set up Beads in a fresh clone
+bd dolt pull          # Pull Beads state when switching machines
 bd dolt push          # Push beads data to remote
+```
+
+## Machine Switching
+
+Use this sequence when moving between two maintainer machines:
+
+```bash
+# Before leaving the current machine
+bd dolt push
+
+# After opening the repo on the other machine
+bd dolt pull
+```
+
+If `bd dolt pull` reports uncommitted Dolt changes:
+
+```bash
+bd dolt commit
+bd dolt pull
 ```
 
 ## Non-Interactive Shell Commands
@@ -39,7 +63,7 @@ cp -rf source dest          # NOT: cp -r source dest
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker
 
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
+This project uses **bd (beads)** for maintainer issue tracking. Run `bd prime` to see full workflow context and commands.
 
 ### Quick Reference
 
@@ -52,7 +76,7 @@ bd close <id>         # Complete work
 
 ### Rules
 
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
+- If you are acting as a maintainer or local coding agent, use `bd` for task tracking instead of ad hoc markdown TODO lists
 - Run `bd prime` for detailed command reference and session close protocol
 - Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
 

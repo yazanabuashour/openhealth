@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-This project is pre-`1.0` and does not yet ship a runnable application or package. Until `0.1.0`, the only supported code line is the current default branch and the most recent `0.y.z` tag, if one exists.
+This project is pre-`1.0` and currently ships a small runnable Go CLI in source form. Until `0.1.0`, the only supported code line is the current default branch and the most recent `0.y.z` tag, if one exists.
 
 Older pre-`1.0` tags are not guaranteed to receive fixes or backports.
 

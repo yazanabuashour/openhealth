@@ -2,7 +2,7 @@
 
 This repository uses **Beads** (`bd`) in embedded mode for maintainer task tracking.
 
-This repository is public, but it is still only a scaffold. There is no deploy pipeline, package publication target, or runnable application yet. Keep maintainer docs honest about that status.
+This repository is public and now includes a small runnable Go CLI, but it still has no deploy pipeline or package publication target. Keep maintainer docs honest about the actual supported surface.
 
 ## Initial Setup
 

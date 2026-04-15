@@ -25,10 +25,13 @@ For the current Go surface, contributors should be able to run:
 ```bash
 OPENHEALTH_DATA_DIR="$(mktemp -d)" mise exec -- go run ./examples/client_summary
 mise exec -- go run ./cmd/openhealth
+./scripts/validate-agent-skill.sh skills/openhealth
 mise exec -- gofmt -w .
 mise exec -- golangci-lint run
 mise exec -- go test ./...
 ```
+
+If a change touches `skills/openhealth/SKILL.md`, run `./scripts/validate-agent-skill.sh skills/openhealth` before opening the pull request.
 
 ## Pull request expectations
 
@@ -39,7 +42,7 @@ mise exec -- go test ./...
 
 ## Checks and review rules
 
-Current pull request checks validate repository policy, Go formatting, Go linting, unit tests, and dependency-review safety.
+Current pull request checks validate repository policy, the Agent Skill metadata shape, Go formatting, Go linting, unit tests, and dependency-review safety.
 
 Pull requests that touch Go code are expected to leave the repository in a runnable, formatted, lint-clean, and test-clean state.
 

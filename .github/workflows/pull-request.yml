@@ -31,6 +31,8 @@ jobs:
             .github/dependabot.yml
             .github/workflows/pull-request.yml
             .github/workflows/release.yml
+            scripts/validate-agent-skill.sh
+            skills/openhealth/SKILL.md
           )
 
           for file in "${required_files[@]}"; do
@@ -50,6 +52,9 @@ jobs:
             echo "Remove machine-absolute filesystem paths from committed docs."
             exit 1
           fi
+
+      - name: Validate Agent Skill
+        run: ./scripts/validate-agent-skill.sh skills/openhealth
 
   go-checks:
     name: Go checks

@@ -1,40 +1,48 @@
 # openhealth
 
-## Quick start
+OpenHealth is a Go SDK for a local-first health runtime. The default install surface is the generated client package in `client`, opened in-process with `client.OpenLocal(...)`. Normal use does not require a daemon, bound port, or background service.
 
-The primary user-facing runtime is:
+## Install in your Go project
 
-- the generated Go client in `client`
-- a local in-process runtime opened with `client.OpenLocal(...)`
-- the contract source of truth in `openapi/openapi.yaml`
+Install the first tagged release of the module, then import the client package from it:
 
 ```bash
-mise install
-OPENHEALTH_DATA_DIR="$(mktemp -d)" mise exec -- go run ./examples/client_summary
+go get github.com/yazanabuashour/openhealth@v0.1.0
 ```
-
-Validate local changes with:
-
-```bash
-mise exec -- go generate ./...
-mise exec -- gofmt -w .
-mise exec -- golangci-lint run
-mise exec -- go test ./...
-```
-
-OpenHealth keeps the OpenAPI-generated client surface without requiring a host-level daemon, bound port, or background service. The client bootstrap opens SQLite locally, runs migrations, and routes requests to the generated handler in-process.
 
 Minimal usage from Go:
 
 ```go
-api, err := client.OpenLocal(client.LocalConfig{})
-if err != nil {
-  return err
-}
-defer api.Close()
+package main
 
-summary, err := api.GetHealthSummaryWithResponse(ctx)
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"github.com/yazanabuashour/openhealth/client"
+)
+
+func main() {
+	api, err := client.OpenLocal(client.LocalConfig{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer api.Close()
+
+	summary, err := api.GetHealthSummaryWithResponse(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+	if summary.JSON200 == nil {
+		log.Fatalf("unexpected status: %s", summary.Status())
+	}
+
+	fmt.Printf("active medications=%d\n", summary.JSON200.ActiveMedicationCount)
+}
 ```
+
+`client.OpenLocal(...)` opens SQLite locally, runs migrations, and routes requests to the generated handler in-process. Use `client.NewDefault(baseURL)` only when you intentionally want to talk to an explicit HTTP server.
 
 ## Local storage
 
@@ -49,14 +57,35 @@ Override the default location with either:
 
 The database path override wins over the data directory override.
 
-## Maintainer CLI
+## Debugging with a standalone server
 
-The CLI remains available for maintainers who want an explicit HTTP server for debugging or contract inspection:
+The standalone CLI remains available for maintainer debugging or contract inspection, but it is not the primary end-user install surface:
+
+```bash
+mise exec -- go run ./cmd/openhealth serve
+```
+
+## Contributing and maintainer setup
+
+Repository development still uses the full local toolchain:
+
+```bash
+mise install
+OPENHEALTH_DATA_DIR="$(mktemp -d)" mise exec -- go run ./examples/client_summary
+mise exec -- go generate ./...
+mise exec -- gofmt -w .
+mise exec -- golangci-lint run
+mise exec -- go test ./...
+```
+
+Maintainers who need explicit database or HTTP debugging can also run:
 
 ```bash
 mise exec -- go run ./cmd/openhealth migrate
 mise exec -- go run ./cmd/openhealth serve
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor expectations and [docs/maintainers.md](docs/maintainers.md) for maintainer-only workflow details.
 
 ## Repository contents
 
@@ -73,7 +102,7 @@ mise exec -- go run ./cmd/openhealth serve
 
 ## Release contract
 
-The current source-level deliverables are:
+The source-level deliverables are:
 
 - the Go module import path rooted at `github.com/yazanabuashour/openhealth`
 - the generated client package at `github.com/yazanabuashour/openhealth/client`
@@ -81,7 +110,7 @@ The current source-level deliverables are:
 
 The maintainer CLI under `cmd/openhealth` remains part of the repository for debugging and contract inspection, but it is not the primary end-user install surface.
 
-Releases remain GitHub Releases with semantic version tags in the `v0.y.z` range. Each tagged release publishes a canonical source archive, SHA256 checksums, an SPDX SBOM, and GitHub attestations for release verification. The repository does not currently publish downloadable platform binaries or a hosted service deployment target.
+The release workflow is built around semantic version tags in the `v0.y.z` range. Each tagged GitHub Release publishes a canonical source archive, SHA256 checksums, an SPDX SBOM, and GitHub attestations for release verification. The repository does not publish downloadable platform binaries or a hosted service deployment target.
 
 ## Contributing
 

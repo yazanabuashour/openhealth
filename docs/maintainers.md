@@ -84,7 +84,7 @@ When changing GitHub settings, keep the repo aligned with:
 
 ## Release publication
 
-The release contract is a tagged source release for the local in-process runtime. Tag a version like `v0.1.0`, push the tag, and let the release workflow:
+The first public release tag should be `v0.1.0`. The release contract is a tagged source release for the local in-process runtime. Tag a version like `v0.1.0`, push the tag, and let the release workflow:
 
 - validate codegen, formatting, and tests before publish
 - create or reuse the GitHub Release

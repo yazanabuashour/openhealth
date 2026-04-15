@@ -11,6 +11,7 @@ Use this skill when an agent needs local-first health data from an OpenHealth se
 
 ## Install Surface
 
+- Install the first tagged module release with `go get github.com/yazanabuashour/openhealth@v0.1.0`, then import `github.com/yazanabuashour/openhealth/client`.
 - Import `github.com/yazanabuashour/openhealth/client`.
 - Prefer `client.OpenLocal(client.LocalConfig{})` for the default user-machine install surface.
 - Use `client.NewDefault(baseURL)` only when you intentionally want to talk to an explicit HTTP server.

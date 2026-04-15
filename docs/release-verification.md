@@ -1,6 +1,6 @@
 # Release Verification
 
-OpenHealth releases publish three integrity-focused assets alongside the Git tag:
+Tagged OpenHealth releases publish three integrity-focused assets alongside the Git tag:
 
 - `openhealth_<version>_source.tar.gz`
 - `openhealth_<version>_checksums.txt`

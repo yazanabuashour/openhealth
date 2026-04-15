@@ -7,11 +7,13 @@ Use this skill when an agent needs local-first health data from an OpenHealth se
 - Read the OpenHealth API from Go code.
 - Build agent-side integrations that need typed health summaries, history, trends, medications, or labs.
 - Keep client code pinned to the OpenAPI-generated contract instead of hand-written HTTP calls.
+- Use the local in-process runtime instead of binding a host port or running a background daemon.
 
 ## Install Surface
 
 - Import `github.com/yazanabuashour/openhealth/client`.
-- Prefer `client.NewDefault(baseURL)` for a ready-to-use client with timeout and safe retries for idempotent reads.
+- Prefer `client.OpenLocal(client.LocalConfig{})` for the default user-machine install surface.
+- Use `client.NewDefault(baseURL)` only when you intentionally want to talk to an explicit HTTP server.
 - Use `client.NewClientWithResponses(...)` directly only when custom transport wiring is required.
 
 ## Minimal Example
@@ -27,10 +29,11 @@ import (
 )
 
 func main() {
-  api, err := client.NewDefault("http://localhost:8080")
+  api, err := client.OpenLocal(client.LocalConfig{})
   if err != nil {
     log.Fatal(err)
   }
+  defer api.Close()
 
   summary, err := api.GetHealthSummaryWithResponse(context.Background())
   if err != nil {
@@ -47,6 +50,7 @@ func main() {
 
 ## Notes
 
-- Run the server with `go run ./cmd/openhealth serve`.
-- Run migrations first with `go run ./cmd/openhealth migrate`.
+- `client.OpenLocal(...)` opens SQLite, runs migrations, and serves the OpenAPI handler in-process.
+- Default data location is `${XDG_DATA_HOME:-~/.local/share}/openhealth/openhealth.db`; override it with `client.LocalConfig`, `OPENHEALTH_DATA_DIR`, or `OPENHEALTH_DATABASE_PATH`.
+- Run the server with `go run ./cmd/openhealth serve` only for maintainer/debug workflows.
 - A fuller sample lives at `examples/client_summary/main.go`.

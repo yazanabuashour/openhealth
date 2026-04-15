@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-This project is pre-`1.0` and currently ships a small runnable Go CLI in source form. Until `0.1.0`, the only supported code line is the current default branch and the most recent `0.y.z` tag, if one exists.
+This project is pre-`1.0` and currently ships a generated Go client plus a local in-process runtime in source form. Until `0.1.0`, the only supported code line is the current default branch and the most recent `0.y.z` tag, if one exists.
 
 Older pre-`1.0` tags are not guaranteed to receive fixes or backports.
 
@@ -49,4 +49,4 @@ Maintainers will triage reports using practical impact on repository users and m
 
 If a vulnerability affects the latest supported code line, maintainers may cut an out-of-band patch tag and GitHub Release outside the normal release cadence.
 
-Because the repository does not yet ship build artifacts or packages, emergency fixes currently mean source changes and release notes only.
+Emergency fixes currently publish updated source releases with checksums, SBOMs, and GitHub attestations. The repository does not yet publish downloadable platform binaries or hosted service deployments.

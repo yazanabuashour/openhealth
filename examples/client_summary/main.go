@@ -10,16 +10,19 @@ import (
 )
 
 func main() {
-	baseURL := os.Getenv("OPENHEALTH_BASE_URL")
-	if baseURL == "" {
-		baseURL = "http://localhost:8080"
-	}
-
-	api, err := client.NewDefault(baseURL)
+	api, err := client.OpenLocal(client.LocalConfig{
+		DataDir: os.Getenv(client.EnvDataDir),
+	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "create client: %v\n", err)
+		fmt.Fprintf(os.Stderr, "open local client: %v\n", err)
 		os.Exit(1)
 	}
+	defer func() {
+		if closeErr := api.Close(); closeErr != nil {
+			fmt.Fprintf(os.Stderr, "close local client: %v\n", closeErr)
+			os.Exit(1)
+		}
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -45,7 +48,8 @@ func main() {
 	}
 
 	fmt.Printf(
-		"active medications=%d weights=%d\n",
+		"db=%s active medications=%d weights=%d\n",
+		api.Paths.DatabasePath,
 		summary.JSON200.ActiveMedicationCount,
 		len(weights.JSON200.Items),
 	)

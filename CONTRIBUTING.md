@@ -4,7 +4,7 @@ Outside contributors do not need Beads to contribute to this repository.
 
 ## Current project shape
 
-This repository now includes a small runnable Go CLI at `cmd/openhealth`. It is still pre-`1.0`, does not publish packages or deployment artifacts, and keeps its public contract intentionally small.
+This repository now exposes a generated Go client plus a local in-process runtime bootstrap in `client`. The maintainer CLI in `cmd/openhealth` remains available for debugging, but the primary user install story does not require a daemon, bound port, or host-level service.
 
 Changes to the Go surface must keep the runtime, setup instructions, and validation commands truthful in both docs and CI.
 
@@ -23,6 +23,7 @@ Beads and Dolt are maintainer-only tools. They are optional for outside contribu
 For the current Go surface, contributors should be able to run:
 
 ```bash
+OPENHEALTH_DATA_DIR="$(mktemp -d)" mise exec -- go run ./examples/client_summary
 mise exec -- go run ./cmd/openhealth
 mise exec -- gofmt -w .
 mise exec -- golangci-lint run
@@ -44,6 +45,6 @@ Pull requests that touch Go code are expected to leave the repository in a runna
 
 ## Support and compatibility
 
-Before `0.1.0`, compatibility is best effort and may change between releases. The current supported runtime surface is Go `1.26.2`, with CI validating the repository on `ubuntu-latest`. No deployment target, hosted service, or packaged binary distribution is promised yet.
+Before `0.1.0`, compatibility is best effort and may change between releases. The current supported runtime surface is Go `1.26.2`, with CI validating the repository on `ubuntu-latest`. The supported install story is a local machine with the Go toolchain available. No hosted deployment target or packaged binary distribution is promised yet.
 
 Maintainer workflow notes live in [docs/maintainers.md](docs/maintainers.md).

@@ -2,7 +2,7 @@
 
 This repository uses **Beads** (`bd`) in embedded mode for maintainer task tracking.
 
-This repository is public and now includes a runnable Go CLI, a generated Go client, and an OpenAPI contract. Keep maintainer docs honest about the actual supported surface.
+This repository is public and now includes a generated Go client, an in-process local runtime, a maintainer/debug CLI, and an OpenAPI contract. Keep maintainer docs honest about the actual supported surface.
 
 ## Initial Setup
 
@@ -66,6 +66,7 @@ Current readiness assumptions:
 - Pull requests run only untrusted-safe validation with read-only token scope.
 - Pull requests enforce codegen drift checks through `go generate ./...` plus `git diff --exit-code`.
 - GitHub Releases are created from version tags in the `v0.y.z` form.
+- Release publication runs in a protected `release` environment with narrowly scoped write permissions.
 - Security reports are expected through GitHub private vulnerability reporting.
 
 Current review enforcement nuance:
@@ -79,8 +80,15 @@ When changing GitHub settings, keep the repo aligned with:
 - [SECURITY.md](../SECURITY.md) for disclosure handling and patch timing.
 - [.github/CODEOWNERS](../.github/CODEOWNERS) for sensitive file ownership.
 - [.github/workflows/pull-request.yml](../.github/workflows/pull-request.yml) for fork-safe checks.
-- [.github/workflows/release.yml](../.github/workflows/release.yml) for release-note generation.
+- [.github/workflows/release.yml](../.github/workflows/release.yml) for release publication, checksums, SBOMs, and attestations.
 
-## Release notes
+## Release publication
 
-The current release contract is GitHub Releases only. Tag a version like `v0.1.0`, push the tag, and let the release workflow generate notes from the tag. Do not attach build artifacts, checksums, provenance, or SBOMs until the project actually ships distributable outputs and the stronger release process is implemented.
+The release contract is a tagged source release for the local in-process runtime. Tag a version like `v0.1.0`, push the tag, and let the release workflow:
+
+- validate codegen, formatting, and tests before publish
+- create or reuse the GitHub Release
+- attach the canonical source archive, SHA256 checksums, and SPDX SBOM
+- generate GitHub attestations for the published source asset
+
+The `release` environment should remain protected so only approved maintainers can publish release assets.

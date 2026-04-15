@@ -1,17 +1,21 @@
 package client_test
 
 import (
+	"os"
 	"os/exec"
 	"testing"
+
+	"github.com/yazanabuashour/openhealth/client"
 )
 
-func TestClientExampleBuilds(t *testing.T) {
+func TestClientExampleRunsAgainstLocalRuntime(t *testing.T) {
 	t.Parallel()
 
-	cmd := exec.Command("go", "build", "-o", t.TempDir()+"/client-summary", "./examples/client_summary")
+	cmd := exec.Command("go", "run", "./examples/client_summary")
 	cmd.Dir = ".."
+	cmd.Env = append(os.Environ(), client.EnvDataDir+"="+t.TempDir())
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("build example: %v\n%s", err, output)
+		t.Fatalf("run example: %v\n%s", err, output)
 	}
 }

@@ -2,7 +2,7 @@
 
 This repository uses **Beads** (`bd`) in embedded mode for maintainer task tracking.
 
-This repository is public and now includes a small runnable Go CLI, but it still has no deploy pipeline or package publication target. Keep maintainer docs honest about the actual supported surface.
+This repository is public and now includes a runnable Go CLI, a generated Go client, and an OpenAPI contract. Keep maintainer docs honest about the actual supported surface.
 
 ## Initial Setup
 
@@ -64,6 +64,7 @@ Current readiness assumptions:
 
 - `main` is the protected default branch.
 - Pull requests run only untrusted-safe validation with read-only token scope.
+- Pull requests enforce codegen drift checks through `go generate ./...` plus `git diff --exit-code`.
 - GitHub Releases are created from version tags in the `v0.y.z` form.
 - Security reports are expected through GitHub private vulnerability reporting.
 

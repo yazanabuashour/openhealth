@@ -1,0 +1,711 @@
+openapi: 3.0.3
+info:
+  title: OpenHealth API
+  version: 0.1.0
+  description: Contract-first health API for the OpenHealth local-first service.
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: system
+    description: Service liveness endpoints.
+  - name: health
+    description: Health history, trends, medications, and labs.
+paths:
+  /api/health:
+    get:
+      operationId: health
+      tags: [system]
+      summary: Service liveness
+      description: Returns the process health status.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+  /api/v1/health/summary:
+    get:
+      operationId: getHealthSummary
+      tags: [health]
+      summary: Get health dashboard summary
+      description: Returns the latest weight metrics, most recent blood pressure, active medication count, and latest notable labs.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthSummary"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+  /api/v1/health/weight:
+    get:
+      operationId: listHealthWeight
+      tags: [health]
+      summary: List weight entries
+      description: Returns health weight entries ordered newest first with optional date range filtering.
+      parameters:
+        - $ref: "#/components/parameters/FromDateTime"
+        - $ref: "#/components/parameters/ToDateTime"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthWeightEntryList"
+        "400":
+          $ref: "#/components/responses/BadRequestErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+    post:
+      operationId: createHealthWeight
+      tags: [health]
+      summary: Create weight entry
+      description: Creates a manual weight entry. V1 accepts pounds only.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHealthWeightRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthWeightEntry"
+        "400":
+          $ref: "#/components/responses/BadRequestErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+  /api/v1/health/weight/{id}:
+    patch:
+      operationId: updateHealthWeight
+      tags: [health]
+      summary: Update weight entry
+      description: Updates a weight entry.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateHealthWeightRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthWeightEntry"
+        "400":
+          $ref: "#/components/responses/BadRequestErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+    delete:
+      operationId: deleteHealthWeight
+      tags: [health]
+      summary: Delete weight entry
+      description: Soft-deletes a weight entry.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteSuccess"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+  /api/v1/health/weight/trend:
+    get:
+      operationId: getHealthWeightTrend
+      tags: [health]
+      summary: Get weight chart data
+      description: Returns raw weight points, 7-day moving averages, and monthly average buckets for the requested range.
+      parameters:
+        - name: range
+          in: query
+          description: Weight trend range
+          schema:
+            $ref: "#/components/schemas/HealthWeightRange"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthWeightTrend"
+        "400":
+          $ref: "#/components/responses/BadRequestErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+  /api/v1/health/blood-pressure:
+    get:
+      operationId: listHealthBloodPressure
+      tags: [health]
+      summary: List blood pressure entries
+      description: Returns blood pressure entries ordered newest first with optional date range filtering.
+      parameters:
+        - $ref: "#/components/parameters/FromDateTime"
+        - $ref: "#/components/parameters/ToDateTime"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthBloodPressureEntryList"
+        "400":
+          $ref: "#/components/responses/BadRequestErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+  /api/v1/health/blood-pressure/trend:
+    get:
+      operationId: getHealthBloodPressureTrend
+      tags: [health]
+      summary: Get blood pressure trend points
+      description: Returns blood pressure points for charting in chronological order.
+      parameters:
+        - $ref: "#/components/parameters/FromDateTime"
+        - $ref: "#/components/parameters/ToDateTime"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthBloodPressureEntryList"
+        "400":
+          $ref: "#/components/responses/BadRequestErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+  /api/v1/health/medications:
+    get:
+      operationId: listHealthMedications
+      tags: [health]
+      summary: List medication courses
+      description: Returns medication courses, optionally limited to active courses.
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, all]
+            default: active
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthMedicationCourseList"
+        "400":
+          $ref: "#/components/responses/BadRequestErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+  /api/v1/health/labs/analytes:
+    get:
+      operationId: listHealthLabAnalytes
+      tags: [health]
+      summary: List available lab analytes
+      description: Returns canonical analytes present in the lab history with latest and previous values.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthAnalyteSummaryList"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+  /api/v1/health/labs/analytes/{slug}/trend:
+    get:
+      operationId: getHealthLabAnalyteTrend
+      tags: [health]
+      summary: Get analyte trend data
+      description: Returns historical lab results for a single canonical analyte slug.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/HealthAnalyteSlug"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthAnalyteTrend"
+        "400":
+          $ref: "#/components/responses/BadRequestErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+  /api/v1/health/labs/collections:
+    get:
+      operationId: listHealthLabCollections
+      tags: [health]
+      summary: List lab collections
+      description: Returns chronological lab collections with nested panels and results for history browsing.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthLabCollectionList"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+components:
+  parameters:
+    ID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    FromDateTime:
+      name: from
+      in: query
+      schema:
+        type: string
+        format: date-time
+    ToDateTime:
+      name: to
+      in: query
+      schema:
+        type: string
+        format: date-time
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 3650
+  schemas:
+    HealthResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+    HealthWeightRange:
+      type: string
+      enum: [30d, 90d, 1y, all]
+      default: 90d
+    HealthAnalyteSlug:
+      type: string
+      enum:
+        [
+          tsh,
+          free-t4,
+          cholesterol-total,
+          ldl,
+          hdl,
+          triglycerides,
+          glucose,
+        ]
+    ErrorCode:
+      type: string
+      enum: [VALIDATION_ERROR, NOT_FOUND, CONFLICT, INTERNAL_ERROR]
+    ErrorDetails:
+      type: object
+      required: [code, message, correlationId]
+      properties:
+        code:
+          $ref: "#/components/schemas/ErrorCode"
+        message:
+          type: string
+        correlationId:
+          type: string
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          $ref: "#/components/schemas/ErrorDetails"
+    DeleteSuccess:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+    HealthWeightEntry:
+      type: object
+      required:
+        [
+          id,
+          recordedAt,
+          value,
+          unit,
+          source,
+          sourceRecordHash,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id:
+          type: integer
+        recordedAt:
+          type: string
+          format: date-time
+        value:
+          type: number
+        unit:
+          type: string
+          enum: [lb]
+        source:
+          type: string
+        sourceRecordHash:
+          type: string
+        note:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    HealthWeightEntryList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthWeightEntry"
+    CreateHealthWeightRequest:
+      type: object
+      required: [recordedAt, value, unit]
+      properties:
+        recordedAt:
+          type: string
+          format: date-time
+        value:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+        unit:
+          type: string
+          enum: [lb]
+    UpdateHealthWeightRequest:
+      type: object
+      minProperties: 1
+      properties:
+        recordedAt:
+          type: string
+          format: date-time
+        value:
+          type: number
+          minimum: 0
+          exclusiveMinimum: true
+        unit:
+          type: string
+          enum: [lb]
+    HealthBloodPressureEntry:
+      type: object
+      required:
+        [id, recordedAt, systolic, diastolic, source, sourceRecordHash, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        recordedAt:
+          type: string
+          format: date-time
+        systolic:
+          type: integer
+        diastolic:
+          type: integer
+        pulse:
+          type: integer
+          nullable: true
+        source:
+          type: string
+        sourceRecordHash:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    HealthBloodPressureEntryList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthBloodPressureEntry"
+    HealthMedicationCourse:
+      type: object
+      required: [id, name, startDate, source, createdAt, updatedAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        dosageText:
+          type: string
+          nullable: true
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          nullable: true
+        source:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
+    HealthMedicationCourseList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthMedicationCourse"
+    HealthLabResult:
+      type: object
+      required: [id, panelId, testName, valueText, displayOrder]
+      properties:
+        id:
+          type: integer
+        panelId:
+          type: integer
+        testName:
+          type: string
+        canonicalSlug:
+          allOf:
+            - $ref: "#/components/schemas/HealthAnalyteSlug"
+          nullable: true
+        valueText:
+          type: string
+        valueNumeric:
+          type: number
+          nullable: true
+        units:
+          type: string
+          nullable: true
+        rangeText:
+          type: string
+          nullable: true
+        flag:
+          type: string
+          nullable: true
+        displayOrder:
+          type: integer
+    HealthLabResultWithCollection:
+      allOf:
+        - $ref: "#/components/schemas/HealthLabResult"
+        - type: object
+          required: [collectedAt, collectionId, panelName]
+          properties:
+            collectedAt:
+              type: string
+              format: date-time
+            collectionId:
+              type: integer
+            panelName:
+              type: string
+    HealthLabPanel:
+      type: object
+      required: [id, collectionId, panelName, displayOrder, results]
+      properties:
+        id:
+          type: integer
+        collectionId:
+          type: integer
+        panelName:
+          type: string
+        displayOrder:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthLabResult"
+    HealthLabCollection:
+      type: object
+      required: [id, collectedAt, source, createdAt, panels]
+      properties:
+        id:
+          type: integer
+        collectedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        panels:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthLabPanel"
+    HealthLabCollectionList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthLabCollection"
+    HealthMovingAveragePoint:
+      type: object
+      required: [recordedAt, value]
+      properties:
+        recordedAt:
+          type: string
+          format: date-time
+        value:
+          type: number
+    HealthMonthlyAverageBucket:
+      type: object
+      required: [month, value]
+      properties:
+        month:
+          type: string
+        value:
+          type: number
+    HealthWeightTrend:
+      type: object
+      required: [range, rawPoints, movingAveragePoints, monthlyAverageBuckets]
+      properties:
+        range:
+          $ref: "#/components/schemas/HealthWeightRange"
+        rawPoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthWeightEntry"
+        movingAveragePoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthMovingAveragePoint"
+        monthlyAverageBuckets:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthMonthlyAverageBucket"
+    HealthAnalyteSummary:
+      type: object
+      required: [slug, latest, previous]
+      properties:
+        slug:
+          $ref: "#/components/schemas/HealthAnalyteSlug"
+        latest:
+          $ref: "#/components/schemas/HealthLabResultWithCollection"
+        previous:
+          allOf:
+            - $ref: "#/components/schemas/HealthLabResultWithCollection"
+          nullable: true
+    HealthAnalyteSummaryList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthAnalyteSummary"
+    HealthAnalyteTrend:
+      type: object
+      required: [slug, latest, previous, points]
+      properties:
+        slug:
+          $ref: "#/components/schemas/HealthAnalyteSlug"
+        latest:
+          allOf:
+            - $ref: "#/components/schemas/HealthLabResultWithCollection"
+          nullable: true
+        previous:
+          allOf:
+            - $ref: "#/components/schemas/HealthLabResultWithCollection"
+          nullable: true
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthLabResultWithCollection"
+    HealthSummary:
+      type: object
+      required:
+        [latestWeight, average7d, delta30d, latestBloodPressure, activeMedicationCount, latestLabHighlights]
+      properties:
+        latestWeight:
+          allOf:
+            - $ref: "#/components/schemas/HealthWeightEntry"
+          nullable: true
+        average7d:
+          type: number
+          nullable: true
+        delta30d:
+          type: number
+          nullable: true
+        latestBloodPressure:
+          allOf:
+            - $ref: "#/components/schemas/HealthBloodPressureEntry"
+          nullable: true
+        activeMedicationCount:
+          type: integer
+        latestLabHighlights:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthLabResultWithCollection"
+  responses:
+    BadRequestErrorResponse:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    NotFoundErrorResponse:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    ConflictErrorResponse:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"
+    InternalErrorResponse:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorEnvelope"

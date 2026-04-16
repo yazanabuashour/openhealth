@@ -242,7 +242,7 @@ func runCommand(args []string) {
 			"GOMODCACHE=<run-root>/<variant>/<scenario>/gomodcache",
 			"codex exec --json --ephemeral --full-auto --skip-git-repo-check --add-dir <run-root>/<variant>/<scenario> -C <run-root>/<variant>/<scenario>/repo -m gpt-5.4-mini -c model_reasoning_effort=\"medium\" -c shell_environment_policy.inherit=all <natural user prompt>",
 		},
-		CLIStatus:         "not runnable: cmd/openhealth currently exposes migrate and serve, not user-facing weight add/list commands",
+		CLIStatus:         "runnable: cli variant uses go run ./cmd/openhealth weight add/list",
 		Results:           results,
 		RawLogsCommitted:  false,
 		RawLogsNote:       "Raw codex exec event logs and stderr files were retained under <run-root> during execution and intentionally not committed.",
@@ -348,12 +348,16 @@ func runOne(repoRoot string, runRoot string, currentVariant variant, currentScen
 	if err != nil {
 		return runResult{}, err
 	}
-	defer stdoutFile.Close()
+	defer func() {
+		_ = stdoutFile.Close()
+	}()
 	stderrFile, err := os.Create(stderrPath)
 	if err != nil {
 		return runResult{}, err
 	}
-	defer stderrFile.Close()
+	defer func() {
+		_ = stderrFile.Close()
+	}()
 
 	args := []string{
 		"exec",
@@ -461,6 +465,7 @@ func variants() []variant {
 	return []variant{
 		{ID: "production", Title: "Production SDK skill"},
 		{ID: "generated-client", Title: "Generated-client baseline skill"},
+		{ID: "cli", Title: "CLI-oriented skill"},
 	}
 }
 
@@ -513,7 +518,9 @@ func seedScenario(dbPath string, sc scenario) error {
 	if err != nil {
 		return err
 	}
-	defer api.Close()
+	defer func() {
+		_ = api.Close()
+	}()
 
 	ctx := context.Background()
 	switch sc.ID {
@@ -556,7 +563,7 @@ func upsertWeights(ctx context.Context, api *client.LocalClient, weights []weigh
 
 func verifyScenario(dbPath string, sc scenario, finalMessage string) (verificationResult, error) {
 	weights, err := listWeights(dbPath)
-	states := []weightState{}
+	var states []weightState
 	listErrorDetail := ""
 	if err != nil {
 		rawStates, rawErr := listRawWeights(dbPath)
@@ -618,7 +625,9 @@ func listWeights(dbPath string) ([]client.WeightEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer api.Close()
+	defer func() {
+		_ = api.Close()
+	}()
 	return api.ListWeights(context.Background(), client.WeightListOptions{Limit: 100})
 }
 
@@ -627,7 +636,9 @@ func listRawWeights(dbPath string) ([]weightState, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	rows, err := db.QueryContext(context.Background(), `
 SELECT recorded_at, value, unit
@@ -638,7 +649,9 @@ ORDER BY recorded_at DESC, id DESC
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	states := []weightState{}
 	for rows.Next() {
@@ -674,7 +687,9 @@ func parseMetrics(path string) (parsedMetrics, error) {
 	if err != nil {
 		return parsedMetrics{}, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	out := parsedMetrics{
 		metrics: metrics{
@@ -812,14 +827,18 @@ func copyFile(src string, dst string, mode fs.FileMode) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() {
+		_ = in.Close()
+	}()
 	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
 		return err
 	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
 }
 
 func installVariant(repoRoot string, runRepo string, currentVariant variant) error {
@@ -833,13 +852,15 @@ func installVariant(repoRoot string, runRepo string, currentVariant variant) err
 		src = filepath.Join(repoRoot, "skills", "openhealth")
 	case "generated-client":
 		src = filepath.Join(repoRoot, "docs", "agent-eval-assets", "variants", "generated-client")
+	case "cli":
+		src = filepath.Join(repoRoot, "docs", "agent-eval-assets", "variants", "cli")
 	default:
 		return fmt.Errorf("unknown variant %q", currentVariant.ID)
 	}
 	if err := copyDir(src, dest); err != nil {
 		return err
 	}
-	if currentVariant.ID == "generated-client" {
+	if currentVariant.ID == "generated-client" || currentVariant.ID == "cli" {
 		return normalizeSkillName(filepath.Join(dest, "SKILL.md"), "openhealth")
 	}
 	return nil
@@ -950,7 +971,7 @@ func writeMarkdown(path string, value report) error {
 	}
 
 	fmt.Fprintf(&b, "\n## CLI-Oriented Variant\n\n")
-	fmt.Fprintf(&b, "The CLI-oriented variant was not run because `%s`.\n", value.CLIStatus)
+	fmt.Fprintf(&b, "Status: `%s`.\n", value.CLIStatus)
 
 	fmt.Fprintf(&b, "\n## App Server\n\n")
 	fmt.Fprintf(&b, "%s.\n", value.AppServerFallback)
@@ -1002,7 +1023,9 @@ func fileContains(path string, needle string) bool {
 	if err != nil {
 		return false
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 0, 64*1024), 8*1024*1024)

@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -36,6 +37,48 @@ func TestPrepareRunDirResetsAndCreatesRuntimeDirs(t *testing.T) {
 		if !info.IsDir() {
 			t.Fatalf("%s is not a directory", dir)
 		}
+	}
+}
+
+func TestVariantsIncludeCLI(t *testing.T) {
+	t.Parallel()
+
+	ids := map[string]bool{}
+	for _, variant := range variants() {
+		ids[variant.ID] = true
+	}
+	for _, want := range []string{"production", "generated-client", "cli"} {
+		if !ids[want] {
+			t.Fatalf("variants() missing %q: %#v", want, variants())
+		}
+	}
+}
+
+func TestWriteMarkdownReportsRunnableCLIStatus(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "report.md")
+	if err := writeMarkdown(path, report{
+		Issue:           issueID,
+		Date:            "2026-04-16",
+		Harness:         "test",
+		Model:           modelName,
+		ReasoningEffort: reasoningEffort,
+		CodexVersion:    "test",
+		CLIStatus:       "runnable: cli variant uses go run ./cmd/openhealth weight add/list",
+	}); err != nil {
+		t.Fatalf("writeMarkdown: %v", err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read markdown: %v", err)
+	}
+	text := string(content)
+	if !strings.Contains(text, "Status: `runnable: cli variant uses go run ./cmd/openhealth weight add/list`.") {
+		t.Fatalf("markdown = %q, want runnable CLI status", text)
+	}
+	if strings.Contains(text, "not run because") {
+		t.Fatalf("markdown = %q, should not report CLI as skipped", text)
 	}
 }
 

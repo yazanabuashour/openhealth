@@ -45,4 +45,25 @@ func TestOpenAPIContractIsSingleUserAndStable(t *testing.T) {
 	if !strings.Contains(spec, "correlationId") {
 		t.Fatalf("error envelope should expose a correlationId")
 	}
+	for _, operationID := range []string{
+		"createHealthBloodPressure",
+		"replaceHealthBloodPressure",
+		"deleteHealthBloodPressure",
+		"createHealthMedication",
+		"replaceHealthMedication",
+		"deleteHealthMedication",
+		"createHealthLabCollection",
+		"replaceHealthLabCollection",
+		"deleteHealthLabCollection",
+	} {
+		if !strings.Contains(spec, "operationId: "+operationID) {
+			t.Fatalf("spec missing operationId %s", operationID)
+		}
+	}
+	if !strings.Contains(spec, "CreateHealthLabCollectionRequest") {
+		t.Fatalf("spec should expose lab collection write request")
+	}
+	if !strings.Contains(spec, "updatedAt") || !strings.Contains(spec, "deletedAt") {
+		t.Fatalf("lab collection lifecycle fields should be exposed")
+	}
 }

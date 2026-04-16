@@ -143,6 +143,8 @@ type LabCollection struct {
 	CollectedAt time.Time
 	Source      string
 	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	DeletedAt   *time.Time
 	Panels      []LabPanel
 }
 
@@ -191,6 +193,40 @@ type WeightRecordInput struct {
 	Unit       WeightUnit
 }
 
+type BloodPressureRecordInput struct {
+	RecordedAt time.Time
+	Systolic   int
+	Diastolic  int
+	Pulse      *int
+}
+
+type MedicationCourseInput struct {
+	Name       string
+	DosageText *string
+	StartDate  string
+	EndDate    *string
+}
+
+type LabResultInput struct {
+	TestName      string
+	CanonicalSlug *AnalyteSlug
+	ValueText     string
+	ValueNumeric  *float64
+	Units         *string
+	RangeText     *string
+	Flag          *string
+}
+
+type LabPanelInput struct {
+	PanelName string
+	Results   []LabResultInput
+}
+
+type LabCollectionInput struct {
+	CollectedAt time.Time
+	Panels      []LabPanelInput
+}
+
 type WeightUpdateInput struct {
 	RecordedAt *time.Time
 	Value      *float64
@@ -230,6 +266,95 @@ type DeleteWeightEntryParams struct {
 	UpdatedAt time.Time
 }
 
+type CreateBloodPressureEntryParams struct {
+	RecordedAt       time.Time
+	Systolic         int
+	Diastolic        int
+	Pulse            *int
+	Source           string
+	SourceRecordHash string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type UpdateBloodPressureEntryParams struct {
+	ID         int
+	RecordedAt time.Time
+	Systolic   int
+	Diastolic  int
+	Pulse      *int
+	UpdatedAt  time.Time
+}
+
+type DeleteBloodPressureEntryParams struct {
+	ID        int
+	DeletedAt time.Time
+	UpdatedAt time.Time
+}
+
+type CreateMedicationCourseParams struct {
+	Name       string
+	DosageText *string
+	StartDate  string
+	EndDate    *string
+	Source     string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type UpdateMedicationCourseParams struct {
+	ID         int
+	Name       string
+	DosageText *string
+	StartDate  string
+	EndDate    *string
+	UpdatedAt  time.Time
+}
+
+type DeleteMedicationCourseParams struct {
+	ID        int
+	DeletedAt time.Time
+	UpdatedAt time.Time
+}
+
+type LabResultWriteParams struct {
+	TestName      string
+	CanonicalSlug *AnalyteSlug
+	ValueText     string
+	ValueNumeric  *float64
+	Units         *string
+	RangeText     *string
+	Flag          *string
+	DisplayOrder  int
+}
+
+type LabPanelWriteParams struct {
+	PanelName    string
+	DisplayOrder int
+	Results      []LabResultWriteParams
+}
+
+type CreateLabCollectionParams struct {
+	CollectedAt time.Time
+	Source      string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	Panels      []LabPanelWriteParams
+}
+
+type UpdateLabCollectionParams struct {
+	ID          int
+	CollectedAt time.Time
+	UpdatedAt   time.Time
+	Panels      []LabPanelWriteParams
+}
+
+type DeleteLabCollectionParams struct {
+	ID        int
+	DeletedAt time.Time
+	UpdatedAt time.Time
+}
+
 type FindManualWeightEntryParams struct {
 	RecordedAt time.Time
 	Unit       WeightUnit
@@ -242,9 +367,18 @@ type Repository interface {
 	UpdateWeightEntry(ctx context.Context, params UpdateWeightEntryParams) (WeightEntry, error)
 	DeleteWeightEntry(ctx context.Context, params DeleteWeightEntryParams) error
 	ListBloodPressureEntries(ctx context.Context, filter HistoryFilter) ([]BloodPressureEntry, error)
+	CreateBloodPressureEntry(ctx context.Context, params CreateBloodPressureEntryParams) (BloodPressureEntry, error)
+	UpdateBloodPressureEntry(ctx context.Context, params UpdateBloodPressureEntryParams) (BloodPressureEntry, error)
+	DeleteBloodPressureEntry(ctx context.Context, params DeleteBloodPressureEntryParams) error
 	ListMedicationCourses(ctx context.Context, status MedicationStatus, today string) ([]MedicationCourse, error)
+	CreateMedicationCourse(ctx context.Context, params CreateMedicationCourseParams) (MedicationCourse, error)
+	UpdateMedicationCourse(ctx context.Context, params UpdateMedicationCourseParams) (MedicationCourse, error)
+	DeleteMedicationCourse(ctx context.Context, params DeleteMedicationCourseParams) error
 	CountActiveMedicationCourses(ctx context.Context, today string) (int, error)
 	ListLabCollections(ctx context.Context) ([]LabCollection, error)
+	CreateLabCollection(ctx context.Context, params CreateLabCollectionParams) (LabCollection, error)
+	UpdateLabCollection(ctx context.Context, params UpdateLabCollectionParams) (LabCollection, error)
+	DeleteLabCollection(ctx context.Context, params DeleteLabCollectionParams) error
 	ListLabResultsWithCollection(ctx context.Context) ([]LabResultWithCollection, error)
 }
 
@@ -257,9 +391,18 @@ type Service interface {
 	DeleteWeight(ctx context.Context, id int) error
 	WeightTrend(ctx context.Context, params WeightTrendParams) (WeightTrend, error)
 	ListBloodPressure(ctx context.Context, filter HistoryFilter) ([]BloodPressureEntry, error)
+	RecordBloodPressure(ctx context.Context, input BloodPressureRecordInput) (BloodPressureEntry, error)
+	ReplaceBloodPressure(ctx context.Context, id int, input BloodPressureRecordInput) (BloodPressureEntry, error)
+	DeleteBloodPressure(ctx context.Context, id int) error
 	BloodPressureTrend(ctx context.Context, filter HistoryFilter) ([]BloodPressureEntry, error)
 	ListMedications(ctx context.Context, params MedicationListParams) ([]MedicationCourse, error)
+	CreateMedicationCourse(ctx context.Context, input MedicationCourseInput) (MedicationCourse, error)
+	ReplaceMedicationCourse(ctx context.Context, id int, input MedicationCourseInput) (MedicationCourse, error)
+	DeleteMedicationCourse(ctx context.Context, id int) error
 	ListAnalytes(ctx context.Context) ([]AnalyteSummary, error)
 	AnalyteTrend(ctx context.Context, slug AnalyteSlug) (AnalyteTrend, error)
 	ListLabCollections(ctx context.Context) ([]LabCollection, error)
+	CreateLabCollection(ctx context.Context, input LabCollectionInput) (LabCollection, error)
+	ReplaceLabCollection(ctx context.Context, id int, input LabCollectionInput) (LabCollection, error)
+	DeleteLabCollection(ctx context.Context, id int) error
 }

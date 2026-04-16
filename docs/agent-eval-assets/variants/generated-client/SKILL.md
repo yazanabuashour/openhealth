@@ -101,6 +101,13 @@ latest-weight questions.
 For a generated-client-only write, call the generated create endpoint with an
 explicit timestamp, value, and unit.
 
+Before writing, reject or clarify unsafe inputs:
+
+- If the user gives a short date without explicit year context, ask which year
+  they mean and do not write.
+- If the value is zero or negative, do not write.
+- If the unit is not pounds/`lb`, do not convert it and do not write.
+
 ```go
 recordedAt, err := time.Parse(time.DateOnly, "2026-03-29")
 if err != nil {

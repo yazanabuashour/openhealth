@@ -172,6 +172,61 @@ func TestServiceWeightWriteIdempotency(t *testing.T) {
 	}
 }
 
+func TestServiceNonWeightValidationAndNotFound(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewSQLiteDB(t)
+	repo := sqlite.NewRepository(db)
+	service := health.NewService(repo, health.WithClock(func() time.Time {
+		return time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
+	}))
+	ctx := context.Background()
+
+	_, err := service.RecordBloodPressure(ctx, health.BloodPressureRecordInput{
+		RecordedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		Systolic:   120,
+		Diastolic:  0,
+	})
+	var validationErr *health.ValidationError
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("blood pressure validation error = %v, want validation", err)
+	}
+
+	_, err = service.CreateMedicationCourse(ctx, health.MedicationCourseInput{
+		Name:      "Expired",
+		StartDate: "2026-04-15",
+		EndDate:   stringPointer("2026-04-14"),
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("medication validation error = %v, want validation", err)
+	}
+
+	_, err = service.CreateLabCollection(ctx, health.LabCollectionInput{
+		CollectedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		Panels: []health.LabPanelInput{
+			{
+				PanelName: "Metabolic",
+				Results: []health.LabResultInput{
+					{
+						TestName:      "Unsupported",
+						CanonicalSlug: analytePointer(health.AnalyteSlug("unsupported")),
+						ValueText:     "1",
+					},
+				},
+			},
+		},
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("lab validation error = %v, want validation", err)
+	}
+
+	err = service.DeleteLabCollection(ctx, 999)
+	var notFoundErr *health.NotFoundError
+	if !errors.As(err, &notFoundErr) {
+		t.Fatalf("delete missing lab collection error = %v, want not found", err)
+	}
+}
+
 func TestServiceWeightTrendDefaultsAndMedicationFilter(t *testing.T) {
 	t.Parallel()
 
@@ -252,4 +307,12 @@ func insertReturningID(t *testing.T, db *sql.DB, statement string, args ...any) 
 
 func ts(value string) string {
 	return value
+}
+
+func stringPointer(value string) *string {
+	return &value
+}
+
+func analytePointer(value health.AnalyteSlug) *health.AnalyteSlug {
+	return &value
 }

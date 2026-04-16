@@ -22,6 +22,8 @@ type HealthLabCollection struct {
 	CollectedAt string
 	Source      string
 	CreatedAt   string
+	UpdatedAt   *string
+	DeletedAt   *string
 }
 
 type HealthLabPanel struct {

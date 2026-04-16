@@ -161,6 +161,28 @@ func (e ListHealthMedicationsParamsStatus) Valid() bool {
 	}
 }
 
+// CreateHealthBloodPressureRequest defines model for CreateHealthBloodPressureRequest.
+type CreateHealthBloodPressureRequest struct {
+	Diastolic  int       `json:"diastolic"`
+	Pulse      *int      `json:"pulse,omitempty"`
+	RecordedAt time.Time `json:"recordedAt"`
+	Systolic   int       `json:"systolic"`
+}
+
+// CreateHealthLabCollectionRequest defines model for CreateHealthLabCollectionRequest.
+type CreateHealthLabCollectionRequest struct {
+	CollectedAt time.Time             `json:"collectedAt"`
+	Panels      []HealthLabPanelWrite `json:"panels"`
+}
+
+// CreateHealthMedicationRequest defines model for CreateHealthMedicationRequest.
+type CreateHealthMedicationRequest struct {
+	DosageText *string             `json:"dosageText,omitempty"`
+	EndDate    *openapi_types.Date `json:"endDate,omitempty"`
+	Name       string              `json:"name"`
+	StartDate  openapi_types.Date  `json:"startDate"`
+}
+
 // CreateHealthWeightRequest defines model for CreateHealthWeightRequest.
 type CreateHealthWeightRequest struct {
 	RecordedAt time.Time                     `json:"recordedAt"`
@@ -237,9 +259,11 @@ type HealthBloodPressureEntryList struct {
 type HealthLabCollection struct {
 	CollectedAt time.Time        `json:"collectedAt"`
 	CreatedAt   time.Time        `json:"createdAt"`
+	DeletedAt   *time.Time       `json:"deletedAt,omitempty"`
 	Id          int              `json:"id"`
 	Panels      []HealthLabPanel `json:"panels"`
 	Source      string           `json:"source"`
+	UpdatedAt   time.Time        `json:"updatedAt"`
 }
 
 // HealthLabCollectionList defines model for HealthLabCollectionList.
@@ -254,6 +278,12 @@ type HealthLabPanel struct {
 	Id           int               `json:"id"`
 	PanelName    string            `json:"panelName"`
 	Results      []HealthLabResult `json:"results"`
+}
+
+// HealthLabPanelWrite defines model for HealthLabPanelWrite.
+type HealthLabPanelWrite struct {
+	PanelName string                 `json:"panelName"`
+	Results   []HealthLabResultWrite `json:"results"`
 }
 
 // HealthLabResult defines model for HealthLabResult.
@@ -280,6 +310,17 @@ type HealthLabResultWithCollection struct {
 	Id            int                `json:"id"`
 	PanelId       int                `json:"panelId"`
 	PanelName     string             `json:"panelName"`
+	RangeText     *string            `json:"rangeText,omitempty"`
+	TestName      string             `json:"testName"`
+	Units         *string            `json:"units,omitempty"`
+	ValueNumeric  *float32           `json:"valueNumeric,omitempty"`
+	ValueText     string             `json:"valueText"`
+}
+
+// HealthLabResultWrite defines model for HealthLabResultWrite.
+type HealthLabResultWrite struct {
+	CanonicalSlug *HealthAnalyteSlug `json:"canonicalSlug,omitempty"`
+	Flag          *string            `json:"flag,omitempty"`
 	RangeText     *string            `json:"rangeText,omitempty"`
 	TestName      string             `json:"testName"`
 	Units         *string            `json:"units,omitempty"`
@@ -365,6 +406,15 @@ type HealthWeightTrend struct {
 	RawPoints             []HealthWeightEntry          `json:"rawPoints"`
 }
 
+// ReplaceHealthBloodPressureRequest defines model for ReplaceHealthBloodPressureRequest.
+type ReplaceHealthBloodPressureRequest = CreateHealthBloodPressureRequest
+
+// ReplaceHealthLabCollectionRequest defines model for ReplaceHealthLabCollectionRequest.
+type ReplaceHealthLabCollectionRequest = CreateHealthLabCollectionRequest
+
+// ReplaceHealthMedicationRequest defines model for ReplaceHealthMedicationRequest.
+type ReplaceHealthMedicationRequest = CreateHealthMedicationRequest
+
 // UpdateHealthWeightRequest defines model for UpdateHealthWeightRequest.
 type UpdateHealthWeightRequest struct {
 	RecordedAt *time.Time                     `json:"recordedAt,omitempty"`
@@ -434,6 +484,24 @@ type GetHealthWeightTrendParams struct {
 	Range *HealthWeightRange `form:"range,omitempty" json:"range,omitempty"`
 }
 
+// CreateHealthBloodPressureJSONRequestBody defines body for CreateHealthBloodPressure for application/json ContentType.
+type CreateHealthBloodPressureJSONRequestBody = CreateHealthBloodPressureRequest
+
+// ReplaceHealthBloodPressureJSONRequestBody defines body for ReplaceHealthBloodPressure for application/json ContentType.
+type ReplaceHealthBloodPressureJSONRequestBody = ReplaceHealthBloodPressureRequest
+
+// CreateHealthLabCollectionJSONRequestBody defines body for CreateHealthLabCollection for application/json ContentType.
+type CreateHealthLabCollectionJSONRequestBody = CreateHealthLabCollectionRequest
+
+// ReplaceHealthLabCollectionJSONRequestBody defines body for ReplaceHealthLabCollection for application/json ContentType.
+type ReplaceHealthLabCollectionJSONRequestBody = ReplaceHealthLabCollectionRequest
+
+// CreateHealthMedicationJSONRequestBody defines body for CreateHealthMedication for application/json ContentType.
+type CreateHealthMedicationJSONRequestBody = CreateHealthMedicationRequest
+
+// ReplaceHealthMedicationJSONRequestBody defines body for ReplaceHealthMedication for application/json ContentType.
+type ReplaceHealthMedicationJSONRequestBody = ReplaceHealthMedicationRequest
+
 // CreateHealthWeightJSONRequestBody defines body for CreateHealthWeight for application/json ContentType.
 type CreateHealthWeightJSONRequestBody = CreateHealthWeightRequest
 
@@ -448,9 +516,18 @@ type ServerInterface interface {
 	// List blood pressure entries
 	// (GET /api/v1/health/blood-pressure)
 	ListHealthBloodPressure(w http.ResponseWriter, r *http.Request, params ListHealthBloodPressureParams)
+	// Create blood pressure entry
+	// (POST /api/v1/health/blood-pressure)
+	CreateHealthBloodPressure(w http.ResponseWriter, r *http.Request)
 	// Get blood pressure trend points
 	// (GET /api/v1/health/blood-pressure/trend)
 	GetHealthBloodPressureTrend(w http.ResponseWriter, r *http.Request, params GetHealthBloodPressureTrendParams)
+	// Delete blood pressure entry
+	// (DELETE /api/v1/health/blood-pressure/{id})
+	DeleteHealthBloodPressure(w http.ResponseWriter, r *http.Request, id ID)
+	// Replace blood pressure entry
+	// (PUT /api/v1/health/blood-pressure/{id})
+	ReplaceHealthBloodPressure(w http.ResponseWriter, r *http.Request, id ID)
 	// List available lab analytes
 	// (GET /api/v1/health/labs/analytes)
 	ListHealthLabAnalytes(w http.ResponseWriter, r *http.Request)
@@ -460,9 +537,27 @@ type ServerInterface interface {
 	// List lab collections
 	// (GET /api/v1/health/labs/collections)
 	ListHealthLabCollections(w http.ResponseWriter, r *http.Request)
+	// Create lab collection
+	// (POST /api/v1/health/labs/collections)
+	CreateHealthLabCollection(w http.ResponseWriter, r *http.Request)
+	// Delete lab collection
+	// (DELETE /api/v1/health/labs/collections/{id})
+	DeleteHealthLabCollection(w http.ResponseWriter, r *http.Request, id ID)
+	// Replace lab collection
+	// (PUT /api/v1/health/labs/collections/{id})
+	ReplaceHealthLabCollection(w http.ResponseWriter, r *http.Request, id ID)
 	// List medication courses
 	// (GET /api/v1/health/medications)
 	ListHealthMedications(w http.ResponseWriter, r *http.Request, params ListHealthMedicationsParams)
+	// Create medication course
+	// (POST /api/v1/health/medications)
+	CreateHealthMedication(w http.ResponseWriter, r *http.Request)
+	// Delete medication course
+	// (DELETE /api/v1/health/medications/{id})
+	DeleteHealthMedication(w http.ResponseWriter, r *http.Request, id ID)
+	// Replace medication course
+	// (PUT /api/v1/health/medications/{id})
+	ReplaceHealthMedication(w http.ResponseWriter, r *http.Request, id ID)
 	// Get health dashboard summary
 	// (GET /api/v1/health/summary)
 	GetHealthSummary(w http.ResponseWriter, r *http.Request)
@@ -549,6 +644,20 @@ func (siw *ServerInterfaceWrapper) ListHealthBloodPressure(w http.ResponseWriter
 	handler.ServeHTTP(w, r)
 }
 
+// CreateHealthBloodPressure operation middleware
+func (siw *ServerInterfaceWrapper) CreateHealthBloodPressure(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateHealthBloodPressure(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetHealthBloodPressureTrend operation middleware
 func (siw *ServerInterfaceWrapper) GetHealthBloodPressureTrend(w http.ResponseWriter, r *http.Request) {
 
@@ -583,6 +692,56 @@ func (siw *ServerInterfaceWrapper) GetHealthBloodPressureTrend(w http.ResponseWr
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetHealthBloodPressureTrend(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteHealthBloodPressure operation middleware
+func (siw *ServerInterfaceWrapper) DeleteHealthBloodPressure(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteHealthBloodPressure(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReplaceHealthBloodPressure operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceHealthBloodPressure(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReplaceHealthBloodPressure(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -645,6 +804,70 @@ func (siw *ServerInterfaceWrapper) ListHealthLabCollections(w http.ResponseWrite
 	handler.ServeHTTP(w, r)
 }
 
+// CreateHealthLabCollection operation middleware
+func (siw *ServerInterfaceWrapper) CreateHealthLabCollection(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateHealthLabCollection(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteHealthLabCollection operation middleware
+func (siw *ServerInterfaceWrapper) DeleteHealthLabCollection(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteHealthLabCollection(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReplaceHealthLabCollection operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceHealthLabCollection(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReplaceHealthLabCollection(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListHealthMedications operation middleware
 func (siw *ServerInterfaceWrapper) ListHealthMedications(w http.ResponseWriter, r *http.Request) {
 
@@ -663,6 +886,70 @@ func (siw *ServerInterfaceWrapper) ListHealthMedications(w http.ResponseWriter, 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListHealthMedications(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateHealthMedication operation middleware
+func (siw *ServerInterfaceWrapper) CreateHealthMedication(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateHealthMedication(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteHealthMedication operation middleware
+func (siw *ServerInterfaceWrapper) DeleteHealthMedication(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteHealthMedication(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReplaceHealthMedication operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceHealthMedication(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "id" -------------
+	var id ID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", r.PathValue("id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReplaceHealthMedication(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -942,11 +1229,20 @@ func HandlerWithOptions(si ServerInterface, options StdHTTPServerOptions) http.H
 
 	m.HandleFunc("GET "+options.BaseURL+"/api/health", wrapper.Health)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/health/blood-pressure", wrapper.ListHealthBloodPressure)
+	m.HandleFunc("POST "+options.BaseURL+"/api/v1/health/blood-pressure", wrapper.CreateHealthBloodPressure)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/health/blood-pressure/trend", wrapper.GetHealthBloodPressureTrend)
+	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/health/blood-pressure/{id}", wrapper.DeleteHealthBloodPressure)
+	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/health/blood-pressure/{id}", wrapper.ReplaceHealthBloodPressure)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/health/labs/analytes", wrapper.ListHealthLabAnalytes)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/health/labs/analytes/{slug}/trend", wrapper.GetHealthLabAnalyteTrend)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/health/labs/collections", wrapper.ListHealthLabCollections)
+	m.HandleFunc("POST "+options.BaseURL+"/api/v1/health/labs/collections", wrapper.CreateHealthLabCollection)
+	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/health/labs/collections/{id}", wrapper.DeleteHealthLabCollection)
+	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/health/labs/collections/{id}", wrapper.ReplaceHealthLabCollection)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/health/medications", wrapper.ListHealthMedications)
+	m.HandleFunc("POST "+options.BaseURL+"/api/v1/health/medications", wrapper.CreateHealthMedication)
+	m.HandleFunc("DELETE "+options.BaseURL+"/api/v1/health/medications/{id}", wrapper.DeleteHealthMedication)
+	m.HandleFunc("PUT "+options.BaseURL+"/api/v1/health/medications/{id}", wrapper.ReplaceHealthMedication)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/health/summary", wrapper.GetHealthSummary)
 	m.HandleFunc("GET "+options.BaseURL+"/api/v1/health/weight", wrapper.ListHealthWeight)
 	m.HandleFunc("POST "+options.BaseURL+"/api/v1/health/weight", wrapper.CreateHealthWeight)
@@ -1020,6 +1316,45 @@ func (response ListHealthBloodPressure500JSONResponse) VisitListHealthBloodPress
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CreateHealthBloodPressureRequestObject struct {
+	Body *CreateHealthBloodPressureJSONRequestBody
+}
+
+type CreateHealthBloodPressureResponseObject interface {
+	VisitCreateHealthBloodPressureResponse(w http.ResponseWriter) error
+}
+
+type CreateHealthBloodPressure201JSONResponse HealthBloodPressureEntry
+
+func (response CreateHealthBloodPressure201JSONResponse) VisitCreateHealthBloodPressureResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateHealthBloodPressure400JSONResponse struct {
+	BadRequestErrorResponseJSONResponse
+}
+
+func (response CreateHealthBloodPressure400JSONResponse) VisitCreateHealthBloodPressureResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateHealthBloodPressure500JSONResponse struct {
+	InternalErrorResponseJSONResponse
+}
+
+func (response CreateHealthBloodPressure500JSONResponse) VisitCreateHealthBloodPressureResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetHealthBloodPressureTrendRequestObject struct {
 	Params GetHealthBloodPressureTrendParams
 }
@@ -1053,6 +1388,96 @@ type GetHealthBloodPressureTrend500JSONResponse struct {
 }
 
 func (response GetHealthBloodPressureTrend500JSONResponse) VisitGetHealthBloodPressureTrendResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteHealthBloodPressureRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteHealthBloodPressureResponseObject interface {
+	VisitDeleteHealthBloodPressureResponse(w http.ResponseWriter) error
+}
+
+type DeleteHealthBloodPressure200JSONResponse DeleteSuccess
+
+func (response DeleteHealthBloodPressure200JSONResponse) VisitDeleteHealthBloodPressureResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteHealthBloodPressure404JSONResponse struct {
+	NotFoundErrorResponseJSONResponse
+}
+
+func (response DeleteHealthBloodPressure404JSONResponse) VisitDeleteHealthBloodPressureResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteHealthBloodPressure500JSONResponse struct {
+	InternalErrorResponseJSONResponse
+}
+
+func (response DeleteHealthBloodPressure500JSONResponse) VisitDeleteHealthBloodPressureResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceHealthBloodPressureRequestObject struct {
+	Id   ID `json:"id"`
+	Body *ReplaceHealthBloodPressureJSONRequestBody
+}
+
+type ReplaceHealthBloodPressureResponseObject interface {
+	VisitReplaceHealthBloodPressureResponse(w http.ResponseWriter) error
+}
+
+type ReplaceHealthBloodPressure200JSONResponse HealthBloodPressureEntry
+
+func (response ReplaceHealthBloodPressure200JSONResponse) VisitReplaceHealthBloodPressureResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceHealthBloodPressure400JSONResponse struct {
+	BadRequestErrorResponseJSONResponse
+}
+
+func (response ReplaceHealthBloodPressure400JSONResponse) VisitReplaceHealthBloodPressureResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceHealthBloodPressure404JSONResponse struct {
+	NotFoundErrorResponseJSONResponse
+}
+
+func (response ReplaceHealthBloodPressure404JSONResponse) VisitReplaceHealthBloodPressureResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceHealthBloodPressure500JSONResponse struct {
+	InternalErrorResponseJSONResponse
+}
+
+func (response ReplaceHealthBloodPressure500JSONResponse) VisitReplaceHealthBloodPressureResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -1163,6 +1588,135 @@ func (response ListHealthLabCollections500JSONResponse) VisitListHealthLabCollec
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CreateHealthLabCollectionRequestObject struct {
+	Body *CreateHealthLabCollectionJSONRequestBody
+}
+
+type CreateHealthLabCollectionResponseObject interface {
+	VisitCreateHealthLabCollectionResponse(w http.ResponseWriter) error
+}
+
+type CreateHealthLabCollection201JSONResponse HealthLabCollection
+
+func (response CreateHealthLabCollection201JSONResponse) VisitCreateHealthLabCollectionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateHealthLabCollection400JSONResponse struct {
+	BadRequestErrorResponseJSONResponse
+}
+
+func (response CreateHealthLabCollection400JSONResponse) VisitCreateHealthLabCollectionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateHealthLabCollection500JSONResponse struct {
+	InternalErrorResponseJSONResponse
+}
+
+func (response CreateHealthLabCollection500JSONResponse) VisitCreateHealthLabCollectionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteHealthLabCollectionRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteHealthLabCollectionResponseObject interface {
+	VisitDeleteHealthLabCollectionResponse(w http.ResponseWriter) error
+}
+
+type DeleteHealthLabCollection200JSONResponse DeleteSuccess
+
+func (response DeleteHealthLabCollection200JSONResponse) VisitDeleteHealthLabCollectionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteHealthLabCollection404JSONResponse struct {
+	NotFoundErrorResponseJSONResponse
+}
+
+func (response DeleteHealthLabCollection404JSONResponse) VisitDeleteHealthLabCollectionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteHealthLabCollection500JSONResponse struct {
+	InternalErrorResponseJSONResponse
+}
+
+func (response DeleteHealthLabCollection500JSONResponse) VisitDeleteHealthLabCollectionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceHealthLabCollectionRequestObject struct {
+	Id   ID `json:"id"`
+	Body *ReplaceHealthLabCollectionJSONRequestBody
+}
+
+type ReplaceHealthLabCollectionResponseObject interface {
+	VisitReplaceHealthLabCollectionResponse(w http.ResponseWriter) error
+}
+
+type ReplaceHealthLabCollection200JSONResponse HealthLabCollection
+
+func (response ReplaceHealthLabCollection200JSONResponse) VisitReplaceHealthLabCollectionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceHealthLabCollection400JSONResponse struct {
+	BadRequestErrorResponseJSONResponse
+}
+
+func (response ReplaceHealthLabCollection400JSONResponse) VisitReplaceHealthLabCollectionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceHealthLabCollection404JSONResponse struct {
+	NotFoundErrorResponseJSONResponse
+}
+
+func (response ReplaceHealthLabCollection404JSONResponse) VisitReplaceHealthLabCollectionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceHealthLabCollection500JSONResponse struct {
+	InternalErrorResponseJSONResponse
+}
+
+func (response ReplaceHealthLabCollection500JSONResponse) VisitReplaceHealthLabCollectionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type ListHealthMedicationsRequestObject struct {
 	Params ListHealthMedicationsParams
 }
@@ -1196,6 +1750,135 @@ type ListHealthMedications500JSONResponse struct {
 }
 
 func (response ListHealthMedications500JSONResponse) VisitListHealthMedicationsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateHealthMedicationRequestObject struct {
+	Body *CreateHealthMedicationJSONRequestBody
+}
+
+type CreateHealthMedicationResponseObject interface {
+	VisitCreateHealthMedicationResponse(w http.ResponseWriter) error
+}
+
+type CreateHealthMedication201JSONResponse HealthMedicationCourse
+
+func (response CreateHealthMedication201JSONResponse) VisitCreateHealthMedicationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateHealthMedication400JSONResponse struct {
+	BadRequestErrorResponseJSONResponse
+}
+
+func (response CreateHealthMedication400JSONResponse) VisitCreateHealthMedicationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateHealthMedication500JSONResponse struct {
+	InternalErrorResponseJSONResponse
+}
+
+func (response CreateHealthMedication500JSONResponse) VisitCreateHealthMedicationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteHealthMedicationRequestObject struct {
+	Id ID `json:"id"`
+}
+
+type DeleteHealthMedicationResponseObject interface {
+	VisitDeleteHealthMedicationResponse(w http.ResponseWriter) error
+}
+
+type DeleteHealthMedication200JSONResponse DeleteSuccess
+
+func (response DeleteHealthMedication200JSONResponse) VisitDeleteHealthMedicationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteHealthMedication404JSONResponse struct {
+	NotFoundErrorResponseJSONResponse
+}
+
+func (response DeleteHealthMedication404JSONResponse) VisitDeleteHealthMedicationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteHealthMedication500JSONResponse struct {
+	InternalErrorResponseJSONResponse
+}
+
+func (response DeleteHealthMedication500JSONResponse) VisitDeleteHealthMedicationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceHealthMedicationRequestObject struct {
+	Id   ID `json:"id"`
+	Body *ReplaceHealthMedicationJSONRequestBody
+}
+
+type ReplaceHealthMedicationResponseObject interface {
+	VisitReplaceHealthMedicationResponse(w http.ResponseWriter) error
+}
+
+type ReplaceHealthMedication200JSONResponse HealthMedicationCourse
+
+func (response ReplaceHealthMedication200JSONResponse) VisitReplaceHealthMedicationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceHealthMedication400JSONResponse struct {
+	BadRequestErrorResponseJSONResponse
+}
+
+func (response ReplaceHealthMedication400JSONResponse) VisitReplaceHealthMedicationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceHealthMedication404JSONResponse struct {
+	NotFoundErrorResponseJSONResponse
+}
+
+func (response ReplaceHealthMedication404JSONResponse) VisitReplaceHealthMedicationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceHealthMedication500JSONResponse struct {
+	InternalErrorResponseJSONResponse
+}
+
+func (response ReplaceHealthMedication500JSONResponse) VisitReplaceHealthMedicationResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -1455,9 +2138,18 @@ type StrictServerInterface interface {
 	// List blood pressure entries
 	// (GET /api/v1/health/blood-pressure)
 	ListHealthBloodPressure(ctx context.Context, request ListHealthBloodPressureRequestObject) (ListHealthBloodPressureResponseObject, error)
+	// Create blood pressure entry
+	// (POST /api/v1/health/blood-pressure)
+	CreateHealthBloodPressure(ctx context.Context, request CreateHealthBloodPressureRequestObject) (CreateHealthBloodPressureResponseObject, error)
 	// Get blood pressure trend points
 	// (GET /api/v1/health/blood-pressure/trend)
 	GetHealthBloodPressureTrend(ctx context.Context, request GetHealthBloodPressureTrendRequestObject) (GetHealthBloodPressureTrendResponseObject, error)
+	// Delete blood pressure entry
+	// (DELETE /api/v1/health/blood-pressure/{id})
+	DeleteHealthBloodPressure(ctx context.Context, request DeleteHealthBloodPressureRequestObject) (DeleteHealthBloodPressureResponseObject, error)
+	// Replace blood pressure entry
+	// (PUT /api/v1/health/blood-pressure/{id})
+	ReplaceHealthBloodPressure(ctx context.Context, request ReplaceHealthBloodPressureRequestObject) (ReplaceHealthBloodPressureResponseObject, error)
 	// List available lab analytes
 	// (GET /api/v1/health/labs/analytes)
 	ListHealthLabAnalytes(ctx context.Context, request ListHealthLabAnalytesRequestObject) (ListHealthLabAnalytesResponseObject, error)
@@ -1467,9 +2159,27 @@ type StrictServerInterface interface {
 	// List lab collections
 	// (GET /api/v1/health/labs/collections)
 	ListHealthLabCollections(ctx context.Context, request ListHealthLabCollectionsRequestObject) (ListHealthLabCollectionsResponseObject, error)
+	// Create lab collection
+	// (POST /api/v1/health/labs/collections)
+	CreateHealthLabCollection(ctx context.Context, request CreateHealthLabCollectionRequestObject) (CreateHealthLabCollectionResponseObject, error)
+	// Delete lab collection
+	// (DELETE /api/v1/health/labs/collections/{id})
+	DeleteHealthLabCollection(ctx context.Context, request DeleteHealthLabCollectionRequestObject) (DeleteHealthLabCollectionResponseObject, error)
+	// Replace lab collection
+	// (PUT /api/v1/health/labs/collections/{id})
+	ReplaceHealthLabCollection(ctx context.Context, request ReplaceHealthLabCollectionRequestObject) (ReplaceHealthLabCollectionResponseObject, error)
 	// List medication courses
 	// (GET /api/v1/health/medications)
 	ListHealthMedications(ctx context.Context, request ListHealthMedicationsRequestObject) (ListHealthMedicationsResponseObject, error)
+	// Create medication course
+	// (POST /api/v1/health/medications)
+	CreateHealthMedication(ctx context.Context, request CreateHealthMedicationRequestObject) (CreateHealthMedicationResponseObject, error)
+	// Delete medication course
+	// (DELETE /api/v1/health/medications/{id})
+	DeleteHealthMedication(ctx context.Context, request DeleteHealthMedicationRequestObject) (DeleteHealthMedicationResponseObject, error)
+	// Replace medication course
+	// (PUT /api/v1/health/medications/{id})
+	ReplaceHealthMedication(ctx context.Context, request ReplaceHealthMedicationRequestObject) (ReplaceHealthMedicationResponseObject, error)
 	// Get health dashboard summary
 	// (GET /api/v1/health/summary)
 	GetHealthSummary(ctx context.Context, request GetHealthSummaryRequestObject) (GetHealthSummaryResponseObject, error)
@@ -1569,6 +2279,37 @@ func (sh *strictHandler) ListHealthBloodPressure(w http.ResponseWriter, r *http.
 	}
 }
 
+// CreateHealthBloodPressure operation middleware
+func (sh *strictHandler) CreateHealthBloodPressure(w http.ResponseWriter, r *http.Request) {
+	var request CreateHealthBloodPressureRequestObject
+
+	var body CreateHealthBloodPressureJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateHealthBloodPressure(ctx, request.(CreateHealthBloodPressureRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateHealthBloodPressure")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateHealthBloodPressureResponseObject); ok {
+		if err := validResponse.VisitCreateHealthBloodPressureResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetHealthBloodPressureTrend operation middleware
 func (sh *strictHandler) GetHealthBloodPressureTrend(w http.ResponseWriter, r *http.Request, params GetHealthBloodPressureTrendParams) {
 	var request GetHealthBloodPressureTrendRequestObject
@@ -1588,6 +2329,65 @@ func (sh *strictHandler) GetHealthBloodPressureTrend(w http.ResponseWriter, r *h
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetHealthBloodPressureTrendResponseObject); ok {
 		if err := validResponse.VisitGetHealthBloodPressureTrendResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteHealthBloodPressure operation middleware
+func (sh *strictHandler) DeleteHealthBloodPressure(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteHealthBloodPressureRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteHealthBloodPressure(ctx, request.(DeleteHealthBloodPressureRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteHealthBloodPressure")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteHealthBloodPressureResponseObject); ok {
+		if err := validResponse.VisitDeleteHealthBloodPressureResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReplaceHealthBloodPressure operation middleware
+func (sh *strictHandler) ReplaceHealthBloodPressure(w http.ResponseWriter, r *http.Request, id ID) {
+	var request ReplaceHealthBloodPressureRequestObject
+
+	request.Id = id
+
+	var body ReplaceHealthBloodPressureJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReplaceHealthBloodPressure(ctx, request.(ReplaceHealthBloodPressureRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReplaceHealthBloodPressure")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReplaceHealthBloodPressureResponseObject); ok {
+		if err := validResponse.VisitReplaceHealthBloodPressureResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -1669,6 +2469,96 @@ func (sh *strictHandler) ListHealthLabCollections(w http.ResponseWriter, r *http
 	}
 }
 
+// CreateHealthLabCollection operation middleware
+func (sh *strictHandler) CreateHealthLabCollection(w http.ResponseWriter, r *http.Request) {
+	var request CreateHealthLabCollectionRequestObject
+
+	var body CreateHealthLabCollectionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateHealthLabCollection(ctx, request.(CreateHealthLabCollectionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateHealthLabCollection")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateHealthLabCollectionResponseObject); ok {
+		if err := validResponse.VisitCreateHealthLabCollectionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteHealthLabCollection operation middleware
+func (sh *strictHandler) DeleteHealthLabCollection(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteHealthLabCollectionRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteHealthLabCollection(ctx, request.(DeleteHealthLabCollectionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteHealthLabCollection")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteHealthLabCollectionResponseObject); ok {
+		if err := validResponse.VisitDeleteHealthLabCollectionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReplaceHealthLabCollection operation middleware
+func (sh *strictHandler) ReplaceHealthLabCollection(w http.ResponseWriter, r *http.Request, id ID) {
+	var request ReplaceHealthLabCollectionRequestObject
+
+	request.Id = id
+
+	var body ReplaceHealthLabCollectionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReplaceHealthLabCollection(ctx, request.(ReplaceHealthLabCollectionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReplaceHealthLabCollection")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReplaceHealthLabCollectionResponseObject); ok {
+		if err := validResponse.VisitReplaceHealthLabCollectionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListHealthMedications operation middleware
 func (sh *strictHandler) ListHealthMedications(w http.ResponseWriter, r *http.Request, params ListHealthMedicationsParams) {
 	var request ListHealthMedicationsRequestObject
@@ -1688,6 +2578,96 @@ func (sh *strictHandler) ListHealthMedications(w http.ResponseWriter, r *http.Re
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListHealthMedicationsResponseObject); ok {
 		if err := validResponse.VisitListHealthMedicationsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateHealthMedication operation middleware
+func (sh *strictHandler) CreateHealthMedication(w http.ResponseWriter, r *http.Request) {
+	var request CreateHealthMedicationRequestObject
+
+	var body CreateHealthMedicationJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateHealthMedication(ctx, request.(CreateHealthMedicationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateHealthMedication")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateHealthMedicationResponseObject); ok {
+		if err := validResponse.VisitCreateHealthMedicationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteHealthMedication operation middleware
+func (sh *strictHandler) DeleteHealthMedication(w http.ResponseWriter, r *http.Request, id ID) {
+	var request DeleteHealthMedicationRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteHealthMedication(ctx, request.(DeleteHealthMedicationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteHealthMedication")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteHealthMedicationResponseObject); ok {
+		if err := validResponse.VisitDeleteHealthMedicationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReplaceHealthMedication operation middleware
+func (sh *strictHandler) ReplaceHealthMedication(w http.ResponseWriter, r *http.Request, id ID) {
+	var request ReplaceHealthMedicationRequestObject
+
+	request.Id = id
+
+	var body ReplaceHealthMedicationJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReplaceHealthMedication(ctx, request.(ReplaceHealthMedicationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReplaceHealthMedication")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReplaceHealthMedicationResponseObject); ok {
+		if err := validResponse.VisitReplaceHealthMedicationResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {

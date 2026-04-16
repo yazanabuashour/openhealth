@@ -162,6 +162,28 @@ func (e ListHealthMedicationsParamsStatus) Valid() bool {
 	}
 }
 
+// CreateHealthBloodPressureRequest defines model for CreateHealthBloodPressureRequest.
+type CreateHealthBloodPressureRequest struct {
+	Diastolic  int       `json:"diastolic"`
+	Pulse      *int      `json:"pulse,omitempty"`
+	RecordedAt time.Time `json:"recordedAt"`
+	Systolic   int       `json:"systolic"`
+}
+
+// CreateHealthLabCollectionRequest defines model for CreateHealthLabCollectionRequest.
+type CreateHealthLabCollectionRequest struct {
+	CollectedAt time.Time             `json:"collectedAt"`
+	Panels      []HealthLabPanelWrite `json:"panels"`
+}
+
+// CreateHealthMedicationRequest defines model for CreateHealthMedicationRequest.
+type CreateHealthMedicationRequest struct {
+	DosageText *string             `json:"dosageText,omitempty"`
+	EndDate    *openapi_types.Date `json:"endDate,omitempty"`
+	Name       string              `json:"name"`
+	StartDate  openapi_types.Date  `json:"startDate"`
+}
+
 // CreateHealthWeightRequest defines model for CreateHealthWeightRequest.
 type CreateHealthWeightRequest struct {
 	RecordedAt time.Time                     `json:"recordedAt"`
@@ -238,9 +260,11 @@ type HealthBloodPressureEntryList struct {
 type HealthLabCollection struct {
 	CollectedAt time.Time        `json:"collectedAt"`
 	CreatedAt   time.Time        `json:"createdAt"`
+	DeletedAt   *time.Time       `json:"deletedAt,omitempty"`
 	Id          int              `json:"id"`
 	Panels      []HealthLabPanel `json:"panels"`
 	Source      string           `json:"source"`
+	UpdatedAt   time.Time        `json:"updatedAt"`
 }
 
 // HealthLabCollectionList defines model for HealthLabCollectionList.
@@ -255,6 +279,12 @@ type HealthLabPanel struct {
 	Id           int               `json:"id"`
 	PanelName    string            `json:"panelName"`
 	Results      []HealthLabResult `json:"results"`
+}
+
+// HealthLabPanelWrite defines model for HealthLabPanelWrite.
+type HealthLabPanelWrite struct {
+	PanelName string                 `json:"panelName"`
+	Results   []HealthLabResultWrite `json:"results"`
 }
 
 // HealthLabResult defines model for HealthLabResult.
@@ -281,6 +311,17 @@ type HealthLabResultWithCollection struct {
 	Id            int                `json:"id"`
 	PanelId       int                `json:"panelId"`
 	PanelName     string             `json:"panelName"`
+	RangeText     *string            `json:"rangeText,omitempty"`
+	TestName      string             `json:"testName"`
+	Units         *string            `json:"units,omitempty"`
+	ValueNumeric  *float32           `json:"valueNumeric,omitempty"`
+	ValueText     string             `json:"valueText"`
+}
+
+// HealthLabResultWrite defines model for HealthLabResultWrite.
+type HealthLabResultWrite struct {
+	CanonicalSlug *HealthAnalyteSlug `json:"canonicalSlug,omitempty"`
+	Flag          *string            `json:"flag,omitempty"`
 	RangeText     *string            `json:"rangeText,omitempty"`
 	TestName      string             `json:"testName"`
 	Units         *string            `json:"units,omitempty"`
@@ -366,6 +407,15 @@ type HealthWeightTrend struct {
 	RawPoints             []HealthWeightEntry          `json:"rawPoints"`
 }
 
+// ReplaceHealthBloodPressureRequest defines model for ReplaceHealthBloodPressureRequest.
+type ReplaceHealthBloodPressureRequest = CreateHealthBloodPressureRequest
+
+// ReplaceHealthLabCollectionRequest defines model for ReplaceHealthLabCollectionRequest.
+type ReplaceHealthLabCollectionRequest = CreateHealthLabCollectionRequest
+
+// ReplaceHealthMedicationRequest defines model for ReplaceHealthMedicationRequest.
+type ReplaceHealthMedicationRequest = CreateHealthMedicationRequest
+
 // UpdateHealthWeightRequest defines model for UpdateHealthWeightRequest.
 type UpdateHealthWeightRequest struct {
 	RecordedAt *time.Time                     `json:"recordedAt,omitempty"`
@@ -434,6 +484,24 @@ type GetHealthWeightTrendParams struct {
 	// Range Weight trend range
 	Range *HealthWeightRange `form:"range,omitempty" json:"range,omitempty"`
 }
+
+// CreateHealthBloodPressureJSONRequestBody defines body for CreateHealthBloodPressure for application/json ContentType.
+type CreateHealthBloodPressureJSONRequestBody = CreateHealthBloodPressureRequest
+
+// ReplaceHealthBloodPressureJSONRequestBody defines body for ReplaceHealthBloodPressure for application/json ContentType.
+type ReplaceHealthBloodPressureJSONRequestBody = ReplaceHealthBloodPressureRequest
+
+// CreateHealthLabCollectionJSONRequestBody defines body for CreateHealthLabCollection for application/json ContentType.
+type CreateHealthLabCollectionJSONRequestBody = CreateHealthLabCollectionRequest
+
+// ReplaceHealthLabCollectionJSONRequestBody defines body for ReplaceHealthLabCollection for application/json ContentType.
+type ReplaceHealthLabCollectionJSONRequestBody = ReplaceHealthLabCollectionRequest
+
+// CreateHealthMedicationJSONRequestBody defines body for CreateHealthMedication for application/json ContentType.
+type CreateHealthMedicationJSONRequestBody = CreateHealthMedicationRequest
+
+// ReplaceHealthMedicationJSONRequestBody defines body for ReplaceHealthMedication for application/json ContentType.
+type ReplaceHealthMedicationJSONRequestBody = ReplaceHealthMedicationRequest
 
 // CreateHealthWeightJSONRequestBody defines body for CreateHealthWeight for application/json ContentType.
 type CreateHealthWeightJSONRequestBody = CreateHealthWeightRequest
@@ -520,8 +588,21 @@ type ClientInterface interface {
 	// ListHealthBloodPressure request
 	ListHealthBloodPressure(ctx context.Context, params *ListHealthBloodPressureParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CreateHealthBloodPressureWithBody request with any body
+	CreateHealthBloodPressureWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateHealthBloodPressure(ctx context.Context, body CreateHealthBloodPressureJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetHealthBloodPressureTrend request
 	GetHealthBloodPressureTrend(ctx context.Context, params *GetHealthBloodPressureTrendParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteHealthBloodPressure request
+	DeleteHealthBloodPressure(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplaceHealthBloodPressureWithBody request with any body
+	ReplaceHealthBloodPressureWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ReplaceHealthBloodPressure(ctx context.Context, id ID, body ReplaceHealthBloodPressureJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListHealthLabAnalytes request
 	ListHealthLabAnalytes(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -532,8 +613,34 @@ type ClientInterface interface {
 	// ListHealthLabCollections request
 	ListHealthLabCollections(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CreateHealthLabCollectionWithBody request with any body
+	CreateHealthLabCollectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateHealthLabCollection(ctx context.Context, body CreateHealthLabCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteHealthLabCollection request
+	DeleteHealthLabCollection(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplaceHealthLabCollectionWithBody request with any body
+	ReplaceHealthLabCollectionWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ReplaceHealthLabCollection(ctx context.Context, id ID, body ReplaceHealthLabCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListHealthMedications request
 	ListHealthMedications(ctx context.Context, params *ListHealthMedicationsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateHealthMedicationWithBody request with any body
+	CreateHealthMedicationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateHealthMedication(ctx context.Context, body CreateHealthMedicationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteHealthMedication request
+	DeleteHealthMedication(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ReplaceHealthMedicationWithBody request with any body
+	ReplaceHealthMedicationWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	ReplaceHealthMedication(ctx context.Context, id ID, body ReplaceHealthMedicationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetHealthSummary request
 	GetHealthSummary(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -582,8 +689,68 @@ func (c *Client) ListHealthBloodPressure(ctx context.Context, params *ListHealth
 	return c.Client.Do(req)
 }
 
+func (c *Client) CreateHealthBloodPressureWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateHealthBloodPressureRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateHealthBloodPressure(ctx context.Context, body CreateHealthBloodPressureJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateHealthBloodPressureRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) GetHealthBloodPressureTrend(ctx context.Context, params *GetHealthBloodPressureTrendParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetHealthBloodPressureTrendRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteHealthBloodPressure(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteHealthBloodPressureRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceHealthBloodPressureWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceHealthBloodPressureRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceHealthBloodPressure(ctx context.Context, id ID, body ReplaceHealthBloodPressureJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceHealthBloodPressureRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -630,8 +797,128 @@ func (c *Client) ListHealthLabCollections(ctx context.Context, reqEditors ...Req
 	return c.Client.Do(req)
 }
 
+func (c *Client) CreateHealthLabCollectionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateHealthLabCollectionRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateHealthLabCollection(ctx context.Context, body CreateHealthLabCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateHealthLabCollectionRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteHealthLabCollection(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteHealthLabCollectionRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceHealthLabCollectionWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceHealthLabCollectionRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceHealthLabCollection(ctx context.Context, id ID, body ReplaceHealthLabCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceHealthLabCollectionRequest(c.Server, id, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 func (c *Client) ListHealthMedications(ctx context.Context, params *ListHealthMedicationsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListHealthMedicationsRequest(c.Server, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateHealthMedicationWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateHealthMedicationRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateHealthMedication(ctx context.Context, body CreateHealthMedicationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateHealthMedicationRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteHealthMedication(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteHealthMedicationRequest(c.Server, id)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceHealthMedicationWithBody(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceHealthMedicationRequestWithBody(c.Server, id, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ReplaceHealthMedication(ctx context.Context, id ID, body ReplaceHealthMedicationJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewReplaceHealthMedicationRequest(c.Server, id, body)
 	if err != nil {
 		return nil, err
 	}
@@ -846,6 +1133,46 @@ func NewListHealthBloodPressureRequest(server string, params *ListHealthBloodPre
 	return req, nil
 }
 
+// NewCreateHealthBloodPressureRequest calls the generic CreateHealthBloodPressure builder with application/json body
+func NewCreateHealthBloodPressureRequest(server string, body CreateHealthBloodPressureJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateHealthBloodPressureRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateHealthBloodPressureRequestWithBody generates requests for CreateHealthBloodPressure with any type of body
+func NewCreateHealthBloodPressureRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/health/blood-pressure")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewGetHealthBloodPressureTrendRequest generates requests for GetHealthBloodPressureTrend
 func NewGetHealthBloodPressureTrendRequest(server string, params *GetHealthBloodPressureTrendParams) (*http.Request, error) {
 	var err error
@@ -923,6 +1250,87 @@ func NewGetHealthBloodPressureTrendRequest(server string, params *GetHealthBlood
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewDeleteHealthBloodPressureRequest generates requests for DeleteHealthBloodPressure
+func NewDeleteHealthBloodPressureRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/health/blood-pressure/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewReplaceHealthBloodPressureRequest calls the generic ReplaceHealthBloodPressure builder with application/json body
+func NewReplaceHealthBloodPressureRequest(server string, id ID, body ReplaceHealthBloodPressureJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReplaceHealthBloodPressureRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewReplaceHealthBloodPressureRequestWithBody generates requests for ReplaceHealthBloodPressure with any type of body
+func NewReplaceHealthBloodPressureRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/health/blood-pressure/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -1015,6 +1423,127 @@ func NewListHealthLabCollectionsRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
+// NewCreateHealthLabCollectionRequest calls the generic CreateHealthLabCollection builder with application/json body
+func NewCreateHealthLabCollectionRequest(server string, body CreateHealthLabCollectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateHealthLabCollectionRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateHealthLabCollectionRequestWithBody generates requests for CreateHealthLabCollection with any type of body
+func NewCreateHealthLabCollectionRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/health/labs/collections")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteHealthLabCollectionRequest generates requests for DeleteHealthLabCollection
+func NewDeleteHealthLabCollectionRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/health/labs/collections/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewReplaceHealthLabCollectionRequest calls the generic ReplaceHealthLabCollection builder with application/json body
+func NewReplaceHealthLabCollectionRequest(server string, id ID, body ReplaceHealthLabCollectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReplaceHealthLabCollectionRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewReplaceHealthLabCollectionRequestWithBody generates requests for ReplaceHealthLabCollection with any type of body
+func NewReplaceHealthLabCollectionRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/health/labs/collections/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewListHealthMedicationsRequest generates requests for ListHealthMedications
 func NewListHealthMedicationsRequest(server string, params *ListHealthMedicationsParams) (*http.Request, error) {
 	var err error
@@ -1060,6 +1589,127 @@ func NewListHealthMedicationsRequest(server string, params *ListHealthMedication
 	if err != nil {
 		return nil, err
 	}
+
+	return req, nil
+}
+
+// NewCreateHealthMedicationRequest calls the generic CreateHealthMedication builder with application/json body
+func NewCreateHealthMedicationRequest(server string, body CreateHealthMedicationJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateHealthMedicationRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewCreateHealthMedicationRequestWithBody generates requests for CreateHealthMedication with any type of body
+func NewCreateHealthMedicationRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/health/medications")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteHealthMedicationRequest generates requests for DeleteHealthMedication
+func NewDeleteHealthMedicationRequest(server string, id ID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/health/medications/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewReplaceHealthMedicationRequest calls the generic ReplaceHealthMedication builder with application/json body
+func NewReplaceHealthMedicationRequest(server string, id ID, body ReplaceHealthMedicationJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewReplaceHealthMedicationRequestWithBody(server, id, "application/json", bodyReader)
+}
+
+// NewReplaceHealthMedicationRequestWithBody generates requests for ReplaceHealthMedication with any type of body
+func NewReplaceHealthMedicationRequestWithBody(server string, id ID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "integer", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/health/medications/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -1391,8 +2041,21 @@ type ClientWithResponsesInterface interface {
 	// ListHealthBloodPressureWithResponse request
 	ListHealthBloodPressureWithResponse(ctx context.Context, params *ListHealthBloodPressureParams, reqEditors ...RequestEditorFn) (*ListHealthBloodPressureClientResponse, error)
 
+	// CreateHealthBloodPressureWithBodyWithResponse request with any body
+	CreateHealthBloodPressureWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateHealthBloodPressureClientResponse, error)
+
+	CreateHealthBloodPressureWithResponse(ctx context.Context, body CreateHealthBloodPressureJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateHealthBloodPressureClientResponse, error)
+
 	// GetHealthBloodPressureTrendWithResponse request
 	GetHealthBloodPressureTrendWithResponse(ctx context.Context, params *GetHealthBloodPressureTrendParams, reqEditors ...RequestEditorFn) (*GetHealthBloodPressureTrendClientResponse, error)
+
+	// DeleteHealthBloodPressureWithResponse request
+	DeleteHealthBloodPressureWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteHealthBloodPressureClientResponse, error)
+
+	// ReplaceHealthBloodPressureWithBodyWithResponse request with any body
+	ReplaceHealthBloodPressureWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceHealthBloodPressureClientResponse, error)
+
+	ReplaceHealthBloodPressureWithResponse(ctx context.Context, id ID, body ReplaceHealthBloodPressureJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceHealthBloodPressureClientResponse, error)
 
 	// ListHealthLabAnalytesWithResponse request
 	ListHealthLabAnalytesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListHealthLabAnalytesClientResponse, error)
@@ -1403,8 +2066,34 @@ type ClientWithResponsesInterface interface {
 	// ListHealthLabCollectionsWithResponse request
 	ListHealthLabCollectionsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListHealthLabCollectionsClientResponse, error)
 
+	// CreateHealthLabCollectionWithBodyWithResponse request with any body
+	CreateHealthLabCollectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateHealthLabCollectionClientResponse, error)
+
+	CreateHealthLabCollectionWithResponse(ctx context.Context, body CreateHealthLabCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateHealthLabCollectionClientResponse, error)
+
+	// DeleteHealthLabCollectionWithResponse request
+	DeleteHealthLabCollectionWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteHealthLabCollectionClientResponse, error)
+
+	// ReplaceHealthLabCollectionWithBodyWithResponse request with any body
+	ReplaceHealthLabCollectionWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceHealthLabCollectionClientResponse, error)
+
+	ReplaceHealthLabCollectionWithResponse(ctx context.Context, id ID, body ReplaceHealthLabCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceHealthLabCollectionClientResponse, error)
+
 	// ListHealthMedicationsWithResponse request
 	ListHealthMedicationsWithResponse(ctx context.Context, params *ListHealthMedicationsParams, reqEditors ...RequestEditorFn) (*ListHealthMedicationsClientResponse, error)
+
+	// CreateHealthMedicationWithBodyWithResponse request with any body
+	CreateHealthMedicationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateHealthMedicationClientResponse, error)
+
+	CreateHealthMedicationWithResponse(ctx context.Context, body CreateHealthMedicationJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateHealthMedicationClientResponse, error)
+
+	// DeleteHealthMedicationWithResponse request
+	DeleteHealthMedicationWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteHealthMedicationClientResponse, error)
+
+	// ReplaceHealthMedicationWithBodyWithResponse request with any body
+	ReplaceHealthMedicationWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceHealthMedicationClientResponse, error)
+
+	ReplaceHealthMedicationWithResponse(ctx context.Context, id ID, body ReplaceHealthMedicationJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceHealthMedicationClientResponse, error)
 
 	// GetHealthSummaryWithResponse request
 	GetHealthSummaryWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetHealthSummaryClientResponse, error)
@@ -1475,6 +2164,30 @@ func (r ListHealthBloodPressureClientResponse) StatusCode() int {
 	return 0
 }
 
+type CreateHealthBloodPressureClientResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *HealthBloodPressureEntry
+	JSON400      *BadRequestErrorResponse
+	JSON500      *InternalErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateHealthBloodPressureClientResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateHealthBloodPressureClientResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetHealthBloodPressureTrendClientResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -1493,6 +2206,55 @@ func (r GetHealthBloodPressureTrendClientResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetHealthBloodPressureTrendClientResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteHealthBloodPressureClientResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DeleteSuccess
+	JSON404      *NotFoundErrorResponse
+	JSON500      *InternalErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteHealthBloodPressureClientResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteHealthBloodPressureClientResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ReplaceHealthBloodPressureClientResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *HealthBloodPressureEntry
+	JSON400      *BadRequestErrorResponse
+	JSON404      *NotFoundErrorResponse
+	JSON500      *InternalErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ReplaceHealthBloodPressureClientResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReplaceHealthBloodPressureClientResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1570,6 +2332,79 @@ func (r ListHealthLabCollectionsClientResponse) StatusCode() int {
 	return 0
 }
 
+type CreateHealthLabCollectionClientResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *HealthLabCollection
+	JSON400      *BadRequestErrorResponse
+	JSON500      *InternalErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateHealthLabCollectionClientResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateHealthLabCollectionClientResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteHealthLabCollectionClientResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DeleteSuccess
+	JSON404      *NotFoundErrorResponse
+	JSON500      *InternalErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteHealthLabCollectionClientResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteHealthLabCollectionClientResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ReplaceHealthLabCollectionClientResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *HealthLabCollection
+	JSON400      *BadRequestErrorResponse
+	JSON404      *NotFoundErrorResponse
+	JSON500      *InternalErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ReplaceHealthLabCollectionClientResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReplaceHealthLabCollectionClientResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type ListHealthMedicationsClientResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -1588,6 +2423,79 @@ func (r ListHealthMedicationsClientResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r ListHealthMedicationsClientResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateHealthMedicationClientResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *HealthMedicationCourse
+	JSON400      *BadRequestErrorResponse
+	JSON500      *InternalErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateHealthMedicationClientResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateHealthMedicationClientResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteHealthMedicationClientResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *DeleteSuccess
+	JSON404      *NotFoundErrorResponse
+	JSON500      *InternalErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteHealthMedicationClientResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteHealthMedicationClientResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ReplaceHealthMedicationClientResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *HealthMedicationCourse
+	JSON400      *BadRequestErrorResponse
+	JSON404      *NotFoundErrorResponse
+	JSON500      *InternalErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ReplaceHealthMedicationClientResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ReplaceHealthMedicationClientResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -1757,6 +2665,23 @@ func (c *ClientWithResponses) ListHealthBloodPressureWithResponse(ctx context.Co
 	return ParseListHealthBloodPressureClientResponse(rsp)
 }
 
+// CreateHealthBloodPressureWithBodyWithResponse request with arbitrary body returning *CreateHealthBloodPressureClientResponse
+func (c *ClientWithResponses) CreateHealthBloodPressureWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateHealthBloodPressureClientResponse, error) {
+	rsp, err := c.CreateHealthBloodPressureWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateHealthBloodPressureClientResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateHealthBloodPressureWithResponse(ctx context.Context, body CreateHealthBloodPressureJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateHealthBloodPressureClientResponse, error) {
+	rsp, err := c.CreateHealthBloodPressure(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateHealthBloodPressureClientResponse(rsp)
+}
+
 // GetHealthBloodPressureTrendWithResponse request returning *GetHealthBloodPressureTrendClientResponse
 func (c *ClientWithResponses) GetHealthBloodPressureTrendWithResponse(ctx context.Context, params *GetHealthBloodPressureTrendParams, reqEditors ...RequestEditorFn) (*GetHealthBloodPressureTrendClientResponse, error) {
 	rsp, err := c.GetHealthBloodPressureTrend(ctx, params, reqEditors...)
@@ -1764,6 +2689,32 @@ func (c *ClientWithResponses) GetHealthBloodPressureTrendWithResponse(ctx contex
 		return nil, err
 	}
 	return ParseGetHealthBloodPressureTrendClientResponse(rsp)
+}
+
+// DeleteHealthBloodPressureWithResponse request returning *DeleteHealthBloodPressureClientResponse
+func (c *ClientWithResponses) DeleteHealthBloodPressureWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteHealthBloodPressureClientResponse, error) {
+	rsp, err := c.DeleteHealthBloodPressure(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteHealthBloodPressureClientResponse(rsp)
+}
+
+// ReplaceHealthBloodPressureWithBodyWithResponse request with arbitrary body returning *ReplaceHealthBloodPressureClientResponse
+func (c *ClientWithResponses) ReplaceHealthBloodPressureWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceHealthBloodPressureClientResponse, error) {
+	rsp, err := c.ReplaceHealthBloodPressureWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceHealthBloodPressureClientResponse(rsp)
+}
+
+func (c *ClientWithResponses) ReplaceHealthBloodPressureWithResponse(ctx context.Context, id ID, body ReplaceHealthBloodPressureJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceHealthBloodPressureClientResponse, error) {
+	rsp, err := c.ReplaceHealthBloodPressure(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceHealthBloodPressureClientResponse(rsp)
 }
 
 // ListHealthLabAnalytesWithResponse request returning *ListHealthLabAnalytesClientResponse
@@ -1793,6 +2744,49 @@ func (c *ClientWithResponses) ListHealthLabCollectionsWithResponse(ctx context.C
 	return ParseListHealthLabCollectionsClientResponse(rsp)
 }
 
+// CreateHealthLabCollectionWithBodyWithResponse request with arbitrary body returning *CreateHealthLabCollectionClientResponse
+func (c *ClientWithResponses) CreateHealthLabCollectionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateHealthLabCollectionClientResponse, error) {
+	rsp, err := c.CreateHealthLabCollectionWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateHealthLabCollectionClientResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateHealthLabCollectionWithResponse(ctx context.Context, body CreateHealthLabCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateHealthLabCollectionClientResponse, error) {
+	rsp, err := c.CreateHealthLabCollection(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateHealthLabCollectionClientResponse(rsp)
+}
+
+// DeleteHealthLabCollectionWithResponse request returning *DeleteHealthLabCollectionClientResponse
+func (c *ClientWithResponses) DeleteHealthLabCollectionWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteHealthLabCollectionClientResponse, error) {
+	rsp, err := c.DeleteHealthLabCollection(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteHealthLabCollectionClientResponse(rsp)
+}
+
+// ReplaceHealthLabCollectionWithBodyWithResponse request with arbitrary body returning *ReplaceHealthLabCollectionClientResponse
+func (c *ClientWithResponses) ReplaceHealthLabCollectionWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceHealthLabCollectionClientResponse, error) {
+	rsp, err := c.ReplaceHealthLabCollectionWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceHealthLabCollectionClientResponse(rsp)
+}
+
+func (c *ClientWithResponses) ReplaceHealthLabCollectionWithResponse(ctx context.Context, id ID, body ReplaceHealthLabCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceHealthLabCollectionClientResponse, error) {
+	rsp, err := c.ReplaceHealthLabCollection(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceHealthLabCollectionClientResponse(rsp)
+}
+
 // ListHealthMedicationsWithResponse request returning *ListHealthMedicationsClientResponse
 func (c *ClientWithResponses) ListHealthMedicationsWithResponse(ctx context.Context, params *ListHealthMedicationsParams, reqEditors ...RequestEditorFn) (*ListHealthMedicationsClientResponse, error) {
 	rsp, err := c.ListHealthMedications(ctx, params, reqEditors...)
@@ -1800,6 +2794,49 @@ func (c *ClientWithResponses) ListHealthMedicationsWithResponse(ctx context.Cont
 		return nil, err
 	}
 	return ParseListHealthMedicationsClientResponse(rsp)
+}
+
+// CreateHealthMedicationWithBodyWithResponse request with arbitrary body returning *CreateHealthMedicationClientResponse
+func (c *ClientWithResponses) CreateHealthMedicationWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateHealthMedicationClientResponse, error) {
+	rsp, err := c.CreateHealthMedicationWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateHealthMedicationClientResponse(rsp)
+}
+
+func (c *ClientWithResponses) CreateHealthMedicationWithResponse(ctx context.Context, body CreateHealthMedicationJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateHealthMedicationClientResponse, error) {
+	rsp, err := c.CreateHealthMedication(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateHealthMedicationClientResponse(rsp)
+}
+
+// DeleteHealthMedicationWithResponse request returning *DeleteHealthMedicationClientResponse
+func (c *ClientWithResponses) DeleteHealthMedicationWithResponse(ctx context.Context, id ID, reqEditors ...RequestEditorFn) (*DeleteHealthMedicationClientResponse, error) {
+	rsp, err := c.DeleteHealthMedication(ctx, id, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteHealthMedicationClientResponse(rsp)
+}
+
+// ReplaceHealthMedicationWithBodyWithResponse request with arbitrary body returning *ReplaceHealthMedicationClientResponse
+func (c *ClientWithResponses) ReplaceHealthMedicationWithBodyWithResponse(ctx context.Context, id ID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReplaceHealthMedicationClientResponse, error) {
+	rsp, err := c.ReplaceHealthMedicationWithBody(ctx, id, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceHealthMedicationClientResponse(rsp)
+}
+
+func (c *ClientWithResponses) ReplaceHealthMedicationWithResponse(ctx context.Context, id ID, body ReplaceHealthMedicationJSONRequestBody, reqEditors ...RequestEditorFn) (*ReplaceHealthMedicationClientResponse, error) {
+	rsp, err := c.ReplaceHealthMedication(ctx, id, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseReplaceHealthMedicationClientResponse(rsp)
 }
 
 // GetHealthSummaryWithResponse request returning *GetHealthSummaryClientResponse
@@ -1938,6 +2975,46 @@ func ParseListHealthBloodPressureClientResponse(rsp *http.Response) (*ListHealth
 	return response, nil
 }
 
+// ParseCreateHealthBloodPressureClientResponse parses an HTTP response from a CreateHealthBloodPressureWithResponse call
+func ParseCreateHealthBloodPressureClientResponse(rsp *http.Response) (*CreateHealthBloodPressureClientResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateHealthBloodPressureClientResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest HealthBloodPressureEntry
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequestErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetHealthBloodPressureTrendClientResponse parses an HTTP response from a GetHealthBloodPressureTrendWithResponse call
 func ParseGetHealthBloodPressureTrendClientResponse(rsp *http.Response) (*GetHealthBloodPressureTrendClientResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -1965,6 +3042,93 @@ func ParseGetHealthBloodPressureTrendClientResponse(rsp *http.Response) (*GetHea
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteHealthBloodPressureClientResponse parses an HTTP response from a DeleteHealthBloodPressureWithResponse call
+func ParseDeleteHealthBloodPressureClientResponse(rsp *http.Response) (*DeleteHealthBloodPressureClientResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteHealthBloodPressureClientResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DeleteSuccess
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFoundErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReplaceHealthBloodPressureClientResponse parses an HTTP response from a ReplaceHealthBloodPressureWithResponse call
+func ParseReplaceHealthBloodPressureClientResponse(rsp *http.Response) (*ReplaceHealthBloodPressureClientResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReplaceHealthBloodPressureClientResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest HealthBloodPressureEntry
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequestErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFoundErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalErrorResponse
@@ -2091,6 +3255,133 @@ func ParseListHealthLabCollectionsClientResponse(rsp *http.Response) (*ListHealt
 	return response, nil
 }
 
+// ParseCreateHealthLabCollectionClientResponse parses an HTTP response from a CreateHealthLabCollectionWithResponse call
+func ParseCreateHealthLabCollectionClientResponse(rsp *http.Response) (*CreateHealthLabCollectionClientResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateHealthLabCollectionClientResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest HealthLabCollection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequestErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteHealthLabCollectionClientResponse parses an HTTP response from a DeleteHealthLabCollectionWithResponse call
+func ParseDeleteHealthLabCollectionClientResponse(rsp *http.Response) (*DeleteHealthLabCollectionClientResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteHealthLabCollectionClientResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DeleteSuccess
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFoundErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReplaceHealthLabCollectionClientResponse parses an HTTP response from a ReplaceHealthLabCollectionWithResponse call
+func ParseReplaceHealthLabCollectionClientResponse(rsp *http.Response) (*ReplaceHealthLabCollectionClientResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReplaceHealthLabCollectionClientResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest HealthLabCollection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequestErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFoundErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListHealthMedicationsClientResponse parses an HTTP response from a ListHealthMedicationsWithResponse call
 func ParseListHealthMedicationsClientResponse(rsp *http.Response) (*ListHealthMedicationsClientResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -2118,6 +3409,133 @@ func ParseListHealthMedicationsClientResponse(rsp *http.Response) (*ListHealthMe
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateHealthMedicationClientResponse parses an HTTP response from a CreateHealthMedicationWithResponse call
+func ParseCreateHealthMedicationClientResponse(rsp *http.Response) (*CreateHealthMedicationClientResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateHealthMedicationClientResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest HealthMedicationCourse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequestErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteHealthMedicationClientResponse parses an HTTP response from a DeleteHealthMedicationWithResponse call
+func ParseDeleteHealthMedicationClientResponse(rsp *http.Response) (*DeleteHealthMedicationClientResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteHealthMedicationClientResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DeleteSuccess
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFoundErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseReplaceHealthMedicationClientResponse parses an HTTP response from a ReplaceHealthMedicationWithResponse call
+func ParseReplaceHealthMedicationClientResponse(rsp *http.Response) (*ReplaceHealthMedicationClientResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ReplaceHealthMedicationClientResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest HealthMedicationCourse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequestErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFoundErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalErrorResponse

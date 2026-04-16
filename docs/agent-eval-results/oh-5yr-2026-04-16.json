@@ -6,13 +6,14 @@
   "harness": "codex exec --json --ephemeral --full-auto from throwaway run directories",
   "codex_version": "codex-cli 0.121.0",
   "history_isolation": {
-    "status": "passed",
+    "status": "review",
     "ephemeral_flag_required": true,
     "run_directory_outside_repo": true,
-    "new_session_files_after_run": 0,
+    "new_session_files_after_run": 1,
     "openhealth_workspace_used": false,
     "desktop_app_used": false,
-    "verification_method": "The runner required --ephemeral, used -C \u003crun-root\u003e/.../repo, kept raw logs under \u003crun-root\u003e, and counted new Codex session files that referenced the throwaway run root."
+    "verification_method": "The runner required --ephemeral, used -C \u003crun-root\u003e/.../repo, kept raw logs under \u003crun-root\u003e, and counted new Codex session files that referenced the throwaway run root.",
+    "verification_limitation": "A session-file count changed while evals ran; this may be from another Codex process, because the harness uses --ephemeral and a throwaway cwd."
   },
   "command_template": [
     "OPENHEALTH_DATABASE_PATH=\u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/openhealth.db",
@@ -20,7 +21,7 @@
     "GOMODCACHE=\u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/gomodcache",
     "codex exec --json --ephemeral --full-auto --skip-git-repo-check --add-dir \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e -C \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/repo -m gpt-5.4-mini -c model_reasoning_effort=\"medium\" -c shell_environment_policy.inherit=all \u003cnatural user prompt\u003e"
   ],
-  "cli_status": "not runnable: cmd/openhealth currently exposes migrate and serve, not user-facing weight add/list commands",
+  "cli_status": "runnable: cli variant uses go run ./cmd/openhealth weight add/list",
   "results": [
     {
       "variant": "production",
@@ -28,22 +29,22 @@
       "scenario_title": "Add two weights and verify newest-first output",
       "passed": true,
       "exit_code": 0,
-      "wall_seconds": 65.21,
+      "wall_seconds": 77.37,
       "metrics": {
-        "assistant_calls": 7,
-        "tool_calls": 19,
-        "command_executions": 19,
-        "file_inspection_commands": 16,
+        "assistant_calls": 11,
+        "tool_calls": 33,
+        "command_executions": 33,
+        "file_inspection_commands": 22,
         "generated_file_inspected": false,
         "module_cache_inspected": false,
         "usage_exposed": true,
-        "input_tokens": 486575,
-        "cached_input_tokens": 449664,
-        "non_cached_input_tokens": 36911,
-        "output_tokens": 6222,
+        "input_tokens": 660557,
+        "cached_input_tokens": 631552,
+        "non_cached_input_tokens": 29005,
+        "output_tokens": 7761,
         "event_type_counts": {
-          "item.completed": 27,
-          "item.started": 20,
+          "item.completed": 44,
+          "item.started": 33,
           "thread.started": 1,
           "turn.completed": 1,
           "turn.started": 1
@@ -77,22 +78,22 @@
       "scenario_title": "Repeat the same add request without creating duplicates",
       "passed": true,
       "exit_code": 0,
-      "wall_seconds": 66.11,
+      "wall_seconds": 76.32,
       "metrics": {
-        "assistant_calls": 8,
-        "tool_calls": 16,
-        "command_executions": 15,
-        "file_inspection_commands": 9,
+        "assistant_calls": 9,
+        "tool_calls": 20,
+        "command_executions": 19,
+        "file_inspection_commands": 13,
         "generated_file_inspected": false,
         "module_cache_inspected": false,
         "usage_exposed": true,
-        "input_tokens": 358720,
-        "cached_input_tokens": 339072,
-        "non_cached_input_tokens": 19648,
-        "output_tokens": 4833,
+        "input_tokens": 407234,
+        "cached_input_tokens": 355200,
+        "non_cached_input_tokens": 52034,
+        "output_tokens": 5975,
         "event_type_counts": {
-          "item.completed": 24,
-          "item.started": 17,
+          "item.completed": 28,
+          "item.started": 20,
           "thread.started": 1,
           "turn.completed": 1,
           "turn.started": 1
@@ -126,22 +127,22 @@
       "scenario_title": "Correct an existing same-date weight value",
       "passed": true,
       "exit_code": 0,
-      "wall_seconds": 86.37,
+      "wall_seconds": 71.8,
       "metrics": {
         "assistant_calls": 12,
-        "tool_calls": 23,
-        "command_executions": 22,
-        "file_inspection_commands": 12,
+        "tool_calls": 32,
+        "command_executions": 32,
+        "file_inspection_commands": 17,
         "generated_file_inspected": true,
         "module_cache_inspected": false,
         "usage_exposed": true,
-        "input_tokens": 676368,
-        "cached_input_tokens": 651520,
-        "non_cached_input_tokens": 24848,
-        "output_tokens": 6910,
+        "input_tokens": 561719,
+        "cached_input_tokens": 537600,
+        "non_cached_input_tokens": 24119,
+        "output_tokens": 7565,
         "event_type_counts": {
-          "item.completed": 36,
-          "item.started": 25,
+          "item.completed": 44,
+          "item.started": 32,
           "thread.started": 1,
           "turn.completed": 1,
           "turn.started": 1
@@ -168,24 +169,24 @@
       "variant": "production",
       "scenario": "bounded-range",
       "scenario_title": "List a bounded date range newest-first",
-      "passed": true,
+      "passed": false,
       "exit_code": 0,
-      "wall_seconds": 92.59,
+      "wall_seconds": 40.58,
       "metrics": {
-        "assistant_calls": 13,
-        "tool_calls": 24,
-        "command_executions": 24,
-        "file_inspection_commands": 17,
+        "assistant_calls": 8,
+        "tool_calls": 11,
+        "command_executions": 11,
+        "file_inspection_commands": 5,
         "generated_file_inspected": true,
         "module_cache_inspected": false,
         "usage_exposed": true,
-        "input_tokens": 611635,
-        "cached_input_tokens": 580736,
-        "non_cached_input_tokens": 30899,
-        "output_tokens": 8804,
+        "input_tokens": 234983,
+        "cached_input_tokens": 220160,
+        "non_cached_input_tokens": 14823,
+        "output_tokens": 3540,
         "event_type_counts": {
-          "item.completed": 37,
-          "item.started": 24,
+          "item.completed": 19,
+          "item.started": 11,
           "thread.started": 1,
           "turn.completed": 1,
           "turn.started": 1
@@ -193,9 +194,9 @@
         "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
       },
       "verification": {
-        "passed": true,
+        "passed": false,
         "database_pass": true,
-        "assistant_pass": true,
+        "assistant_pass": false,
         "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
         "weights": [
           {
@@ -224,22 +225,22 @@
       "scenario_title": "Clarify an ambiguous short date without writing",
       "passed": true,
       "exit_code": 0,
-      "wall_seconds": 9.94,
+      "wall_seconds": 7.09,
       "metrics": {
         "assistant_calls": 2,
-        "tool_calls": 3,
-        "command_executions": 3,
-        "file_inspection_commands": 3,
-        "generated_file_inspected": false,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": true,
         "module_cache_inspected": false,
         "usage_exposed": true,
-        "input_tokens": 69652,
-        "cached_input_tokens": 63616,
-        "non_cached_input_tokens": 6036,
-        "output_tokens": 763,
+        "input_tokens": 57024,
+        "cached_input_tokens": 37632,
+        "non_cached_input_tokens": 19392,
+        "output_tokens": 418,
         "event_type_counts": {
-          "item.completed": 5,
-          "item.started": 3,
+          "item.completed": 3,
+          "item.started": 1,
           "thread.started": 1,
           "turn.completed": 1,
           "turn.started": 1
@@ -260,24 +261,24 @@
       "variant": "production",
       "scenario": "invalid-input",
       "scenario_title": "Reject invalid unit and value without writing",
-      "passed": false,
+      "passed": true,
       "exit_code": 0,
-      "wall_seconds": 41.8,
+      "wall_seconds": 25.29,
       "metrics": {
-        "assistant_calls": 9,
-        "tool_calls": 15,
-        "command_executions": 15,
-        "file_inspection_commands": 10,
+        "assistant_calls": 3,
+        "tool_calls": 3,
+        "command_executions": 3,
+        "file_inspection_commands": 2,
         "generated_file_inspected": false,
         "module_cache_inspected": false,
         "usage_exposed": true,
-        "input_tokens": 359594,
-        "cached_input_tokens": 336128,
-        "non_cached_input_tokens": 23466,
-        "output_tokens": 3815,
+        "input_tokens": 68361,
+        "cached_input_tokens": 63104,
+        "non_cached_input_tokens": 5257,
+        "output_tokens": 878,
         "event_type_counts": {
-          "item.completed": 24,
-          "item.started": 15,
+          "item.completed": 6,
+          "item.started": 3,
           "thread.started": 1,
           "turn.completed": 1,
           "turn.started": 1
@@ -285,17 +286,11 @@
         "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
       },
       "verification": {
-        "passed": false,
-        "database_pass": false,
+        "passed": true,
+        "database_pass": true,
         "assistant_pass": true,
-        "details": "expected no write and an invalid input rejection; observed [2026-03-31 70.0 lb]",
-        "weights": [
-          {
-            "date": "2026-03-31",
-            "value": 70,
-            "unit": "lb"
-          }
-        ]
+        "details": "expected no write and an invalid input rejection; observed []",
+        "weights": []
       },
       "prompt_summary": "reject -5 stone for 2026-03-31",
       "raw_log_artifact_reference": "\u003crun-root\u003e/production/invalid-input/events.jsonl"
@@ -306,22 +301,22 @@
       "scenario_title": "Add two weights and verify newest-first output",
       "passed": true,
       "exit_code": 0,
-      "wall_seconds": 95.2,
+      "wall_seconds": 88.18,
       "metrics": {
-        "assistant_calls": 11,
-        "tool_calls": 30,
-        "command_executions": 27,
-        "file_inspection_commands": 24,
-        "generated_file_inspected": false,
+        "assistant_calls": 12,
+        "tool_calls": 33,
+        "command_executions": 33,
+        "file_inspection_commands": 21,
+        "generated_file_inspected": true,
         "module_cache_inspected": false,
         "usage_exposed": true,
-        "input_tokens": 845066,
-        "cached_input_tokens": 812800,
-        "non_cached_input_tokens": 32266,
-        "output_tokens": 8564,
+        "input_tokens": 847022,
+        "cached_input_tokens": 774656,
+        "non_cached_input_tokens": 72366,
+        "output_tokens": 9823,
         "event_type_counts": {
-          "item.completed": 40,
-          "item.started": 32,
+          "item.completed": 45,
+          "item.started": 33,
           "thread.started": 1,
           "turn.completed": 1,
           "turn.started": 1
@@ -355,22 +350,22 @@
       "scenario_title": "Repeat the same add request without creating duplicates",
       "passed": true,
       "exit_code": 0,
-      "wall_seconds": 52.62,
+      "wall_seconds": 135.04,
       "metrics": {
-        "assistant_calls": 8,
-        "tool_calls": 16,
-        "command_executions": 16,
-        "file_inspection_commands": 9,
-        "generated_file_inspected": false,
+        "assistant_calls": 13,
+        "tool_calls": 28,
+        "command_executions": 28,
+        "file_inspection_commands": 20,
+        "generated_file_inspected": true,
         "module_cache_inspected": false,
         "usage_exposed": true,
-        "input_tokens": 297293,
-        "cached_input_tokens": 278272,
-        "non_cached_input_tokens": 19021,
-        "output_tokens": 4770,
+        "input_tokens": 620522,
+        "cached_input_tokens": 586752,
+        "non_cached_input_tokens": 33770,
+        "output_tokens": 8029,
         "event_type_counts": {
-          "item.completed": 25,
-          "item.started": 17,
+          "item.completed": 41,
+          "item.started": 28,
           "thread.started": 1,
           "turn.completed": 1,
           "turn.started": 1
@@ -404,22 +399,22 @@
       "scenario_title": "Correct an existing same-date weight value",
       "passed": true,
       "exit_code": 0,
-      "wall_seconds": 62.63,
+      "wall_seconds": 41.25,
       "metrics": {
         "assistant_calls": 9,
-        "tool_calls": 20,
-        "command_executions": 19,
-        "file_inspection_commands": 12,
-        "generated_file_inspected": false,
+        "tool_calls": 16,
+        "command_executions": 16,
+        "file_inspection_commands": 10,
+        "generated_file_inspected": true,
         "module_cache_inspected": false,
         "usage_exposed": true,
-        "input_tokens": 409164,
-        "cached_input_tokens": 369024,
-        "non_cached_input_tokens": 40140,
-        "output_tokens": 5174,
+        "input_tokens": 428470,
+        "cached_input_tokens": 403968,
+        "non_cached_input_tokens": 24502,
+        "output_tokens": 3795,
         "event_type_counts": {
-          "item.completed": 28,
-          "item.started": 20,
+          "item.completed": 25,
+          "item.started": 16,
           "thread.started": 1,
           "turn.completed": 1,
           "turn.started": 1
@@ -448,22 +443,22 @@
       "scenario_title": "List a bounded date range newest-first",
       "passed": false,
       "exit_code": 0,
-      "wall_seconds": 52.15,
+      "wall_seconds": 137.54,
       "metrics": {
-        "assistant_calls": 8,
-        "tool_calls": 11,
-        "command_executions": 11,
-        "file_inspection_commands": 10,
+        "assistant_calls": 10,
+        "tool_calls": 29,
+        "command_executions": 29,
+        "file_inspection_commands": 23,
         "generated_file_inspected": true,
         "module_cache_inspected": false,
         "usage_exposed": true,
-        "input_tokens": 450363,
-        "cached_input_tokens": 402944,
-        "non_cached_input_tokens": 47419,
-        "output_tokens": 5899,
+        "input_tokens": 983041,
+        "cached_input_tokens": 954752,
+        "non_cached_input_tokens": 28289,
+        "output_tokens": 6982,
         "event_type_counts": {
-          "item.completed": 19,
-          "item.started": 11,
+          "item.completed": 39,
+          "item.started": 29,
           "thread.started": 1,
           "turn.completed": 1,
           "turn.started": 1
@@ -500,24 +495,24 @@
       "variant": "generated-client",
       "scenario": "ambiguous-short-date",
       "scenario_title": "Clarify an ambiguous short date without writing",
-      "passed": false,
+      "passed": true,
       "exit_code": 0,
-      "wall_seconds": 81.22,
+      "wall_seconds": 10.29,
       "metrics": {
-        "assistant_calls": 11,
-        "tool_calls": 31,
-        "command_executions": 30,
-        "file_inspection_commands": 22,
-        "generated_file_inspected": true,
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 2,
+        "generated_file_inspected": false,
         "module_cache_inspected": false,
         "usage_exposed": true,
-        "input_tokens": 866609,
-        "cached_input_tokens": 829824,
-        "non_cached_input_tokens": 36785,
-        "output_tokens": 7618,
+        "input_tokens": 69600,
+        "cached_input_tokens": 63104,
+        "non_cached_input_tokens": 6496,
+        "output_tokens": 607,
         "event_type_counts": {
-          "item.completed": 41,
-          "item.started": 31,
+          "item.completed": 5,
+          "item.started": 2,
           "thread.started": 1,
           "turn.completed": 1,
           "turn.started": 1
@@ -525,17 +520,11 @@
         "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
       },
       "verification": {
-        "passed": false,
-        "database_pass": false,
+        "passed": true,
+        "database_pass": true,
         "assistant_pass": true,
-        "details": "expected no write and a year clarification; observed [2026-03-29 152.2 lb]",
-        "weights": [
-          {
-            "date": "2026-03-29",
-            "value": 152.2,
-            "unit": "lb"
-          }
-        ]
+        "details": "expected no write and a year clarification; observed []",
+        "weights": []
       },
       "prompt_summary": "ask for year before writing 03/29 152.2 lb",
       "raw_log_artifact_reference": "\u003crun-root\u003e/generated-client/ambiguous-short-date/events.jsonl"
@@ -544,24 +533,204 @@
       "variant": "generated-client",
       "scenario": "invalid-input",
       "scenario_title": "Reject invalid unit and value without writing",
-      "passed": false,
+      "passed": true,
       "exit_code": 0,
-      "wall_seconds": 105.53,
+      "wall_seconds": 17.77,
       "metrics": {
-        "assistant_calls": 11,
-        "tool_calls": 30,
-        "command_executions": 29,
-        "file_inspection_commands": 15,
+        "assistant_calls": 4,
+        "tool_calls": 5,
+        "command_executions": 5,
+        "file_inspection_commands": 5,
+        "generated_file_inspected": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 102716,
+        "cached_input_tokens": 90112,
+        "non_cached_input_tokens": 12604,
+        "output_tokens": 1658,
+        "event_type_counts": {
+          "item.completed": 9,
+          "item.started": 5,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected no write and an invalid input rejection; observed []",
+        "weights": []
+      },
+      "prompt_summary": "reject -5 stone for 2026-03-31",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/generated-client/invalid-input/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "add-two",
+      "scenario_title": "Add two weights and verify newest-first output",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 49.45,
+      "metrics": {
+        "assistant_calls": 9,
+        "tool_calls": 17,
+        "command_executions": 17,
+        "file_inspection_commands": 11,
         "generated_file_inspected": true,
         "module_cache_inspected": false,
         "usage_exposed": true,
-        "input_tokens": 810261,
-        "cached_input_tokens": 781952,
-        "non_cached_input_tokens": 28309,
-        "output_tokens": 8826,
+        "input_tokens": 524491,
+        "cached_input_tokens": 483968,
+        "non_cached_input_tokens": 40523,
+        "output_tokens": 4512,
         "event_type_counts": {
-          "item.completed": 41,
-          "item.started": 31,
+          "item.completed": 26,
+          "item.started": 17,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "add 2026-03-29 152.2 lb and 2026-03-30 151.6 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/add-two/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "repeat-add",
+      "scenario_title": "Repeat the same add request without creating duplicates",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 46.3,
+      "metrics": {
+        "assistant_calls": 7,
+        "tool_calls": 19,
+        "command_executions": 19,
+        "file_inspection_commands": 13,
+        "generated_file_inspected": true,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 374407,
+        "cached_input_tokens": 350720,
+        "non_cached_input_tokens": 23687,
+        "output_tokens": 5171,
+        "event_type_counts": {
+          "item.completed": 26,
+          "item.started": 19,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "reapply the same two weights against preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/repeat-add/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "update-existing",
+      "scenario_title": "Correct an existing same-date weight value",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 44.21,
+      "metrics": {
+        "assistant_calls": 8,
+        "tool_calls": 14,
+        "command_executions": 14,
+        "file_inspection_commands": 7,
+        "generated_file_inspected": true,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 340024,
+        "cached_input_tokens": 304256,
+        "non_cached_input_tokens": 35768,
+        "output_tokens": 4323,
+        "event_type_counts": {
+          "item.completed": 22,
+          "item.started": 14,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected one updated row; observed [2026-03-29 151.6 lb]",
+        "weights": [
+          {
+            "date": "2026-03-29",
+            "value": 151.6,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "correct 2026-03-29 from 152.2 lb to 151.6 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/update-existing/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "bounded-range",
+      "scenario_title": "List a bounded date range newest-first",
+      "passed": false,
+      "exit_code": 0,
+      "wall_seconds": 37.13,
+      "metrics": {
+        "assistant_calls": 10,
+        "tool_calls": 16,
+        "command_executions": 16,
+        "file_inspection_commands": 9,
+        "generated_file_inspected": true,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 289961,
+        "cached_input_tokens": 273664,
+        "non_cached_input_tokens": 16297,
+        "output_tokens": 3631,
+        "event_type_counts": {
+          "item.completed": 26,
+          "item.started": 16,
           "thread.started": 1,
           "turn.completed": 1,
           "turn.started": 1
@@ -570,19 +739,105 @@
       },
       "verification": {
         "passed": false,
-        "database_pass": false,
-        "assistant_pass": true,
-        "details": "expected no write and an invalid input rejection; observed [2026-03-31 70.0 lb]",
+        "database_pass": true,
+        "assistant_pass": false,
+        "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
         "weights": [
           {
-            "date": "2026-03-31",
-            "value": 70,
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
             "unit": "lb"
           }
         ]
       },
+      "prompt_summary": "list only 2026-03-29 through 2026-03-30 from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/bounded-range/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "ambiguous-short-date",
+      "scenario_title": "Clarify an ambiguous short date without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 7.93,
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 44904,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 4200,
+        "output_tokens": 334,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected no write and a year clarification; observed []",
+        "weights": []
+      },
+      "prompt_summary": "ask for year before writing 03/29 152.2 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/ambiguous-short-date/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "invalid-input",
+      "scenario_title": "Reject invalid unit and value without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 6.84,
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 44917,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 4213,
+        "output_tokens": 440,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected no write and an invalid input rejection; observed []",
+        "weights": []
+      },
       "prompt_summary": "reject -5 stone for 2026-03-31",
-      "raw_log_artifact_reference": "\u003crun-root\u003e/generated-client/invalid-input/events.jsonl"
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/invalid-input/events.jsonl"
     }
   ],
   "raw_logs_committed": false,

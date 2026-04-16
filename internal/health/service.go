@@ -8,10 +8,14 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 	"time"
 )
 
-const manualWeightSource = "manual"
+const (
+	manualSource       = "manual"
+	manualWeightSource = manualSource
+)
 
 type HashGenerator func() (string, error)
 
@@ -285,6 +289,61 @@ func (s *service) ListBloodPressure(ctx context.Context, filter HistoryFilter) (
 	return s.repo.ListBloodPressureEntries(ctx, filter)
 }
 
+func (s *service) RecordBloodPressure(ctx context.Context, input BloodPressureRecordInput) (BloodPressureEntry, error) {
+	normalized, err := normalizeBloodPressureRecordInput(input)
+	if err != nil {
+		return BloodPressureEntry{}, err
+	}
+	sourceRecordHash, err := s.hashGenerator()
+	if err != nil {
+		return BloodPressureEntry{}, &DatabaseError{
+			Message: "failed to generate blood pressure entry hash",
+			Cause:   err,
+		}
+	}
+	now := s.now().UTC()
+	return s.repo.CreateBloodPressureEntry(ctx, CreateBloodPressureEntryParams{
+		RecordedAt:       normalized.RecordedAt,
+		Systolic:         normalized.Systolic,
+		Diastolic:        normalized.Diastolic,
+		Pulse:            normalized.Pulse,
+		Source:           manualSource,
+		SourceRecordHash: sourceRecordHash,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+}
+
+func (s *service) ReplaceBloodPressure(ctx context.Context, id int, input BloodPressureRecordInput) (BloodPressureEntry, error) {
+	if err := validateRecordID(id); err != nil {
+		return BloodPressureEntry{}, err
+	}
+	normalized, err := normalizeBloodPressureRecordInput(input)
+	if err != nil {
+		return BloodPressureEntry{}, err
+	}
+	return s.repo.UpdateBloodPressureEntry(ctx, UpdateBloodPressureEntryParams{
+		ID:         id,
+		RecordedAt: normalized.RecordedAt,
+		Systolic:   normalized.Systolic,
+		Diastolic:  normalized.Diastolic,
+		Pulse:      normalized.Pulse,
+		UpdatedAt:  s.now().UTC(),
+	})
+}
+
+func (s *service) DeleteBloodPressure(ctx context.Context, id int) error {
+	if err := validateRecordID(id); err != nil {
+		return err
+	}
+	now := s.now().UTC()
+	return s.repo.DeleteBloodPressureEntry(ctx, DeleteBloodPressureEntryParams{
+		ID:        id,
+		DeletedAt: now,
+		UpdatedAt: now,
+	})
+}
+
 func (s *service) BloodPressureTrend(ctx context.Context, filter HistoryFilter) ([]BloodPressureEntry, error) {
 	if err := validateHistoryFilter(filter); err != nil {
 		return nil, err
@@ -303,6 +362,53 @@ func (s *service) ListMedications(ctx context.Context, params MedicationListPara
 		return nil, err
 	}
 	return s.repo.ListMedicationCourses(ctx, status, s.now().UTC().Format(time.DateOnly))
+}
+
+func (s *service) CreateMedicationCourse(ctx context.Context, input MedicationCourseInput) (MedicationCourse, error) {
+	normalized, err := normalizeMedicationCourseInput(input)
+	if err != nil {
+		return MedicationCourse{}, err
+	}
+	now := s.now().UTC()
+	return s.repo.CreateMedicationCourse(ctx, CreateMedicationCourseParams{
+		Name:       normalized.Name,
+		DosageText: normalized.DosageText,
+		StartDate:  normalized.StartDate,
+		EndDate:    normalized.EndDate,
+		Source:     manualSource,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+	})
+}
+
+func (s *service) ReplaceMedicationCourse(ctx context.Context, id int, input MedicationCourseInput) (MedicationCourse, error) {
+	if err := validateRecordID(id); err != nil {
+		return MedicationCourse{}, err
+	}
+	normalized, err := normalizeMedicationCourseInput(input)
+	if err != nil {
+		return MedicationCourse{}, err
+	}
+	return s.repo.UpdateMedicationCourse(ctx, UpdateMedicationCourseParams{
+		ID:         id,
+		Name:       normalized.Name,
+		DosageText: normalized.DosageText,
+		StartDate:  normalized.StartDate,
+		EndDate:    normalized.EndDate,
+		UpdatedAt:  s.now().UTC(),
+	})
+}
+
+func (s *service) DeleteMedicationCourse(ctx context.Context, id int) error {
+	if err := validateRecordID(id); err != nil {
+		return err
+	}
+	now := s.now().UTC()
+	return s.repo.DeleteMedicationCourse(ctx, DeleteMedicationCourseParams{
+		ID:        id,
+		DeletedAt: now,
+		UpdatedAt: now,
+	})
 }
 
 func (s *service) ListAnalytes(ctx context.Context) ([]AnalyteSummary, error) {
@@ -391,6 +497,49 @@ func (s *service) ListLabCollections(ctx context.Context) ([]LabCollection, erro
 	return s.repo.ListLabCollections(ctx)
 }
 
+func (s *service) CreateLabCollection(ctx context.Context, input LabCollectionInput) (LabCollection, error) {
+	normalized, err := normalizeLabCollectionInput(input)
+	if err != nil {
+		return LabCollection{}, err
+	}
+	now := s.now().UTC()
+	return s.repo.CreateLabCollection(ctx, CreateLabCollectionParams{
+		CollectedAt: normalized.CollectedAt,
+		Source:      manualSource,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		Panels:      labPanelWriteParams(normalized.Panels),
+	})
+}
+
+func (s *service) ReplaceLabCollection(ctx context.Context, id int, input LabCollectionInput) (LabCollection, error) {
+	if err := validateRecordID(id); err != nil {
+		return LabCollection{}, err
+	}
+	normalized, err := normalizeLabCollectionInput(input)
+	if err != nil {
+		return LabCollection{}, err
+	}
+	return s.repo.UpdateLabCollection(ctx, UpdateLabCollectionParams{
+		ID:          id,
+		CollectedAt: normalized.CollectedAt,
+		UpdatedAt:   s.now().UTC(),
+		Panels:      labPanelWriteParams(normalized.Panels),
+	})
+}
+
+func (s *service) DeleteLabCollection(ctx context.Context, id int) error {
+	if err := validateRecordID(id); err != nil {
+		return err
+	}
+	now := s.now().UTC()
+	return s.repo.DeleteLabCollection(ctx, DeleteLabCollectionParams{
+		ID:        id,
+		DeletedAt: now,
+		UpdatedAt: now,
+	})
+}
+
 func defaultHashGenerator() (string, error) {
 	buf := make([]byte, 16)
 	if _, err := rand.Read(buf); err != nil {
@@ -427,6 +576,114 @@ func validateWeightRecordInput(input WeightRecordInput) error {
 	return nil
 }
 
+func normalizeBloodPressureRecordInput(input BloodPressureRecordInput) (BloodPressureRecordInput, error) {
+	if input.RecordedAt.IsZero() {
+		return BloodPressureRecordInput{}, &ValidationError{Message: "recorded_at is required"}
+	}
+	if input.Systolic <= 0 {
+		return BloodPressureRecordInput{}, &ValidationError{Message: "systolic must be greater than 0"}
+	}
+	if input.Diastolic <= 0 {
+		return BloodPressureRecordInput{}, &ValidationError{Message: "diastolic must be greater than 0"}
+	}
+	if input.Pulse != nil && *input.Pulse <= 0 {
+		return BloodPressureRecordInput{}, &ValidationError{Message: "pulse must be greater than 0"}
+	}
+	input.RecordedAt = input.RecordedAt.UTC()
+	return input, nil
+}
+
+func normalizeMedicationCourseInput(input MedicationCourseInput) (MedicationCourseInput, error) {
+	input.Name = strings.TrimSpace(input.Name)
+	if input.Name == "" {
+		return MedicationCourseInput{}, &ValidationError{Message: "name is required"}
+	}
+	if input.StartDate == "" {
+		return MedicationCourseInput{}, &ValidationError{Message: "start_date is required"}
+	}
+	startDate, err := time.Parse(time.DateOnly, input.StartDate)
+	if err != nil {
+		return MedicationCourseInput{}, &ValidationError{Message: "start_date must be YYYY-MM-DD"}
+	}
+	if input.EndDate != nil {
+		if *input.EndDate == "" {
+			return MedicationCourseInput{}, &ValidationError{Message: "end_date must be YYYY-MM-DD"}
+		}
+		endDate, err := time.Parse(time.DateOnly, *input.EndDate)
+		if err != nil {
+			return MedicationCourseInput{}, &ValidationError{Message: "end_date must be YYYY-MM-DD"}
+		}
+		if endDate.Before(startDate) {
+			return MedicationCourseInput{}, &ValidationError{Message: "end_date must be on or after start_date"}
+		}
+	}
+	return input, nil
+}
+
+func normalizeLabCollectionInput(input LabCollectionInput) (LabCollectionInput, error) {
+	if input.CollectedAt.IsZero() {
+		return LabCollectionInput{}, &ValidationError{Message: "collected_at is required"}
+	}
+	if len(input.Panels) == 0 {
+		return LabCollectionInput{}, &ValidationError{Message: "at least one lab panel is required"}
+	}
+	input.CollectedAt = input.CollectedAt.UTC()
+	for panelIndex := range input.Panels {
+		panel := &input.Panels[panelIndex]
+		panel.PanelName = strings.TrimSpace(panel.PanelName)
+		if panel.PanelName == "" {
+			return LabCollectionInput{}, &ValidationError{Message: "panel_name is required"}
+		}
+		if len(panel.Results) == 0 {
+			return LabCollectionInput{}, &ValidationError{Message: "at least one lab result is required"}
+		}
+		for resultIndex := range panel.Results {
+			result := &panel.Results[resultIndex]
+			result.TestName = strings.TrimSpace(result.TestName)
+			if result.TestName == "" {
+				return LabCollectionInput{}, &ValidationError{Message: "test_name is required"}
+			}
+			result.ValueText = strings.TrimSpace(result.ValueText)
+			if result.ValueText == "" {
+				return LabCollectionInput{}, &ValidationError{Message: "value_text is required"}
+			}
+			if result.CanonicalSlug != nil {
+				validSlug, err := validateAnalyteSlug(*result.CanonicalSlug)
+				if err != nil {
+					return LabCollectionInput{}, err
+				}
+				result.CanonicalSlug = &validSlug
+			}
+		}
+	}
+	return input, nil
+}
+
+func labPanelWriteParams(panels []LabPanelInput) []LabPanelWriteParams {
+	out := make([]LabPanelWriteParams, 0, len(panels))
+	for panelIndex, panel := range panels {
+		results := make([]LabResultWriteParams, 0, len(panel.Results))
+		for resultIndex, result := range panel.Results {
+			results = append(results, LabResultWriteParams{
+				TestName:      result.TestName,
+				CanonicalSlug: result.CanonicalSlug,
+				ValueText:     result.ValueText,
+				ValueNumeric:  result.ValueNumeric,
+				Units:         result.Units,
+				RangeText:     result.RangeText,
+				Flag:          result.Flag,
+				DisplayOrder:  resultIndex,
+			})
+		}
+		out = append(out, LabPanelWriteParams{
+			PanelName:    panel.PanelName,
+			DisplayOrder: panelIndex,
+			Results:      results,
+		})
+	}
+	return out
+}
+
 func equalWeightValue(left float64, right float64) bool {
 	return math.Abs(left-right) < 0.000000001
 }
@@ -445,6 +702,10 @@ func validateWeightUpdateInput(input WeightUpdateInput) error {
 }
 
 func validateWeightID(id int) error {
+	return validateRecordID(id)
+}
+
+func validateRecordID(id int) error {
 	if id <= 0 {
 		return &ValidationError{Message: "id must be greater than 0"}
 	}

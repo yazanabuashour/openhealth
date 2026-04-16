@@ -173,6 +173,73 @@ paths:
           $ref: "#/components/responses/BadRequestErrorResponse"
         "500":
           $ref: "#/components/responses/InternalErrorResponse"
+    post:
+      operationId: createHealthBloodPressure
+      tags: [health]
+      summary: Create blood pressure entry
+      description: Creates a manual blood pressure entry.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHealthBloodPressureRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthBloodPressureEntry"
+        "400":
+          $ref: "#/components/responses/BadRequestErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+  /api/v1/health/blood-pressure/{id}:
+    put:
+      operationId: replaceHealthBloodPressure
+      tags: [health]
+      summary: Replace blood pressure entry
+      description: Replaces a blood pressure entry.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceHealthBloodPressureRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthBloodPressureEntry"
+        "400":
+          $ref: "#/components/responses/BadRequestErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+    delete:
+      operationId: deleteHealthBloodPressure
+      tags: [health]
+      summary: Delete blood pressure entry
+      description: Soft-deletes a blood pressure entry.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteSuccess"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
   /api/v1/health/blood-pressure/trend:
     get:
       operationId: getHealthBloodPressureTrend
@@ -216,6 +283,73 @@ paths:
                 $ref: "#/components/schemas/HealthMedicationCourseList"
         "400":
           $ref: "#/components/responses/BadRequestErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+    post:
+      operationId: createHealthMedication
+      tags: [health]
+      summary: Create medication course
+      description: Creates a manual medication course.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHealthMedicationRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthMedicationCourse"
+        "400":
+          $ref: "#/components/responses/BadRequestErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+  /api/v1/health/medications/{id}:
+    put:
+      operationId: replaceHealthMedication
+      tags: [health]
+      summary: Replace medication course
+      description: Replaces a medication course.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceHealthMedicationRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthMedicationCourse"
+        "400":
+          $ref: "#/components/responses/BadRequestErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+    delete:
+      operationId: deleteHealthMedication
+      tags: [health]
+      summary: Delete medication course
+      description: Soft-deletes a medication course.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteSuccess"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
         "500":
           $ref: "#/components/responses/InternalErrorResponse"
   /api/v1/health/labs/analytes:
@@ -271,6 +405,73 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthLabCollectionList"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+    post:
+      operationId: createHealthLabCollection
+      tags: [health]
+      summary: Create lab collection
+      description: Creates a manual lab collection with nested panels and results.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateHealthLabCollectionRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthLabCollection"
+        "400":
+          $ref: "#/components/responses/BadRequestErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+  /api/v1/health/labs/collections/{id}:
+    put:
+      operationId: replaceHealthLabCollection
+      tags: [health]
+      summary: Replace lab collection
+      description: Replaces a lab collection and its nested panels and results.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceHealthLabCollectionRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthLabCollection"
+        "400":
+          $ref: "#/components/responses/BadRequestErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalErrorResponse"
+    delete:
+      operationId: deleteHealthLabCollection
+      tags: [health]
+      summary: Delete lab collection
+      description: Soft-deletes a lab collection.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteSuccess"
+        "404":
+          $ref: "#/components/responses/NotFoundErrorResponse"
         "500":
           $ref: "#/components/responses/InternalErrorResponse"
 components:
@@ -465,6 +666,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/HealthBloodPressureEntry"
+    CreateHealthBloodPressureRequest:
+      type: object
+      required: [recordedAt, systolic, diastolic]
+      properties:
+        recordedAt:
+          type: string
+          format: date-time
+        systolic:
+          type: integer
+          minimum: 1
+        diastolic:
+          type: integer
+          minimum: 1
+        pulse:
+          type: integer
+          minimum: 1
+          nullable: true
+    ReplaceHealthBloodPressureRequest:
+      $ref: "#/components/schemas/CreateHealthBloodPressureRequest"
     HealthMedicationCourse:
       type: object
       required: [id, name, startDate, source, createdAt, updatedAt]
@@ -503,6 +723,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/HealthMedicationCourse"
+    CreateHealthMedicationRequest:
+      type: object
+      required: [name, startDate]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        dosageText:
+          type: string
+          nullable: true
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+          nullable: true
+    ReplaceHealthMedicationRequest:
+      $ref: "#/components/schemas/CreateHealthMedicationRequest"
     HealthLabResult:
       type: object
       required: [id, panelId, testName, valueText, displayOrder]
@@ -564,7 +803,7 @@ components:
             $ref: "#/components/schemas/HealthLabResult"
     HealthLabCollection:
       type: object
-      required: [id, collectedAt, source, createdAt, panels]
+      required: [id, collectedAt, source, createdAt, updatedAt, panels]
       properties:
         id:
           type: integer
@@ -576,6 +815,13 @@ components:
         createdAt:
           type: string
           format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        deletedAt:
+          type: string
+          format: date-time
+          nullable: true
         panels:
           type: array
           items:
@@ -588,6 +834,58 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/HealthLabCollection"
+    HealthLabResultWrite:
+      type: object
+      required: [testName, valueText]
+      properties:
+        testName:
+          type: string
+          minLength: 1
+        canonicalSlug:
+          allOf:
+            - $ref: "#/components/schemas/HealthAnalyteSlug"
+          nullable: true
+        valueText:
+          type: string
+          minLength: 1
+        valueNumeric:
+          type: number
+          nullable: true
+        units:
+          type: string
+          nullable: true
+        rangeText:
+          type: string
+          nullable: true
+        flag:
+          type: string
+          nullable: true
+    HealthLabPanelWrite:
+      type: object
+      required: [panelName, results]
+      properties:
+        panelName:
+          type: string
+          minLength: 1
+        results:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/HealthLabResultWrite"
+    CreateHealthLabCollectionRequest:
+      type: object
+      required: [collectedAt, panels]
+      properties:
+        collectedAt:
+          type: string
+          format: date-time
+        panels:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/HealthLabPanelWrite"
+    ReplaceHealthLabCollectionRequest:
+      $ref: "#/components/schemas/CreateHealthLabCollectionRequest"
     HealthMovingAveragePoint:
       type: object
       required: [recordedAt, value]

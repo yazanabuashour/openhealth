@@ -195,6 +195,136 @@ func TestLocalClientWeightHelpers(t *testing.T) {
 	}
 }
 
+func TestLocalClientNonWeightHelpers(t *testing.T) {
+	t.Parallel()
+
+	api, err := client.OpenLocal(client.LocalConfig{DataDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("open local client: %v", err)
+	}
+	defer func() {
+		if closeErr := api.Close(); closeErr != nil {
+			t.Fatalf("close local client: %v", closeErr)
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	recordedAt := time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC)
+	bp, err := api.RecordBloodPressure(ctx, client.BloodPressureRecordInput{
+		RecordedAt: recordedAt,
+		Systolic:   118,
+		Diastolic:  76,
+		Pulse:      intPointer(64),
+	})
+	if err != nil {
+		t.Fatalf("record blood pressure: %v", err)
+	}
+	bp, err = api.ReplaceBloodPressure(ctx, bp.ID, client.BloodPressureRecordInput{
+		RecordedAt: recordedAt.Add(time.Hour),
+		Systolic:   119,
+		Diastolic:  77,
+	})
+	if err != nil {
+		t.Fatalf("replace blood pressure: %v", err)
+	}
+	if bp.Systolic != 119 || bp.Pulse != nil {
+		t.Fatalf("blood pressure = %#v, want systolic 119 and nil pulse", bp)
+	}
+	bps, err := api.ListBloodPressure(ctx, client.BloodPressureListOptions{Limit: 1})
+	if err != nil {
+		t.Fatalf("list blood pressure: %v", err)
+	}
+	if len(bps) != 1 || bps[0].ID != bp.ID {
+		t.Fatalf("blood pressure list = %#v", bps)
+	}
+
+	med, err := api.CreateMedicationCourse(ctx, client.MedicationCourseInput{
+		Name:       "Levothyroxine",
+		DosageText: stringPointer("25 mcg"),
+		StartDate:  "2026-01-01",
+	})
+	if err != nil {
+		t.Fatalf("create medication: %v", err)
+	}
+	med, err = api.ReplaceMedicationCourse(ctx, med.ID, client.MedicationCourseInput{
+		Name:      "Levothyroxine",
+		StartDate: "2026-01-02",
+	})
+	if err != nil {
+		t.Fatalf("replace medication: %v", err)
+	}
+	if med.StartDate != "2026-01-02" || med.DosageText != nil {
+		t.Fatalf("medication = %#v, want replacement values", med)
+	}
+	meds, err := api.ListMedicationCourses(ctx, client.MedicationListOptions{Status: client.MedicationStatusAll})
+	if err != nil {
+		t.Fatalf("list medications: %v", err)
+	}
+	if len(meds) != 1 || meds[0].ID != med.ID {
+		t.Fatalf("medications = %#v", meds)
+	}
+
+	slug := client.AnalyteSlugGlucose
+	lab, err := api.CreateLabCollection(ctx, client.LabCollectionInput{
+		CollectedAt: recordedAt,
+		Panels: []client.LabPanelInput{
+			{
+				PanelName: "Metabolic",
+				Results: []client.LabResultInput{
+					{
+						TestName:      "Glucose",
+						CanonicalSlug: &slug,
+						ValueText:     "89",
+						ValueNumeric:  float64Pointer(89),
+						Units:         stringPointer("mg/dL"),
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create lab collection: %v", err)
+	}
+	lab, err = api.ReplaceLabCollection(ctx, lab.ID, client.LabCollectionInput{
+		CollectedAt: recordedAt.Add(24 * time.Hour),
+		Panels: []client.LabPanelInput{
+			{
+				PanelName: "Thyroid",
+				Results: []client.LabResultInput{
+					{
+						TestName:  "TSH",
+						ValueText: "3.1",
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("replace lab collection: %v", err)
+	}
+	if lab.Panels[0].PanelName != "Thyroid" || lab.Panels[0].Results[0].TestName != "TSH" {
+		t.Fatalf("lab collection = %#v, want replacement panel/result", lab)
+	}
+	labs, err := api.ListLabCollections(ctx)
+	if err != nil {
+		t.Fatalf("list lab collections: %v", err)
+	}
+	if len(labs) != 1 || labs[0].ID != lab.ID {
+		t.Fatalf("lab collections = %#v", labs)
+	}
+	if err := api.DeleteBloodPressure(ctx, bp.ID); err != nil {
+		t.Fatalf("delete blood pressure: %v", err)
+	}
+	if err := api.DeleteMedicationCourse(ctx, med.ID); err != nil {
+		t.Fatalf("delete medication: %v", err)
+	}
+	if err := api.DeleteLabCollection(ctx, lab.ID); err != nil {
+		t.Fatalf("delete lab collection: %v", err)
+	}
+}
+
 func TestOpenLocalClosesRequestBodies(t *testing.T) {
 	t.Parallel()
 
@@ -245,4 +375,16 @@ func (r *trackingReadCloser) Read(p []byte) (int, error) {
 func (r *trackingReadCloser) Close() error {
 	r.closed = true
 	return nil
+}
+
+func intPointer(value int) *int {
+	return &value
+}
+
+func stringPointer(value string) *string {
+	return &value
+}
+
+func float64Pointer(value float64) *float64 {
+	return &value
 }

@@ -33,6 +33,15 @@ Prefer `UpsertWeight` for user-entered measurements. It is idempotent for the
 same recorded date and unit, returns a status, and avoids duplicate manual
 entries.
 
+Before writing a measurement, validate the user's input exactly:
+
+- Do not infer a year for short dates unless the user or conversation provides
+  explicit year context. Ask for the year instead of writing.
+- Do not convert unsupported units. V1 accepts pounds only, represented as
+  `client.WeightUnitLb`.
+- Do not write non-positive, missing, or otherwise invalid values. Tell the user
+  the entry is invalid instead.
+
 ```go
 package main
 

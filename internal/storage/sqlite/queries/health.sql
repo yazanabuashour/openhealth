@@ -124,6 +124,69 @@ LIMIT CASE
   ELSE sqlc.narg('limit_count')
 END;
 
+-- name: CreateBloodPressureEntry :one
+INSERT INTO health_blood_pressure_entry (
+  recorded_at,
+  systolic,
+  diastolic,
+  pulse,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at
+) VALUES (
+  sqlc.arg('recorded_at'),
+  sqlc.arg('systolic'),
+  sqlc.arg('diastolic'),
+  sqlc.narg('pulse'),
+  sqlc.arg('source'),
+  sqlc.arg('source_record_hash'),
+  sqlc.arg('created_at'),
+  sqlc.arg('updated_at')
+)
+RETURNING
+  id,
+  recorded_at,
+  systolic,
+  diastolic,
+  pulse,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at;
+
+-- name: UpdateBloodPressureEntry :one
+UPDATE health_blood_pressure_entry
+SET
+  recorded_at = sqlc.arg('recorded_at'),
+  systolic = sqlc.arg('systolic'),
+  diastolic = sqlc.arg('diastolic'),
+  pulse = sqlc.narg('pulse'),
+  updated_at = sqlc.arg('updated_at')
+WHERE id = sqlc.arg('id')
+  AND deleted_at IS NULL
+RETURNING
+  id,
+  recorded_at,
+  systolic,
+  diastolic,
+  pulse,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at;
+
+-- name: DeleteBloodPressureEntry :one
+UPDATE health_blood_pressure_entry
+SET
+  deleted_at = sqlc.arg('deleted_at'),
+  updated_at = sqlc.arg('updated_at')
+WHERE id = sqlc.arg('id')
+  AND deleted_at IS NULL
+RETURNING id;
+
 -- name: ListMedicationCourses :many
 SELECT
   id,
@@ -138,6 +201,65 @@ SELECT
 FROM health_medication_course
 WHERE deleted_at IS NULL
 ORDER BY start_date DESC, id DESC;
+
+-- name: CreateMedicationCourse :one
+INSERT INTO health_medication_course (
+  name,
+  dosage_text,
+  start_date,
+  end_date,
+  source,
+  created_at,
+  updated_at
+) VALUES (
+  sqlc.arg('name'),
+  sqlc.narg('dosage_text'),
+  sqlc.arg('start_date'),
+  sqlc.narg('end_date'),
+  sqlc.arg('source'),
+  sqlc.arg('created_at'),
+  sqlc.arg('updated_at')
+)
+RETURNING
+  id,
+  name,
+  dosage_text,
+  start_date,
+  end_date,
+  source,
+  created_at,
+  updated_at,
+  deleted_at;
+
+-- name: UpdateMedicationCourse :one
+UPDATE health_medication_course
+SET
+  name = sqlc.arg('name'),
+  dosage_text = sqlc.narg('dosage_text'),
+  start_date = sqlc.arg('start_date'),
+  end_date = sqlc.narg('end_date'),
+  updated_at = sqlc.arg('updated_at')
+WHERE id = sqlc.arg('id')
+  AND deleted_at IS NULL
+RETURNING
+  id,
+  name,
+  dosage_text,
+  start_date,
+  end_date,
+  source,
+  created_at,
+  updated_at,
+  deleted_at;
+
+-- name: DeleteMedicationCourse :one
+UPDATE health_medication_course
+SET
+  deleted_at = sqlc.arg('deleted_at'),
+  updated_at = sqlc.arg('updated_at')
+WHERE id = sqlc.arg('id')
+  AND deleted_at IS NULL
+RETURNING id;
 
 -- name: ListActiveMedicationCourses :many
 SELECT
@@ -166,9 +288,68 @@ SELECT
   id,
   collected_at,
   source,
-  created_at
+  created_at,
+  updated_at,
+  deleted_at
 FROM health_lab_collection
+WHERE deleted_at IS NULL
 ORDER BY collected_at DESC, id DESC;
+
+-- name: GetLabCollection :one
+SELECT
+  id,
+  collected_at,
+  source,
+  created_at,
+  updated_at,
+  deleted_at
+FROM health_lab_collection
+WHERE id = sqlc.arg('id')
+  AND deleted_at IS NULL;
+
+-- name: CreateLabCollection :one
+INSERT INTO health_lab_collection (
+  collected_at,
+  source,
+  created_at,
+  updated_at
+) VALUES (
+  sqlc.arg('collected_at'),
+  sqlc.arg('source'),
+  sqlc.arg('created_at'),
+  sqlc.arg('updated_at')
+)
+RETURNING
+  id,
+  collected_at,
+  source,
+  created_at,
+  updated_at,
+  deleted_at;
+
+-- name: UpdateLabCollection :one
+UPDATE health_lab_collection
+SET
+  collected_at = sqlc.arg('collected_at'),
+  updated_at = sqlc.arg('updated_at')
+WHERE id = sqlc.arg('id')
+  AND deleted_at IS NULL
+RETURNING
+  id,
+  collected_at,
+  source,
+  created_at,
+  updated_at,
+  deleted_at;
+
+-- name: DeleteLabCollection :one
+UPDATE health_lab_collection
+SET
+  deleted_at = sqlc.arg('deleted_at'),
+  updated_at = sqlc.arg('updated_at')
+WHERE id = sqlc.arg('id')
+  AND deleted_at IS NULL
+RETURNING id;
 
 -- name: ListLabPanels :many
 SELECT
@@ -178,6 +359,26 @@ SELECT
   display_order
 FROM health_lab_panel
 ORDER BY collection_id ASC, display_order ASC, id ASC;
+
+-- name: DeleteLabPanelsByCollection :exec
+DELETE FROM health_lab_panel
+WHERE collection_id = sqlc.arg('collection_id');
+
+-- name: CreateLabPanel :one
+INSERT INTO health_lab_panel (
+  collection_id,
+  panel_name,
+  display_order
+) VALUES (
+  sqlc.arg('collection_id'),
+  sqlc.arg('panel_name'),
+  sqlc.arg('display_order')
+)
+RETURNING
+  id,
+  collection_id,
+  panel_name,
+  display_order;
 
 -- name: ListLabResults :many
 SELECT
@@ -193,6 +394,40 @@ SELECT
   display_order
 FROM health_lab_result
 ORDER BY panel_id ASC, display_order ASC, id ASC;
+
+-- name: CreateLabResult :one
+INSERT INTO health_lab_result (
+  panel_id,
+  test_name,
+  canonical_slug,
+  value_text,
+  value_numeric,
+  units,
+  range_text,
+  flag,
+  display_order
+) VALUES (
+  sqlc.arg('panel_id'),
+  sqlc.arg('test_name'),
+  sqlc.narg('canonical_slug'),
+  sqlc.arg('value_text'),
+  sqlc.narg('value_numeric'),
+  sqlc.narg('units'),
+  sqlc.narg('range_text'),
+  sqlc.narg('flag'),
+  sqlc.arg('display_order')
+)
+RETURNING
+  id,
+  panel_id,
+  test_name,
+  canonical_slug,
+  value_text,
+  value_numeric,
+  units,
+  range_text,
+  flag,
+  display_order;
 
 -- name: ListLabResultsWithCollection :many
 SELECT
@@ -213,4 +448,5 @@ FROM health_lab_result
 INNER JOIN health_lab_panel ON health_lab_panel.id = health_lab_result.panel_id
 INNER JOIN health_lab_collection ON health_lab_collection.id = health_lab_panel.collection_id
 WHERE health_lab_result.canonical_slug IS NOT NULL
+  AND health_lab_collection.deleted_at IS NULL
 ORDER BY health_lab_collection.collected_at DESC, health_lab_result.id DESC;

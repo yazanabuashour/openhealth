@@ -24,7 +24,8 @@ opinionated and narrow.
 
 - Baseline A: current or archived generated-client skill surface.
 - Variant B: production code-first SDK skill surface.
-- Variant C: CLI-oriented harness or alternate skill payload, if a CLI is added.
+- Variant C: CLI-oriented skill payload that exercises
+  `go run ./cmd/openhealth weight add/list`.
 
 Each variant should have its own skill payload or harness instructions. Do not
 combine generated-client, SDK, and CLI recipes in the same production skill.

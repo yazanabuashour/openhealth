@@ -133,6 +133,37 @@ func (s *server) ListHealthBloodPressure(ctx context.Context, request generated.
 	}, nil
 }
 
+func (s *server) CreateHealthBloodPressure(ctx context.Context, request generated.CreateHealthBloodPressureRequestObject) (generated.CreateHealthBloodPressureResponseObject, error) {
+	if request.Body == nil {
+		return nil, &health.ValidationError{Message: "request body is required"}
+	}
+	entry, err := s.service.RecordBloodPressure(ctx, toBloodPressureRecordInput(*request.Body))
+	if err != nil {
+		return nil, err
+	}
+	return generated.CreateHealthBloodPressure201JSONResponse(toGeneratedBloodPressureEntry(entry)), nil
+}
+
+func (s *server) ReplaceHealthBloodPressure(ctx context.Context, request generated.ReplaceHealthBloodPressureRequestObject) (generated.ReplaceHealthBloodPressureResponseObject, error) {
+	if request.Body == nil {
+		return nil, &health.ValidationError{Message: "request body is required"}
+	}
+	entry, err := s.service.ReplaceBloodPressure(ctx, request.Id, toBloodPressureRecordInput(*request.Body))
+	if err != nil {
+		return nil, err
+	}
+	return generated.ReplaceHealthBloodPressure200JSONResponse(toGeneratedBloodPressureEntry(entry)), nil
+}
+
+func (s *server) DeleteHealthBloodPressure(ctx context.Context, request generated.DeleteHealthBloodPressureRequestObject) (generated.DeleteHealthBloodPressureResponseObject, error) {
+	if err := s.service.DeleteBloodPressure(ctx, request.Id); err != nil {
+		return nil, err
+	}
+	return generated.DeleteHealthBloodPressure200JSONResponse{
+		Success: true,
+	}, nil
+}
+
 func (s *server) GetHealthBloodPressureTrend(ctx context.Context, request generated.GetHealthBloodPressureTrendRequestObject) (generated.GetHealthBloodPressureTrendResponseObject, error) {
 	items, err := s.service.BloodPressureTrend(ctx, historyFilter(request.Params.From, request.Params.To, request.Params.Limit))
 	if err != nil {
@@ -159,6 +190,45 @@ func (s *server) ListHealthMedications(ctx context.Context, request generated.Li
 	}
 	return generated.ListHealthMedications200JSONResponse{
 		Items: body,
+	}, nil
+}
+
+func (s *server) CreateHealthMedication(ctx context.Context, request generated.CreateHealthMedicationRequestObject) (generated.CreateHealthMedicationResponseObject, error) {
+	if request.Body == nil {
+		return nil, &health.ValidationError{Message: "request body is required"}
+	}
+	item, err := s.service.CreateMedicationCourse(ctx, toMedicationCourseInput(*request.Body))
+	if err != nil {
+		return nil, err
+	}
+	body, err := toGeneratedMedicationCourse(item)
+	if err != nil {
+		return nil, err
+	}
+	return generated.CreateHealthMedication201JSONResponse(body), nil
+}
+
+func (s *server) ReplaceHealthMedication(ctx context.Context, request generated.ReplaceHealthMedicationRequestObject) (generated.ReplaceHealthMedicationResponseObject, error) {
+	if request.Body == nil {
+		return nil, &health.ValidationError{Message: "request body is required"}
+	}
+	item, err := s.service.ReplaceMedicationCourse(ctx, request.Id, toMedicationCourseInput(*request.Body))
+	if err != nil {
+		return nil, err
+	}
+	body, err := toGeneratedMedicationCourse(item)
+	if err != nil {
+		return nil, err
+	}
+	return generated.ReplaceHealthMedication200JSONResponse(body), nil
+}
+
+func (s *server) DeleteHealthMedication(ctx context.Context, request generated.DeleteHealthMedicationRequestObject) (generated.DeleteHealthMedicationResponseObject, error) {
+	if err := s.service.DeleteMedicationCourse(ctx, request.Id); err != nil {
+		return nil, err
+	}
+	return generated.DeleteHealthMedication200JSONResponse{
+		Success: true,
 	}, nil
 }
 
@@ -207,12 +277,115 @@ func (s *server) ListHealthLabCollections(ctx context.Context, _ generated.ListH
 	}, nil
 }
 
+func (s *server) CreateHealthLabCollection(ctx context.Context, request generated.CreateHealthLabCollectionRequestObject) (generated.CreateHealthLabCollectionResponseObject, error) {
+	if request.Body == nil {
+		return nil, &health.ValidationError{Message: "request body is required"}
+	}
+	item, err := s.service.CreateLabCollection(ctx, toLabCollectionInput(*request.Body))
+	if err != nil {
+		return nil, err
+	}
+	body, err := toGeneratedLabCollection(item)
+	if err != nil {
+		return nil, err
+	}
+	return generated.CreateHealthLabCollection201JSONResponse(body), nil
+}
+
+func (s *server) ReplaceHealthLabCollection(ctx context.Context, request generated.ReplaceHealthLabCollectionRequestObject) (generated.ReplaceHealthLabCollectionResponseObject, error) {
+	if request.Body == nil {
+		return nil, &health.ValidationError{Message: "request body is required"}
+	}
+	item, err := s.service.ReplaceLabCollection(ctx, request.Id, toLabCollectionInput(*request.Body))
+	if err != nil {
+		return nil, err
+	}
+	body, err := toGeneratedLabCollection(item)
+	if err != nil {
+		return nil, err
+	}
+	return generated.ReplaceHealthLabCollection200JSONResponse(body), nil
+}
+
+func (s *server) DeleteHealthLabCollection(ctx context.Context, request generated.DeleteHealthLabCollectionRequestObject) (generated.DeleteHealthLabCollectionResponseObject, error) {
+	if err := s.service.DeleteLabCollection(ctx, request.Id); err != nil {
+		return nil, err
+	}
+	return generated.DeleteHealthLabCollection200JSONResponse{
+		Success: true,
+	}, nil
+}
+
 func historyFilter(from *time.Time, to *time.Time, limit *int) health.HistoryFilter {
 	return health.HistoryFilter{
 		From:  from,
 		To:    to,
 		Limit: limit,
 	}
+}
+
+func toBloodPressureRecordInput(body generated.CreateHealthBloodPressureRequest) health.BloodPressureRecordInput {
+	return health.BloodPressureRecordInput{
+		RecordedAt: body.RecordedAt,
+		Systolic:   body.Systolic,
+		Diastolic:  body.Diastolic,
+		Pulse:      body.Pulse,
+	}
+}
+
+func toMedicationCourseInput(body generated.CreateHealthMedicationRequest) health.MedicationCourseInput {
+	input := health.MedicationCourseInput{
+		Name:       body.Name,
+		DosageText: body.DosageText,
+	}
+	if !body.StartDate.IsZero() {
+		input.StartDate = body.StartDate.Format(time.DateOnly)
+	}
+	if body.EndDate != nil {
+		endDate := ""
+		if !body.EndDate.IsZero() {
+			endDate = body.EndDate.Format(time.DateOnly)
+		}
+		input.EndDate = &endDate
+	}
+	return input
+}
+
+func toLabCollectionInput(body generated.CreateHealthLabCollectionRequest) health.LabCollectionInput {
+	panels := make([]health.LabPanelInput, 0, len(body.Panels))
+	for _, panel := range body.Panels {
+		results := make([]health.LabResultInput, 0, len(panel.Results))
+		for _, result := range panel.Results {
+			results = append(results, toLabResultInput(result))
+		}
+		panels = append(panels, health.LabPanelInput{
+			PanelName: panel.PanelName,
+			Results:   results,
+		})
+	}
+	return health.LabCollectionInput{
+		CollectedAt: body.CollectedAt,
+		Panels:      panels,
+	}
+}
+
+func toLabResultInput(body generated.HealthLabResultWrite) health.LabResultInput {
+	input := health.LabResultInput{
+		TestName:  body.TestName,
+		ValueText: body.ValueText,
+		Units:     body.Units,
+		RangeText: body.RangeText,
+		Flag:      body.Flag,
+	}
+	if body.CanonicalSlug != nil {
+		slug := health.AnalyteSlug(*body.CanonicalSlug)
+		input.CanonicalSlug = &slug
+	}
+	if body.ValueNumeric != nil {
+		value := float64(*body.ValueNumeric)
+		input.ValueNumeric = &value
+	}
+	return input
 }
 
 func toGeneratedSummary(summary health.Summary) (generated.HealthSummary, error) {
@@ -383,9 +556,11 @@ func toGeneratedLabCollection(item health.LabCollection) (generated.HealthLabCol
 	return generated.HealthLabCollection{
 		CollectedAt: item.CollectedAt,
 		CreatedAt:   item.CreatedAt,
+		DeletedAt:   item.DeletedAt,
 		Id:          item.ID,
 		Panels:      panels,
 		Source:      item.Source,
+		UpdatedAt:   item.UpdatedAt,
 	}, nil
 }
 

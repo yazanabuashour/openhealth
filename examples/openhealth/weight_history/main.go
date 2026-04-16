@@ -18,13 +18,8 @@ func main() {
 }
 
 func run(args []string) error {
-	defaultPaths, err := client.ResolveLocalPaths(client.LocalConfig{})
-	if err != nil {
-		return fmt.Errorf("resolve default local paths: %w", err)
-	}
-
 	fs := flag.NewFlagSet("weight_history", flag.ContinueOnError)
-	databasePath := fs.String("db", defaultPaths.DatabasePath, "SQLite database path")
+	databasePath := fs.String("db", "", "SQLite database path")
 	fromRaw := fs.String("from", "", "start timestamp, RFC3339")
 	toRaw := fs.String("to", "", "end timestamp, RFC3339")
 	limitRaw := fs.Int("limit", 25, "maximum number of weight entries to print")
@@ -37,6 +32,13 @@ func run(args []string) error {
 	}
 	if *limitRaw < 1 {
 		return fmt.Errorf("-limit must be at least 1")
+	}
+	if *databasePath == "" {
+		defaultPaths, err := client.ResolveLocalPaths(client.LocalConfig{})
+		if err != nil {
+			return fmt.Errorf("resolve default local paths: %w", err)
+		}
+		*databasePath = defaultPaths.DatabasePath
 	}
 
 	params := client.ListHealthWeightParams{}

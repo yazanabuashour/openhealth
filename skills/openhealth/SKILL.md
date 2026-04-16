@@ -55,9 +55,55 @@ func main() {
 }
 ```
 
+## Common Queries
+
+For live local state, start with the local runtime and inspect the resolved path
+when results are surprising:
+
+```go
+api, err := client.OpenLocal(client.LocalConfig{})
+if err != nil {
+  log.Fatal(err)
+}
+defer api.Close()
+
+log.Printf("using db=%s", api.Paths.DatabasePath)
+```
+
+To answer "what is my weight history?", call the generated weight list endpoint.
+Results are ordered newest first, so the latest weight is `items[0]` when the
+list is non-empty.
+
+```go
+limit := client.Limit(25)
+weights, err := api.ListHealthWeightWithResponse(ctx, &client.ListHealthWeightParams{
+  Limit: &limit,
+})
+if err != nil {
+  log.Fatal(err)
+}
+if weights.JSON200 == nil {
+  log.Fatalf("unexpected status: %s", weights.Status())
+}
+if len(weights.JSON200.Items) == 0 {
+  log.Printf("no weight history in %s", api.Paths.DatabasePath)
+  return
+}
+
+latest := weights.JSON200.Items[0]
+log.Printf("latest weight: %.1f %s at %s", latest.Value, latest.Unit, latest.RecordedAt)
+```
+
+Use `From`, `To`, and `Limit` on `client.ListHealthWeightParams` for date
+filtering. Use `GetHealthWeightTrendWithResponse` only when the user asks for
+trend or chart-style data; use `ListHealthWeightWithResponse` for history and
+latest-weight questions.
+
 ## Notes
 
 - `client.OpenLocal(...)` opens SQLite, runs migrations, and serves the OpenAPI handler in-process.
 - Default data location is `${XDG_DATA_HOME:-~/.local/share}/openhealth/openhealth.db`; override it with `client.LocalConfig`, `OPENHEALTH_DATA_DIR`, or `OPENHEALTH_DATABASE_PATH`.
 - Run `go run ./cmd/openhealth serve` only for maintainer or debug workflows.
 - A fuller sample lives at `examples/client_summary/main.go`.
+- A focused weight-history helper lives at `examples/openhealth/weight_history/main.go`.
+- Additional agent quick-start notes live at `skills/openhealth/references/REFERENCE.md`.

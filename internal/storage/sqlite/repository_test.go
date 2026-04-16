@@ -43,6 +43,31 @@ func TestRepositoryWeightLifecycle(t *testing.T) {
 		t.Fatalf("expected 1 weight entry, got %d", len(items))
 	}
 
+	found, err := repo.FindManualWeightEntry(ctx, health.FindManualWeightEntryParams{
+		RecordedAt: time.Date(2026, 3, 28, 0, 0, 0, 0, time.UTC),
+		Unit:       health.WeightUnitLb,
+	})
+	if err != nil {
+		t.Fatalf("find manual weight entry: %v", err)
+	}
+	if found == nil || found.ID != created.ID {
+		t.Fatalf("found manual weight = %#v, want id %d", found, created.ID)
+	}
+
+	_, err = repo.CreateWeightEntry(ctx, health.CreateWeightEntryParams{
+		RecordedAt:       time.Date(2026, 3, 28, 23, 59, 0, 0, time.UTC),
+		Value:            149.9,
+		Unit:             health.WeightUnitLb,
+		Source:           "manual",
+		SourceRecordHash: "weight-duplicate",
+		CreatedAt:        recordedAt,
+		UpdatedAt:        recordedAt,
+	})
+	var conflictErr *health.ConflictError
+	if !errors.As(err, &conflictErr) {
+		t.Fatalf("duplicate manual weight error = %v, want conflict", err)
+	}
+
 	updated, err := repo.UpdateWeightEntry(ctx, health.UpdateWeightEntryParams{
 		ID:        created.ID,
 		Value:     float64Pointer(149.8),
@@ -69,6 +94,17 @@ func TestRepositoryWeightLifecycle(t *testing.T) {
 	}
 	if len(items) != 0 {
 		t.Fatalf("expected deleted weights to be hidden, got %d", len(items))
+	}
+
+	found, err = repo.FindManualWeightEntry(ctx, health.FindManualWeightEntryParams{
+		RecordedAt: time.Date(2026, 3, 28, 23, 59, 0, 0, time.UTC),
+		Unit:       health.WeightUnitLb,
+	})
+	if err != nil {
+		t.Fatalf("find deleted manual weight entry: %v", err)
+	}
+	if found != nil {
+		t.Fatalf("expected deleted manual weight to be hidden, got %#v", found)
 	}
 
 	_, err = repo.UpdateWeightEntry(ctx, health.UpdateWeightEntryParams{

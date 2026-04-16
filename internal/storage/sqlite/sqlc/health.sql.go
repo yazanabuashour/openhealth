@@ -117,6 +117,50 @@ func (q *Queries) DeleteWeightEntry(ctx context.Context, arg DeleteWeightEntryPa
 	return id, err
 }
 
+const findManualWeightEntry = `-- name: FindManualWeightEntry :one
+SELECT
+  id,
+  recorded_at,
+  value,
+  unit,
+  source,
+  source_record_hash,
+  note,
+  created_at,
+  updated_at,
+  deleted_at
+FROM health_weight_entry
+WHERE deleted_at IS NULL
+  AND source = 'manual'
+  AND substr(recorded_at, 1, 10) = ?1
+  AND unit = ?2
+ORDER BY id DESC
+LIMIT 1
+`
+
+type FindManualWeightEntryParams struct {
+	RecordedDate string
+	Unit         string
+}
+
+func (q *Queries) FindManualWeightEntry(ctx context.Context, arg FindManualWeightEntryParams) (HealthWeightEntry, error) {
+	row := q.db.QueryRowContext(ctx, findManualWeightEntry, arg.RecordedDate, arg.Unit)
+	var i HealthWeightEntry
+	err := row.Scan(
+		&i.ID,
+		&i.RecordedAt,
+		&i.Value,
+		&i.Unit,
+		&i.Source,
+		&i.SourceRecordHash,
+		&i.Note,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const listActiveMedicationCourses = `-- name: ListActiveMedicationCourses :many
 SELECT
   id,

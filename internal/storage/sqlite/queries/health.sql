@@ -20,6 +20,26 @@ LIMIT CASE
   ELSE sqlc.narg('limit_count')
 END;
 
+-- name: FindManualWeightEntry :one
+SELECT
+  id,
+  recorded_at,
+  value,
+  unit,
+  source,
+  source_record_hash,
+  note,
+  created_at,
+  updated_at,
+  deleted_at
+FROM health_weight_entry
+WHERE deleted_at IS NULL
+  AND source = 'manual'
+  AND substr(recorded_at, 1, 10) = sqlc.arg('recorded_date')
+  AND unit = sqlc.arg('unit')
+ORDER BY id DESC
+LIMIT 1;
+
 -- name: CreateWeightEntry :one
 INSERT INTO health_weight_entry (
   recorded_at,

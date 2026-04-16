@@ -36,7 +36,8 @@ type LocalClient struct {
 	*ClientWithResponses
 	Paths LocalPaths
 
-	close func() error
+	service health.Service
+	close   func() error
 }
 
 func ResolveLocalPaths(config LocalConfig) (LocalPaths, error) {
@@ -89,6 +90,7 @@ func OpenLocal(config LocalConfig) (*LocalClient, error) {
 	return &LocalClient{
 		ClientWithResponses: api,
 		Paths:               paths,
+		service:             service,
 		close:               db.Close,
 	}, nil
 }

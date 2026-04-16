@@ -4,10 +4,11 @@ OpenHealth is a Go SDK for a local-first health runtime. The default install sur
 
 ## Install in your Go project
 
-Install the first tagged release of the module, then import the client package from it:
+Until the first release tag is published, install the current development line
+and import the client package from it:
 
 ```bash
-go get github.com/yazanabuashour/openhealth@v0.1.0
+go get github.com/yazanabuashour/openhealth@main
 ```
 
 Minimal usage from Go:
@@ -43,6 +44,27 @@ func main() {
 ```
 
 `client.OpenLocal(...)` opens SQLite locally, runs migrations, and routes requests to the generated handler in-process. Use `client.NewDefault(baseURL)` only when you intentionally want to talk to an explicit HTTP server.
+
+For common local weight tasks, prefer the ergonomic helper methods on the local
+client over generated OpenAPI method names:
+
+```go
+recordedAt, err := time.Parse(time.DateOnly, "2026-03-29")
+if err != nil {
+	log.Fatal(err)
+}
+
+result, err := api.UpsertWeight(context.Background(), client.WeightRecordInput{
+	RecordedAt: recordedAt,
+	Value:      152.2,
+	Unit:       client.WeightUnitLb,
+})
+if err != nil {
+	log.Fatal(err)
+}
+
+fmt.Printf("%s %.1f lb %s\n", result.Entry.RecordedAt.Format(time.DateOnly), result.Entry.Value, result.Status)
+```
 
 ## Local storage
 
@@ -98,6 +120,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor expectations and [docs/ma
 - [SECURITY.md](SECURITY.md) explains how to report vulnerabilities privately and what response timing to expect.
 - [docs/maintainers.md](docs/maintainers.md) documents Beads-based maintainer workflow and repo administration notes.
 - [docs/release-verification.md](docs/release-verification.md) explains how to verify published source releases.
+- [docs/agent-evals.md](docs/agent-evals.md) explains how to evaluate production agent workflows without mixing comparison variants into the production skill.
 - [LICENSE](LICENSE) defines the project license.
 
 ## Release contract

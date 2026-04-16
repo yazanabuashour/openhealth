@@ -3,6 +3,7 @@ package health_test
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"testing"
 	"time"
 
@@ -101,6 +102,73 @@ VALUES
 	}
 	if len(trend.Points) != 1 || trend.Latest == nil || trend.Latest.TestName != "TSH" {
 		t.Fatalf("unexpected analyte trend: %#v", trend)
+	}
+}
+
+func TestServiceWeightWriteIdempotency(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewSQLiteDB(t)
+	repo := sqlite.NewRepository(db)
+	service := health.NewService(repo, health.WithClock(func() time.Time {
+		return time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+	}))
+	ctx := context.Background()
+	recordedAt := time.Date(2026, 3, 29, 12, 0, 0, 0, time.UTC)
+	sameDate := time.Date(2026, 3, 29, 0, 0, 0, 0, time.UTC)
+
+	created, err := service.UpsertWeight(ctx, health.WeightRecordInput{
+		RecordedAt: recordedAt,
+		Value:      152.2,
+		Unit:       health.WeightUnitLb,
+	})
+	if err != nil {
+		t.Fatalf("create weight through upsert: %v", err)
+	}
+	if created.Status != health.WeightWriteStatusCreated {
+		t.Fatalf("created status = %q, want %q", created.Status, health.WeightWriteStatusCreated)
+	}
+
+	again, err := service.UpsertWeight(ctx, health.WeightRecordInput{
+		RecordedAt: sameDate,
+		Value:      152.2,
+		Unit:       health.WeightUnitLb,
+	})
+	if err != nil {
+		t.Fatalf("repeat weight through upsert: %v", err)
+	}
+	if again.Status != health.WeightWriteStatusAlreadyExists || again.Entry.ID != created.Entry.ID {
+		t.Fatalf("repeat result = %#v, want already_exists for id %d", again, created.Entry.ID)
+	}
+
+	updated, err := service.UpsertWeight(ctx, health.WeightRecordInput{
+		RecordedAt: sameDate,
+		Value:      151.6,
+		Unit:       health.WeightUnitLb,
+	})
+	if err != nil {
+		t.Fatalf("update weight through upsert: %v", err)
+	}
+	if updated.Status != health.WeightWriteStatusUpdated || updated.Entry.ID != created.Entry.ID || updated.Entry.Value != 151.6 {
+		t.Fatalf("updated result = %#v, want updated id %d value 151.6", updated, created.Entry.ID)
+	}
+
+	weights, err := service.ListWeight(ctx, health.HistoryFilter{})
+	if err != nil {
+		t.Fatalf("list weights: %v", err)
+	}
+	if len(weights) != 1 {
+		t.Fatalf("weight count = %d, want 1", len(weights))
+	}
+
+	_, err = service.RecordWeight(ctx, health.WeightRecordInput{
+		RecordedAt: sameDate,
+		Value:      151.6,
+		Unit:       health.WeightUnitLb,
+	})
+	var conflictErr *health.ConflictError
+	if !errors.As(err, &conflictErr) {
+		t.Fatalf("record duplicate error = %v, want conflict", err)
 	}
 }
 

@@ -1646,6 +1646,7 @@ type CreateHealthWeightClientResponse struct {
 	HTTPResponse *http.Response
 	JSON201      *HealthWeightEntry
 	JSON400      *BadRequestErrorResponse
+	JSON409      *ConflictErrorResponse
 	JSON500      *InternalErrorResponse
 }
 
@@ -2230,6 +2231,13 @@ func ParseCreateHealthWeightClientResponse(rsp *http.Response) (*CreateHealthWei
 			return nil, err
 		}
 		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ConflictErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalErrorResponse

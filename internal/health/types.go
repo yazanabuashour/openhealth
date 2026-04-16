@@ -72,6 +72,19 @@ type WeightEntry struct {
 	DeletedAt        *time.Time
 }
 
+type WeightWriteStatus string
+
+const (
+	WeightWriteStatusCreated       WeightWriteStatus = "created"
+	WeightWriteStatusAlreadyExists WeightWriteStatus = "already_exists"
+	WeightWriteStatusUpdated       WeightWriteStatus = "updated"
+)
+
+type WeightWriteResult struct {
+	Entry  WeightEntry
+	Status WeightWriteStatus
+}
+
 type BloodPressureEntry struct {
 	ID               int
 	RecordedAt       time.Time
@@ -217,8 +230,14 @@ type DeleteWeightEntryParams struct {
 	UpdatedAt time.Time
 }
 
+type FindManualWeightEntryParams struct {
+	RecordedAt time.Time
+	Unit       WeightUnit
+}
+
 type Repository interface {
 	ListWeightEntries(ctx context.Context, filter HistoryFilter) ([]WeightEntry, error)
+	FindManualWeightEntry(ctx context.Context, params FindManualWeightEntryParams) (*WeightEntry, error)
 	CreateWeightEntry(ctx context.Context, params CreateWeightEntryParams) (WeightEntry, error)
 	UpdateWeightEntry(ctx context.Context, params UpdateWeightEntryParams) (WeightEntry, error)
 	DeleteWeightEntry(ctx context.Context, params DeleteWeightEntryParams) error
@@ -233,6 +252,7 @@ type Service interface {
 	Summary(ctx context.Context) (Summary, error)
 	ListWeight(ctx context.Context, filter HistoryFilter) ([]WeightEntry, error)
 	RecordWeight(ctx context.Context, input WeightRecordInput) (WeightEntry, error)
+	UpsertWeight(ctx context.Context, input WeightRecordInput) (WeightWriteResult, error)
 	UpdateWeight(ctx context.Context, id int, input WeightUpdateInput) (WeightEntry, error)
 	DeleteWeight(ctx context.Context, id int) error
 	WeightTrend(ctx context.Context, params WeightTrendParams) (WeightTrend, error)

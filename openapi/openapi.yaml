@@ -80,6 +80,8 @@ paths:
                 $ref: "#/components/schemas/HealthWeightEntry"
         "400":
           $ref: "#/components/responses/BadRequestErrorResponse"
+        "409":
+          $ref: "#/components/responses/ConflictErrorResponse"
         "500":
           $ref: "#/components/responses/InternalErrorResponse"
   /api/v1/health/weight/{id}:

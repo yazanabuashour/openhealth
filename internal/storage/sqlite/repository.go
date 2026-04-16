@@ -5,11 +5,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+
+	moderncsqlite "modernc.org/sqlite"
 
 	"github.com/yazanabuashour/openhealth/internal/health"
 	"github.com/yazanabuashour/openhealth/internal/storage/sqlite/sqlc"
 )
+
+const sqliteConstraintUnique = 2067
 
 type Repository struct {
 	queries *sqlc.Queries
@@ -42,6 +47,24 @@ func (r *Repository) ListWeightEntries(ctx context.Context, filter health.Histor
 	return items, nil
 }
 
+func (r *Repository) FindManualWeightEntry(ctx context.Context, params health.FindManualWeightEntryParams) (*health.WeightEntry, error) {
+	row, err := r.queries.FindManualWeightEntry(ctx, sqlc.FindManualWeightEntryParams{
+		RecordedDate: params.RecordedAt.UTC().Format(time.DateOnly),
+		Unit:         string(params.Unit),
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, wrapDatabaseError("failed to find manual health weight entry", err)
+	}
+	entry, err := toWeightEntry(row)
+	if err != nil {
+		return nil, err
+	}
+	return &entry, nil
+}
+
 func (r *Repository) CreateWeightEntry(ctx context.Context, params health.CreateWeightEntryParams) (health.WeightEntry, error) {
 	row, err := r.queries.CreateWeightEntry(ctx, sqlc.CreateWeightEntryParams{
 		RecordedAt:       serializeInstant(params.RecordedAt),
@@ -54,6 +77,9 @@ func (r *Repository) CreateWeightEntry(ctx context.Context, params health.Create
 		UpdatedAt:        serializeInstant(params.UpdatedAt),
 	})
 	if err != nil {
+		if isManualWeightUniqueConstraintError(err) {
+			return health.WeightEntry{}, &health.ConflictError{Message: "manual weight already exists for recorded date and unit"}
+		}
 		return health.WeightEntry{}, wrapDatabaseError("failed to create health weight entry", err)
 	}
 	return toWeightEntry(row)
@@ -427,4 +453,12 @@ func wrapDatabaseError(message string, cause error) error {
 		Message: message,
 		Cause:   cause,
 	}
+}
+
+func isManualWeightUniqueConstraintError(err error) bool {
+	var sqliteErr *moderncsqlite.Error
+	if !errors.As(err, &sqliteErr) || sqliteErr.Code() != sqliteConstraintUnique {
+		return false
+	}
+	return strings.Contains(sqliteErr.Error(), "idx_health_weight_entry_manual_date_unit_unique")
 }

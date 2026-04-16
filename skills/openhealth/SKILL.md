@@ -1,109 +1,110 @@
 ---
 name: openhealth
-description: Use this skill when an agent needs the OpenHealth Go client and local-first runtime to read typed health summaries, history, trends, medications, labs, or other health data through github.com/yazanabuashour/openhealth/client.
+description: Use this skill when an agent needs to read or write local-first OpenHealth data through the ergonomic Go SDK in github.com/yazanabuashour/openhealth/client.
 license: MIT
 compatibility: Requires a Go-capable environment with local filesystem access and use of github.com/yazanabuashour/openhealth/client.
 ---
 
-# OpenHealth Client
+# OpenHealth Agent SDK
 
-Use this skill when an agent needs local-first health data from an OpenHealth service through the generated Go client.
+Use this skill for local-first OpenHealth tasks. The production agent path is
+the hand-written Go SDK facade on top of `client.OpenLocal(...)`, not the raw
+generated OpenAPI methods.
 
-## When To Use It
+## Default Path
 
-- Read the OpenHealth API from Go code.
-- Build agent-side integrations that need typed health summaries, history, trends, medications, or labs.
-- Keep client code pinned to the OpenAPI-generated contract instead of hand-written HTTP calls.
-- Use the local in-process runtime instead of binding a host port or running a background daemon.
+- Install from the current development line until a release tag exists:
+  `go get github.com/yazanabuashour/openhealth@main`.
+- Import `github.com/yazanabuashour/openhealth/client`.
+- Open local data with `client.OpenLocal(client.LocalConfig{})`.
+- Use `UpsertWeight`, `RecordWeight`, `ListWeights`, and `LatestWeight` for
+  weight tasks.
+- Use `client.LocalConfig{DatabasePath: "..."}` or
+  `client.LocalConfig{DataDir: "..."}` only when the user names a specific
+  database or you are using a temp test database.
 
-## Install Surface
+Do not inspect `client.gen.go`, generated server code, the Go module cache, or
+large dependency directories for routine add/list/latest weight tasks. Use
+targeted repo searches only when the SDK facade does not cover the user's ask.
 
-- Install the first tagged module release with `go get github.com/yazanabuashour/openhealth@v0.1.0`, then import `github.com/yazanabuashour/openhealth/client`.
-- Prefer `client.OpenLocal(client.LocalConfig{})` for the default user-machine install surface.
-- Use `client.NewDefault(baseURL)` only when you intentionally want to talk to an explicit HTTP server.
-- Use `client.NewClientWithResponses(...)` directly only when custom transport wiring is required.
+## Add Weight Entries
 
-## Minimal Example
+Prefer `UpsertWeight` for user-entered measurements. It is idempotent for the
+same recorded date and unit, returns a status, and avoids duplicate manual
+entries.
 
 ```go
 package main
 
 import (
-  "context"
-  "log"
+	"context"
+	"log"
+	"time"
 
-  "github.com/yazanabuashour/openhealth/client"
+	"github.com/yazanabuashour/openhealth/client"
 )
 
 func main() {
-  api, err := client.OpenLocal(client.LocalConfig{})
-  if err != nil {
-    log.Fatal(err)
-  }
-  defer api.Close()
+	api, err := client.OpenLocal(client.LocalConfig{})
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer api.Close()
 
-  summary, err := api.GetHealthSummaryWithResponse(context.Background())
-  if err != nil {
-    log.Fatal(err)
-  }
-
-  if summary.JSON200 == nil {
-    log.Fatalf("unexpected status: %s", summary.Status())
-  }
-
-  log.Printf("active medications=%d", summary.JSON200.ActiveMedicationCount)
+	ctx := context.Background()
+	for _, item := range []struct {
+		date  string
+		value float64
+	}{
+		{"2026-03-29", 152.2},
+		{"2026-03-30", 151.6},
+	} {
+		recordedAt, err := time.Parse(time.DateOnly, item.date)
+		if err != nil {
+			log.Fatal(err)
+		}
+		result, err := api.UpsertWeight(ctx, client.WeightRecordInput{
+			RecordedAt: recordedAt,
+			Value:      item.value,
+			Unit:       client.WeightUnitLb,
+		})
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Printf("%s %.1f lb %s", result.Entry.RecordedAt.Format(time.DateOnly), result.Entry.Value, result.Status)
+	}
 }
 ```
 
-## Common Queries
+Use `RecordWeight` only when duplicate entries should fail with a conflict.
 
-For live local state, start with the local runtime and inspect the resolved path
-when results are surprising:
+## Read Weight Entries
 
 ```go
-api, err := client.OpenLocal(client.LocalConfig{})
+latest, err := api.LatestWeight(ctx)
 if err != nil {
-  log.Fatal(err)
+	log.Fatal(err)
 }
-defer api.Close()
+if latest == nil {
+	log.Printf("no weight history in %s", api.Paths.DatabasePath)
+	return
+}
+log.Printf("latest weight: %.1f %s at %s", latest.Value, latest.Unit, latest.RecordedAt.Format(time.RFC3339))
 
-log.Printf("using db=%s", api.Paths.DatabasePath)
+weights, err := api.ListWeights(ctx, client.WeightListOptions{Limit: 25})
+if err != nil {
+	log.Fatal(err)
+}
+for _, weight := range weights {
+	log.Printf("%s %.1f %s", weight.RecordedAt.Format(time.DateOnly), weight.Value, weight.Unit)
+}
 ```
 
-To answer "what is my weight history?", call the generated weight list endpoint.
-Results are ordered newest first, so the latest weight is `items[0]` when the
-list is non-empty.
+Weight entries are returned newest first. A focused reference with copyable
+task snippets lives at [references/weights.md](references/weights.md).
 
-```go
-limit := client.Limit(25)
-weights, err := api.ListHealthWeightWithResponse(ctx, &client.ListHealthWeightParams{
-  Limit: &limit,
-})
-if err != nil {
-  log.Fatal(err)
-}
-if weights.JSON200 == nil {
-  log.Fatalf("unexpected status: %s", weights.Status())
-}
-if len(weights.JSON200.Items) == 0 {
-  log.Printf("no weight history in %s", api.Paths.DatabasePath)
-  return
-}
+## Generated Client Fallback
 
-latest := weights.JSON200.Items[0]
-log.Printf("latest weight: %.1f %s at %s", latest.Value, latest.Unit, latest.RecordedAt)
-```
-
-Use `From`, `To`, and `Limit` on `client.ListHealthWeightParams` for date
-filtering. Use `GetHealthWeightTrendWithResponse` only when the user asks for
-trend or chart-style data; use `ListHealthWeightWithResponse` for history and
-latest-weight questions.
-
-## Notes
-
-- `client.OpenLocal(...)` opens SQLite, runs migrations, and serves the OpenAPI handler in-process.
-- Default data location is `${XDG_DATA_HOME:-~/.local/share}/openhealth/openhealth.db`; override it with `client.LocalConfig`, `OPENHEALTH_DATA_DIR`, or `OPENHEALTH_DATABASE_PATH`.
-- Run `go run ./cmd/openhealth serve` only for maintainer or debug workflows.
-- A fuller sample lives at `examples/client_summary/main.go`.
-- A focused weight-history helper lives at `examples/openhealth/weight_history/main.go`.
-- Additional agent quick-start notes live at `skills/openhealth/references/REFERENCE.md`.
+The generated OpenAPI client remains available for advanced API-contract work,
+HTTP-server calls, or endpoints not yet covered by the SDK facade. Do not start
+there for common agent tasks.

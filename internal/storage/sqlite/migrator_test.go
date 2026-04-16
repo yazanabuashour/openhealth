@@ -28,12 +28,12 @@ func TestPendingAndApplyMigrationsBaselineLegacySchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pending migrations: %v", err)
 	}
-	if len(pending) != 0 {
-		t.Fatalf("expected legacy schema to baseline current migration, got %d pending", len(pending))
+	if len(pending) != len(migrations)-1 {
+		t.Fatalf("expected legacy schema to baseline first migration, got %d pending of %d migrations", len(pending), len(migrations))
 	}
 
-	if err := EnsureCurrent(ctx, db); err != nil {
-		t.Fatalf("ensure current: %v", err)
+	if err := EnsureCurrent(ctx, db); err == nil {
+		t.Fatal("expected legacy schema with unapplied follow-up migrations to be out of date")
 	}
 	if err := ApplyMigrations(ctx, db); err != nil {
 		t.Fatalf("apply migrations: %v", err)
@@ -43,8 +43,10 @@ func TestPendingAndApplyMigrationsBaselineLegacySchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("applied migration names: %v", err)
 	}
-	if _, ok := applied[migrations[0].Name]; !ok {
-		t.Fatalf("expected %s to be recorded in schema_migrations", migrations[0].Name)
+	for _, migration := range migrations {
+		if _, ok := applied[migration.Name]; !ok {
+			t.Fatalf("expected %s to be recorded in schema_migrations", migration.Name)
+		}
 	}
 }
 

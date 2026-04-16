@@ -4,10 +4,14 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"math"
 	"slices"
 	"time"
 )
+
+const manualWeightSource = "manual"
 
 type HashGenerator func() (string, error)
 
@@ -98,10 +102,95 @@ func (s *service) ListWeight(ctx context.Context, filter HistoryFilter) ([]Weigh
 }
 
 func (s *service) RecordWeight(ctx context.Context, input WeightRecordInput) (WeightEntry, error) {
-	if err := validateWeightRecordInput(input); err != nil {
+	normalized, err := normalizeWeightRecordInput(input)
+	if err != nil {
 		return WeightEntry{}, err
 	}
 
+	existing, err := s.repo.FindManualWeightEntry(ctx, FindManualWeightEntryParams{
+		RecordedAt: normalized.RecordedAt,
+		Unit:       normalized.Unit,
+	})
+	if err != nil {
+		return WeightEntry{}, err
+	}
+	if existing != nil {
+		return WeightEntry{}, &ConflictError{
+			Message: fmt.Sprintf("manual weight already exists on %s %s", normalized.RecordedAt.Format(time.DateOnly), normalized.Unit),
+		}
+	}
+
+	return s.createManualWeight(ctx, normalized)
+}
+
+func (s *service) UpsertWeight(ctx context.Context, input WeightRecordInput) (WeightWriteResult, error) {
+	normalized, err := normalizeWeightRecordInput(input)
+	if err != nil {
+		return WeightWriteResult{}, err
+	}
+
+	existing, err := s.repo.FindManualWeightEntry(ctx, FindManualWeightEntryParams{
+		RecordedAt: normalized.RecordedAt,
+		Unit:       normalized.Unit,
+	})
+	if err != nil {
+		return WeightWriteResult{}, err
+	}
+	if existing == nil {
+		entry, err := s.createManualWeight(ctx, normalized)
+		if err != nil {
+			var conflictErr *ConflictError
+			if errors.As(err, &conflictErr) {
+				return s.upsertExistingWeight(ctx, normalized)
+			}
+			return WeightWriteResult{}, err
+		}
+		return WeightWriteResult{
+			Entry:  entry,
+			Status: WeightWriteStatusCreated,
+		}, nil
+	}
+	return upsertWeightEntryValue(s, ctx, *existing, normalized)
+}
+
+func (s *service) upsertExistingWeight(ctx context.Context, input WeightRecordInput) (WeightWriteResult, error) {
+	existing, err := s.repo.FindManualWeightEntry(ctx, FindManualWeightEntryParams{
+		RecordedAt: input.RecordedAt,
+		Unit:       input.Unit,
+	})
+	if err != nil {
+		return WeightWriteResult{}, err
+	}
+	if existing == nil {
+		return WeightWriteResult{}, &ConflictError{
+			Message: fmt.Sprintf("manual weight already exists on %s %s", input.RecordedAt.Format(time.DateOnly), input.Unit),
+		}
+	}
+	return upsertWeightEntryValue(s, ctx, *existing, input)
+}
+
+func upsertWeightEntryValue(s *service, ctx context.Context, existing WeightEntry, input WeightRecordInput) (WeightWriteResult, error) {
+	if equalWeightValue(existing.Value, input.Value) {
+		return WeightWriteResult{
+			Entry:  existing,
+			Status: WeightWriteStatusAlreadyExists,
+		}, nil
+	}
+
+	value := input.Value
+	entry, err := s.UpdateWeight(ctx, existing.ID, WeightUpdateInput{
+		Value: &value,
+	})
+	if err != nil {
+		return WeightWriteResult{}, err
+	}
+	return WeightWriteResult{
+		Entry:  entry,
+		Status: WeightWriteStatusUpdated,
+	}, nil
+}
+
+func (s *service) createManualWeight(ctx context.Context, input WeightRecordInput) (WeightEntry, error) {
 	sourceRecordHash, err := s.hashGenerator()
 	if err != nil {
 		return WeightEntry{}, &DatabaseError{
@@ -112,10 +201,10 @@ func (s *service) RecordWeight(ctx context.Context, input WeightRecordInput) (We
 
 	now := s.now().UTC()
 	return s.repo.CreateWeightEntry(ctx, CreateWeightEntryParams{
-		RecordedAt:       input.RecordedAt.UTC(),
+		RecordedAt:       input.RecordedAt,
 		Value:            input.Value,
 		Unit:             input.Unit,
-		Source:           "manual",
+		Source:           manualWeightSource,
 		SourceRecordHash: sourceRecordHash,
 		CreatedAt:        now,
 		UpdatedAt:        now,
@@ -317,7 +406,18 @@ func validateHistoryFilter(filter HistoryFilter) error {
 	return nil
 }
 
+func normalizeWeightRecordInput(input WeightRecordInput) (WeightRecordInput, error) {
+	if err := validateWeightRecordInput(input); err != nil {
+		return WeightRecordInput{}, err
+	}
+	input.RecordedAt = input.RecordedAt.UTC()
+	return input, nil
+}
+
 func validateWeightRecordInput(input WeightRecordInput) error {
+	if input.RecordedAt.IsZero() {
+		return &ValidationError{Message: "recorded_at is required"}
+	}
 	if input.Value <= 0 {
 		return &ValidationError{Message: "value must be greater than 0"}
 	}
@@ -325,6 +425,10 @@ func validateWeightRecordInput(input WeightRecordInput) error {
 		return &ValidationError{Message: "unit must be 'lb'"}
 	}
 	return nil
+}
+
+func equalWeightValue(left float64, right float64) bool {
+	return math.Abs(left-right) < 0.000000001
 }
 
 func validateWeightUpdateInput(input WeightUpdateInput) error {

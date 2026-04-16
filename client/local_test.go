@@ -122,6 +122,79 @@ func TestOpenLocalPersistsDataAcrossSessions(t *testing.T) {
 	}
 }
 
+func TestLocalClientWeightHelpers(t *testing.T) {
+	t.Parallel()
+
+	api, err := client.OpenLocal(client.LocalConfig{DataDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("open local client: %v", err)
+	}
+	defer func() {
+		if closeErr := api.Close(); closeErr != nil {
+			t.Fatalf("close local client: %v", closeErr)
+		}
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	march29 := time.Date(2026, 3, 29, 12, 0, 0, 0, time.UTC)
+	created, err := api.UpsertWeight(ctx, client.WeightRecordInput{
+		RecordedAt: march29,
+		Value:      152.2,
+		Unit:       client.WeightUnitLb,
+	})
+	if err != nil {
+		t.Fatalf("upsert weight: %v", err)
+	}
+	if created.Status != client.WeightWriteStatusCreated || created.Entry.Value != 152.2 {
+		t.Fatalf("created weight = %#v", created)
+	}
+
+	again, err := api.UpsertWeight(ctx, client.WeightRecordInput{
+		RecordedAt: march29,
+		Value:      152.2,
+		Unit:       client.WeightUnitLb,
+	})
+	if err != nil {
+		t.Fatalf("repeat upsert weight: %v", err)
+	}
+	if again.Status != client.WeightWriteStatusAlreadyExists || again.Entry.ID != created.Entry.ID {
+		t.Fatalf("repeat weight = %#v, want already_exists id %d", again, created.Entry.ID)
+	}
+
+	march30 := time.Date(2026, 3, 30, 12, 0, 0, 0, time.UTC)
+	recorded, err := api.RecordWeight(ctx, client.WeightRecordInput{
+		RecordedAt: march30,
+		Value:      151.6,
+	})
+	if err != nil {
+		t.Fatalf("record weight with default unit: %v", err)
+	}
+	if recorded.Unit != client.WeightUnitLb {
+		t.Fatalf("recorded unit = %q, want %q", recorded.Unit, client.WeightUnitLb)
+	}
+
+	weights, err := api.ListWeights(ctx, client.WeightListOptions{Limit: 10})
+	if err != nil {
+		t.Fatalf("list weights: %v", err)
+	}
+	if len(weights) != 2 {
+		t.Fatalf("weight count = %d, want 2", len(weights))
+	}
+	if weights[0].Value != 151.6 || !weights[0].RecordedAt.Equal(march30) {
+		t.Fatalf("newest weight = %#v, want 151.6 on March 30", weights[0])
+	}
+
+	latest, err := api.LatestWeight(ctx)
+	if err != nil {
+		t.Fatalf("latest weight: %v", err)
+	}
+	if latest == nil || latest.ID != weights[0].ID {
+		t.Fatalf("latest = %#v, want id %d", latest, weights[0].ID)
+	}
+}
+
 func TestOpenLocalClosesRequestBodies(t *testing.T) {
 	t.Parallel()
 

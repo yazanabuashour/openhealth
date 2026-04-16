@@ -1296,6 +1296,17 @@ func (response CreateHealthWeight400JSONResponse) VisitCreateHealthWeightRespons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CreateHealthWeight409JSONResponse struct {
+	ConflictErrorResponseJSONResponse
+}
+
+func (response CreateHealthWeight409JSONResponse) VisitCreateHealthWeightResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type CreateHealthWeight500JSONResponse struct {
 	InternalErrorResponseJSONResponse
 }

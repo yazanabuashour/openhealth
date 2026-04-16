@@ -14,6 +14,10 @@ daemon.*
 # Interactions log (runtime, not versioned)
 interactions.jsonl
 
+# JSONL exports are generated snapshots; embedded Dolt is the source of truth.
+issues.jsonl
+events.jsonl
+
 # Push state (runtime, per-machine)
 push-state.json
 

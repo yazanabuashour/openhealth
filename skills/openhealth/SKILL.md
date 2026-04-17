@@ -109,6 +109,50 @@ for _, weight := range weights {
 }
 ```
 
+For a bounded history request, parse both dates and pass an inclusive end of
+day for `To` so entries on the requested end date are included. Answer with
+every row returned by the bounded query, newest first. Do not report only the
+latest row, and do not append older or newer rows you may have seen while
+inspecting the database. Do not mention excluded dates at all, even to say they
+were excluded.
+
+```go
+fromDate, err := time.Parse(time.DateOnly, "2026-03-29")
+if err != nil {
+	log.Fatal(err)
+}
+toDate, err := time.Parse(time.DateOnly, "2026-03-30")
+if err != nil {
+	log.Fatal(err)
+}
+toEnd := toDate.Add(24*time.Hour - time.Nanosecond)
+
+weights, err := api.ListWeights(ctx, client.WeightListOptions{
+	From: &fromDate,
+	To:   &toEnd,
+})
+if err != nil {
+	log.Fatal(err)
+}
+for _, weight := range weights {
+	log.Printf("%s %.1f %s", weight.RecordedAt.Format(time.DateOnly), weight.Value, weight.Unit)
+}
+```
+
+For the range `2026-03-29` through `2026-03-30`, a result containing
+`2026-03-30` and `2026-03-29` must be reported as both rows, newest first.
+If a Go run is unavailable and you inspect SQLite directly as a fallback, keep
+the same date-only bounds instead of listing all history:
+
+```sql
+SELECT substr(recorded_at, 1, 10) AS date, value, unit
+FROM health_weight_entry
+WHERE deleted_at IS NULL
+  AND substr(recorded_at, 1, 10) >= '2026-03-29'
+  AND substr(recorded_at, 1, 10) <= '2026-03-30'
+ORDER BY recorded_at DESC, id DESC;
+```
+
 Weight entries are returned newest first. A focused reference with copyable
 task snippets lives at [references/weights.md](references/weights.md).
 

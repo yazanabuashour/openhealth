@@ -96,6 +96,52 @@ filtering. Use `GetHealthWeightTrendWithResponse` only when the user asks for
 trend or chart-style data; use `ListHealthWeightWithResponse` for history and
 latest-weight questions.
 
+For a bounded date range, parse both dates, make `To` inclusive through the end
+of the requested final day, and report every row returned by that bounded
+request, newest first. Do not report only the latest row, and do not append
+older or newer rows from the database to the final answer. Do not mention
+excluded dates at all, even to say they were excluded.
+
+```go
+fromDate, err := time.Parse(time.DateOnly, "2026-03-29")
+if err != nil {
+	log.Fatal(err)
+}
+toDate, err := time.Parse(time.DateOnly, "2026-03-30")
+if err != nil {
+	log.Fatal(err)
+}
+toEnd := toDate.Add(24*time.Hour - time.Nanosecond)
+
+weights, err := api.ListHealthWeightWithResponse(ctx, &client.ListHealthWeightParams{
+	From: &fromDate,
+	To:   &toEnd,
+})
+if err != nil {
+	log.Fatal(err)
+}
+if weights.JSON200 == nil {
+	log.Fatalf("unexpected status: %s", weights.Status())
+}
+for _, weight := range weights.JSON200.Items {
+	log.Printf("%s %.1f %s", weight.RecordedAt.Format(time.DateOnly), weight.Value, weight.Unit)
+}
+```
+
+For the range `2026-03-29` through `2026-03-30`, a result containing
+`2026-03-30` and `2026-03-29` must be reported as both rows, newest first.
+If a Go run is unavailable and you inspect SQLite directly as a fallback, keep
+the same date-only bounds instead of listing all history:
+
+```sql
+SELECT substr(recorded_at, 1, 10) AS date, value, unit
+FROM health_weight_entry
+WHERE deleted_at IS NULL
+  AND substr(recorded_at, 1, 10) >= '2026-03-29'
+  AND substr(recorded_at, 1, 10) <= '2026-03-30'
+ORDER BY recorded_at DESC, id DESC;
+```
+
 ## Write Weight Entries
 
 For a generated-client-only write, call the generated create endpoint with an

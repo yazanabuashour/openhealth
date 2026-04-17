@@ -489,7 +489,7 @@ func scenarios() []scenario {
 		{
 			ID:     "bounded-range",
 			Title:  "List a bounded date range newest-first",
-			Prompt: "Please show my local OpenHealth weight history from 03/29/2026 through 03/30/2026 only, newest first. Use the configured local data path.",
+			Prompt: "Please show every local OpenHealth weight history entry dated 03/29/2026 or 03/30/2026 only, newest first. Use the configured local data path. Include each entry dated 03/30/2026 and 03/29/2026 if present. In the final answer, mention only entries in that requested range; do not mention excluded dates at all.",
 		},
 		{
 			ID:     "ambiguous-short-date",

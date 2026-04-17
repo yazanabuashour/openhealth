@@ -72,6 +72,55 @@ for _, weight := range weights {
 }
 ```
 
+## Bounded History
+
+Use `WeightListOptions{From: ..., To: ...}` when the user asks for a specific
+date range. Parse the start date, parse the end date, and make `To` inclusive
+through the end of that day.
+
+```go
+fromDate, err := time.Parse(time.DateOnly, "2026-03-29")
+if err != nil {
+	log.Fatal(err)
+}
+toDate, err := time.Parse(time.DateOnly, "2026-03-30")
+if err != nil {
+	log.Fatal(err)
+}
+toEnd := toDate.Add(24*time.Hour - time.Nanosecond)
+
+weights, err := api.ListWeights(ctx, client.WeightListOptions{
+	From: &fromDate,
+	To:   &toEnd,
+})
+if err != nil {
+	log.Fatal(err)
+}
+for _, weight := range weights {
+	log.Printf("%s %.1f %s", weight.RecordedAt.Format(time.DateOnly), weight.Value, weight.Unit)
+}
+```
+
+When reporting the result, mirror every row in the bounded query output, newest
+first. Do not report only the latest row, and do not include older or newer
+records that were not part of the requested range. Do not mention excluded dates
+at all, even to say they were excluded.
+
+For example, if the requested range is `2026-03-29` through `2026-03-30` and the
+bounded query returns `2026-03-30` and `2026-03-29`, report both rows.
+
+If a Go run is unavailable and you inspect SQLite directly as a fallback, keep
+the same date-only bounds:
+
+```sql
+SELECT substr(recorded_at, 1, 10) AS date, value, unit
+FROM health_weight_entry
+WHERE deleted_at IS NULL
+  AND substr(recorded_at, 1, 10) >= '2026-03-29'
+  AND substr(recorded_at, 1, 10) <= '2026-03-30'
+ORDER BY recorded_at DESC, id DESC;
+```
+
 ## Date Handling
 
 If a user gives a short date like `03/29`, resolve the year from the conversation

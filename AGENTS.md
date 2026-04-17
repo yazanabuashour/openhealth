@@ -1,6 +1,29 @@
 - For all committed docs, reports, and artifact references, use repo-relative paths or neutral repo-relative placeholders. Never use machine-absolute filesystem paths.
 - Do work on the current branch. Do not create or switch to another branch unless explicitly instructed.
 
+## OpenHealth User Data Requests
+
+When the prompt is a direct user request to add, list, correct, or validate
+local OpenHealth weight data, treat it as a product data task rather than a
+repository maintenance task. Do not run `bd prime`, inspect `.agents`, inspect
+generated files, inspect the Go module cache, query SQLite directly, or run
+repo-wide searches before acting.
+
+Use the AgentOps facade:
+`agentops.RunWeightTask(context.Background(), client.LocalConfig{}, request)`.
+Create a temporary Go module outside the repository, replace
+`github.com/yazanabuashour/openhealth` to the current checkout, and run it with
+`GOPROXY=off GOSUMDB=off go run -mod=mod .`. The package names, constants, and
+request shapes in the OpenHealth skill are complete; do not read `go.mod`,
+search for symbols, or inspect source files to confirm them before running the
+temporary program. For ambiguous short dates, year-first slash dates such as
+`2026/03/31`, non-positive values, or unsupported units, reject directly without
+running code. Explicit month/day/year dates like `03/29/2026` may be converted
+to `YYYY-MM-DD`. For "two most recent" weight requests, use
+`WeightListModeHistory` with `Limit: 2`; `WeightListModeLatest` is only for one
+latest row. AgentOps `entries` are already newest-first for weight list and
+upsert results.
+
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker
 

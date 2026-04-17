@@ -14,6 +14,9 @@ root with `go run ./cmd/openhealth`.
 
 - Do not infer a year for short dates unless the user or conversation provides
   explicit year context. Ask for the year instead of writing.
+- Do not normalize year-first slash dates, such as `2026/03/31`; reject them
+  instead of rewriting them. Explicit month/day/year dates with a year, such as
+  `03/29/2026`, may be converted to `YYYY-MM-DD`.
 - Do not convert unsupported units. The CLI accepts `lb` only.
 - Do not write non-positive, missing, or otherwise invalid values.
 - Treat direct SQLite access as a read-only fallback. Do not manually insert,

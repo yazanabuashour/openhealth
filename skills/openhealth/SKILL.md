@@ -1,185 +1,142 @@
 ---
 name: openhealth
-description: Use this skill when an agent needs to read or write local-first OpenHealth data through the ergonomic Go SDK in github.com/yazanabuashour/openhealth/client.
+description: Use this skill when an agent needs to read or write local-first OpenHealth data through the AgentOps task facade and Go SDK in github.com/yazanabuashour/openhealth.
 license: MIT
-compatibility: Requires a Go-capable environment with local filesystem access and use of github.com/yazanabuashour/openhealth/client.
+compatibility: Requires a Go-capable environment with local filesystem access and the openhealth repository checkout.
 ---
 
-# OpenHealth Agent SDK
+# OpenHealth AgentOps
 
-Use this skill for local-first OpenHealth tasks. The production agent path is
-the hand-written Go SDK facade on top of `client.OpenLocal(...)`, not the raw
-generated OpenAPI methods.
+Use this skill for local-first OpenHealth tasks. For routine local weight tasks,
+the production agent path is the task-shaped `agentops` facade, not the
+`openhealth` CLI and not direct SQLite access.
 
 ## Default Path
 
-- Install from the current development line until a release tag exists:
-  `go get github.com/yazanabuashour/openhealth@main`.
-- Import `github.com/yazanabuashour/openhealth/client`.
-- Open local data with `client.OpenLocal(client.LocalConfig{})`. It honors the
-  configured local environment, including `OPENHEALTH_DATABASE_PATH`, so do not
-  search for the database path unless `OpenLocal` fails.
-- For routine weight tasks, start with this skill and
-  [references/weights.md](references/weights.md). Use `UpsertWeight`,
-  `RecordWeight`, `ListWeights`, and `LatestWeight`; inspect `client/weight.go`
-  only when the snippets do not answer the task.
-- Use `client.LocalConfig{DatabasePath: "..."}` or
-  `client.LocalConfig{DataDir: "..."}` only when the user names a specific
-  database or you are using a temp test database.
-
-Do not inspect `client.gen.go`, generated server code, the Go module cache, or
-large dependency directories for routine add/list/latest weight tasks. Use
-targeted repo searches only when the SDK facade does not cover the user's ask.
-For routine weight tasks, avoid repo-wide file listings or content searches like
-`rg --files .` or `rg -n ... -S .`; search this skill, `references/weights.md`,
-and `client/weight.go` directly when additional context is needed. Do not append
-`.` to an otherwise targeted search, and do not search for `go.mod` or `go.sum`;
-the eval starts in the repository root.
+- Run from the repository root.
+- For routine weight add, reapply, correction, latest, history, or bounded-range
+  requests, use [references/weights.md](references/weights.md) and
+  `github.com/yazanabuashour/openhealth/agentops`.
+- `agentops.RunWeightTask(context.Background(), client.LocalConfig{}, request)`
+  honors the configured local environment, including
+  `OPENHEALTH_DATABASE_PATH`. Do not search for the database path unless the
+  AgentOps run fails with a path/configuration error.
+- The instructions on this page are complete for routine weight tasks. Do not
+  run `bd prime`, `rg --files`, repo-wide `rg`, `find .`, `env`, `pwd`, or
+  exploratory file listings before using AgentOps.
+- The import paths, constants, request fields, module version, and command
+  template below are exact. Do not read `go.mod`, search for `RunWeightTask`, or
+  inspect source files to confirm them.
+- Do not inspect `.agents` files after this skill is loaded. Do not inspect
+  `references/weights.md` unless the request examples below are insufficient.
+- Do not use `go run ./cmd/openhealth` for routine agent weight tasks unless the
+  user explicitly asks for the CLI.
+- Do not inspect `client.gen.go`, generated server code, the Go module cache,
+  large dependency directories, or SQLite directly for routine weight tasks.
+- For non-weight OpenHealth workflows, use the hand-written Go SDK facade in
+  `github.com/yazanabuashour/openhealth/client`.
 
 ## Routine Weight Fast Path
 
-For weight add, reapply, correction, latest, history, or bounded-range requests:
+For valid weight write/list requests, run one temporary Go program outside the
+repository. Change only the request literal. Do not run separate setup,
+environment, path, search, source-inspection, or discovery commands. Use the
+single command below; `repo="$(pwd)"` is the only repository path lookup needed.
 
-1. Read [references/weights.md](references/weights.md).
-2. Copy the matching SDK helper snippet into a short temporary Go program.
-3. Run it from the repository with the inherited environment.
-4. Answer only from the program output and the requested user range.
+```bash
+tmp="$(mktemp -d)" && repo="$(pwd)" && cat > "$tmp/go.mod" <<EOF
+module openhealth-agentops-task
 
-Do not enumerate the repository, inspect generated files, inspect the Go module
-cache, or query SQLite directly unless the SDK helper run fails.
+go 1.26.2
 
-For invalid input or ambiguous short-date requests, answer from the validation
-rules in this skill. Do not search the repository or run code before rejecting
-non-positive values, unsupported units, or dates that lack a year.
+require github.com/yazanabuashour/openhealth v0.0.0
 
-## Add Weight Entries
-
-Prefer `UpsertWeight` for user-entered measurements. It is idempotent for the
-same recorded date and unit, returns a status, and avoids duplicate manual
-entries.
-
-Before writing a measurement, validate the user's input exactly:
-
-- Do not infer a year for short dates unless the user or conversation provides
-  explicit year context. Ask for the year instead of writing.
-- Do not convert unsupported units. V1 accepts pounds only, represented as
-  `client.WeightUnitLb`.
-- Do not write non-positive, missing, or otherwise invalid values. Tell the user
-  the entry is invalid instead.
-
-```go
+replace github.com/yazanabuashour/openhealth => $repo
+EOF
+cat > "$tmp/main.go" <<'EOF'
 package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
-	"time"
+	"os"
 
+	"github.com/yazanabuashour/openhealth/agentops"
 	"github.com/yazanabuashour/openhealth/client"
 )
 
 func main() {
-	api, err := client.OpenLocal(client.LocalConfig{})
+	result, err := agentops.RunWeightTask(context.Background(), client.LocalConfig{}, agentops.WeightTaskRequest{
+		Action: agentops.WeightTaskActionUpsert,
+		Weights: []agentops.WeightInput{
+			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
+			{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
+		},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer api.Close()
-
-	ctx := context.Background()
-	for _, item := range []struct {
-		date  string
-		value float64
-	}{
-		{"2026-03-29", 152.2},
-		{"2026-03-30", 151.6},
-	} {
-		recordedAt, err := time.Parse(time.DateOnly, item.date)
-		if err != nil {
-			log.Fatal(err)
-		}
-		result, err := api.UpsertWeight(ctx, client.WeightRecordInput{
-			RecordedAt: recordedAt,
-			Value:      item.value,
-			Unit:       client.WeightUnitLb,
-		})
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Printf("%s %.1f lb %s", result.Entry.RecordedAt.Format(time.DateOnly), result.Entry.Value, result.Status)
+	if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
+		log.Fatal(err)
 	}
 }
+EOF
+(cd "$tmp" && GOPROXY=off GOSUMDB=off go run -mod=mod .)
 ```
 
-Use `RecordWeight` only when duplicate entries should fail with a conflict.
-
-## Read Weight Entries
+Use these request shapes:
 
 ```go
-latest, err := api.LatestWeight(ctx)
-if err != nil {
-	log.Fatal(err)
+// add, reapply, or correction
+agentops.WeightTaskRequest{
+	Action: agentops.WeightTaskActionUpsert,
+	Weights: []agentops.WeightInput{{Date: "2026-03-29", Value: 152.2, Unit: "lb"}},
 }
-if latest == nil {
-	log.Printf("no weight history in %s", api.Paths.DatabasePath)
-	return
-}
-log.Printf("latest weight: %.1f %s at %s", latest.Value, latest.Unit, latest.RecordedAt.Format(time.RFC3339))
 
-weights, err := api.ListWeights(ctx, client.WeightListOptions{Limit: 25})
-if err != nil {
-	log.Fatal(err)
+// latest only
+agentops.WeightTaskRequest{
+	Action:   agentops.WeightTaskActionList,
+	ListMode: agentops.WeightListModeLatest,
 }
-for _, weight := range weights {
-	log.Printf("%s %.1f %s", weight.RecordedAt.Format(time.DateOnly), weight.Value, weight.Unit)
+
+// history, optionally limited; use this for "two most recent"
+agentops.WeightTaskRequest{
+	Action:   agentops.WeightTaskActionList,
+	ListMode: agentops.WeightListModeHistory,
+	Limit:    2,
+}
+
+// bounded date range
+agentops.WeightTaskRequest{
+	Action:   agentops.WeightTaskActionList,
+	ListMode: agentops.WeightListModeRange,
+	FromDate: "2026-03-29",
+	ToDate:   "2026-03-30",
 }
 ```
 
-For a bounded history request, parse both dates and pass an inclusive end of
-day for `To` so entries on the requested end date are included. Answer with
-every row returned by the bounded query, newest first. Do not report only the
-latest row, and do not append older or newer rows you may have seen while
-inspecting the database. Do not mention excluded dates at all, even to say they
-were excluded.
+Do not combine `WeightListModeLatest` with `Limit`. Latest mode returns one row.
+For "two most recent" or any count greater than one, use
+`WeightListModeHistory` with `Limit`.
 
-```go
-fromDate, err := time.Parse(time.DateOnly, "2026-03-29")
-if err != nil {
-	log.Fatal(err)
-}
-toDate, err := time.Parse(time.DateOnly, "2026-03-30")
-if err != nil {
-	log.Fatal(err)
-}
-toEnd := toDate.Add(24*time.Hour - time.Nanosecond)
+For invalid input or ambiguous short-date requests, reject directly without
+running code:
 
-weights, err := api.ListWeights(ctx, client.WeightListOptions{
-	From: &fromDate,
-	To:   &toEnd,
-})
-if err != nil {
-	log.Fatal(err)
-}
-for _, weight := range weights {
-	log.Printf("%s %.1f %s", weight.RecordedAt.Format(time.DateOnly), weight.Value, weight.Unit)
-}
-```
+- Do not infer a year for short dates unless the user or conversation gives
+  explicit year context.
+- Do not write non-positive, missing, or otherwise invalid values.
+- Do not convert unsupported units. Accepted units are `lb`, `lbs`, `pound`,
+  and `pounds`, normalized to `lb`.
+- Do not write year-first slash dates, such as `2026/03/31`; reject them
+  without normalizing or rewriting them. Explicit month/day/year dates with a
+  year, such as `03/29/2026`, may be converted to `YYYY-MM-DD`.
 
-For the range `2026-03-29` through `2026-03-30`, a result containing
-`2026-03-30` and `2026-03-29` must be reported as both rows, newest first.
-If a Go run is unavailable and you inspect SQLite directly as a fallback, keep
-the same date-only bounds instead of listing all history:
-
-```sql
-SELECT substr(recorded_at, 1, 10) AS date, value, unit
-FROM health_weight_entry
-WHERE deleted_at IS NULL
-  AND substr(recorded_at, 1, 10) >= '2026-03-29'
-  AND substr(recorded_at, 1, 10) <= '2026-03-30'
-ORDER BY recorded_at DESC, id DESC;
-```
-
-Weight entries are returned newest first. A focused reference with copyable
-task snippets lives at [references/weights.md](references/weights.md).
+When reporting results, answer from the JSON `entries`, `writes`, or
+`rejection_reason` fields only. AgentOps `entries` are already newest-first.
+Convert entries into plain rows like `2026-03-30 151.6 lb`, newest first. For
+bounded ranges, mirror every JSON entry from the requested range and do not
+mention excluded dates.
 
 ## Generated Client Fallback
 

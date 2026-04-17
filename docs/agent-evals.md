@@ -14,8 +14,8 @@ also present in the production skill.
 - Judge success by final database state, newest-first verification, duplicate
   behavior, tool calls, assistant calls, wall time, non-cache input tokens, and
   whether the agent read generated files or the Go module cache.
-- The expected production path is `client.OpenLocal(...)` plus the ergonomic
-  weight helpers on `LocalClient`.
+- The expected production path for routine local weight tasks is the structured
+  `agentops.RunWeightTask(...)` facade from the `openhealth` skill.
 - Production agents should use the routine weight fast path in
   `skills/openhealth/references/weights.md` before searching the repository.
   Broad repo searches, generated-file inspection, and module-cache inspection
@@ -96,3 +96,20 @@ lost on tool count and one assistant-format check; the third passed every
 criterion. Final measured verdict: prefer `agentops-code` for the routine local
 weight tasks covered by `oh-5yr`, while keeping CLI as a human-facing and
 fallback path.
+
+## AgentOps Production Expansion
+
+Status: completed in
+`docs/agent-eval-results/oh-5yr-agentops-production-expanded.md`.
+
+The structured AgentOps facade has been promoted into the production
+`openhealth` skill for routine local weight operations. Three expanded
+production-vs-CLI samples covered ten scenarios each. Production and CLI both
+passed 30/30 correctness checks, but production beat CLI in every sample with 48
+tools vs 240, 530.20 wall seconds vs 1,568.63, 177,601 non-cache input tokens vs
+394,569, 24,670 output tokens vs 131,630, and zero production hygiene hits.
+
+Current measured verdict: prefer the production AgentOps facade for routine
+local weight operations covered by this matrix. Keep CLI as a human-facing and
+fallback path. Do not generalize this recommendation beyond local weight
+operations until comparable eval coverage exists for another domain.

@@ -94,10 +94,14 @@ type metrics struct {
 	GeneratedPathFromBroadSearch         bool           `json:"generated_path_from_broad_search"`
 	BroadRepoSearch                      bool           `json:"broad_repo_search"`
 	ModuleCacheInspected                 bool           `json:"module_cache_inspected"`
+	CLIUsed                              bool           `json:"cli_used"`
+	DirectSQLiteAccess                   bool           `json:"direct_sqlite_access"`
 	GeneratedFileEvidence                []string       `json:"generated_file_evidence,omitempty"`
 	GeneratedPathFromBroadSearchEvidence []string       `json:"generated_path_from_broad_search_evidence,omitempty"`
 	BroadRepoSearchEvidence              []string       `json:"broad_repo_search_evidence,omitempty"`
 	ModuleCacheEvidence                  []string       `json:"module_cache_evidence,omitempty"`
+	CLIUsageEvidence                     []string       `json:"cli_usage_evidence,omitempty"`
+	DirectSQLiteEvidence                 []string       `json:"direct_sqlite_evidence,omitempty"`
 	UsageExposed                         bool           `json:"usage_exposed"`
 	InputTokens                          *int           `json:"input_tokens,omitempty"`
 	CachedInputTokens                    *int           `json:"cached_input_tokens,omitempty"`
@@ -163,6 +167,8 @@ type comparisonEntry struct {
 	GeneratedPathFromBroadSearchChange string   `json:"generated_path_from_broad_search_change"`
 	BroadRepoSearchChange              string   `json:"broad_repo_search_change"`
 	ModuleCacheInspectionChange        string   `json:"module_cache_inspection_change"`
+	CLIUsageChange                     string   `json:"cli_usage_change"`
+	DirectSQLiteAccessChange           string   `json:"direct_sqlite_access_change"`
 }
 
 type weightState struct {
@@ -215,6 +221,7 @@ func runCommand(args []string) {
 	compareToFlag := fs.String("compare-to", "", "optional baseline JSON report path for comparison")
 	variantFilter := fs.String("variant", "", "optional comma-separated variant ids to run")
 	scenarioFilter := fs.String("scenario", "", "optional comma-separated scenario ids to run")
+	candidateVariantFlag := fs.String("candidate", "agentops-code", "candidate variant id to compare directly with cli")
 	if err := fs.Parse(args); err != nil {
 		failf("parse flags: %v", err)
 	}
@@ -324,7 +331,7 @@ func runCommand(args []string) {
 		CLIStatus:         "runnable: cli variant uses go run ./cmd/openhealth weight add/list with a prewarmed per-scenario module cache",
 		MetricNotes:       metricNotes(*dateFlag, results),
 		StopLoss:          productionStopLoss(results),
-		CodeFirst:         codeFirstSummaryFor(results),
+		CodeFirst:         codeFirstSummaryFor(results, *candidateVariantFlag),
 		Results:           results,
 		RawLogsCommitted:  false,
 		RawLogsNote:       "Raw codex exec event logs and stderr files were retained under <run-root> during execution and intentionally not committed.",
@@ -542,6 +549,12 @@ func evalPathsFor(runDir string) evalPaths {
 }
 
 func prepareRunDir(runDir string) error {
+	_ = filepath.WalkDir(runDir, func(path string, entry fs.DirEntry, err error) error {
+		if err == nil {
+			_ = os.Chmod(path, 0o755)
+		}
+		return nil
+	})
 	if err := os.RemoveAll(runDir); err != nil {
 		return err
 	}
@@ -594,6 +607,16 @@ func scenarios() []scenario {
 			Prompt: "Can you show my OpenHealth weights for Mar 29 and Mar 30, 2026, newest first? Use the configured local data path.",
 		},
 		{
+			ID:     "latest-only",
+			Title:  "List only the latest weight entry",
+			Prompt: "What is my latest local OpenHealth weight entry? Use the configured local data path and mention only the latest row.",
+		},
+		{
+			ID:     "history-limit-two",
+			Title:  "List the two most recent weight entries",
+			Prompt: "Please show my two most recent local OpenHealth weight entries, newest first. Use the configured local data path and mention only those two rows.",
+		},
+		{
 			ID:     "ambiguous-short-date",
 			Title:  "Clarify an ambiguous short date without writing",
 			Prompt: "Please add this local OpenHealth weight: 03/29 152.2 lbs. There is no year context in this conversation or my request.",
@@ -602,6 +625,11 @@ func scenarios() []scenario {
 			ID:     "invalid-input",
 			Title:  "Reject invalid unit and value without writing",
 			Prompt: "Please add this local OpenHealth weight entry: 03/31/2026 -5 stone.",
+		},
+		{
+			ID:     "non-iso-date-reject",
+			Title:  "Reject non-ISO full date without writing",
+			Prompt: "Please add this local OpenHealth weight entry exactly as written: 2026/03/31 152.2 lbs. Do not normalize or rewrite the date if OpenHealth requires another date format.",
 		},
 	}
 }
@@ -690,8 +718,15 @@ func seedScenario(dbPath string, sc scenario) error {
 		return upsertWeights(ctx, api, []weightState{
 			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
 		})
-	case "bounded-range", "bounded-range-natural":
+	case "bounded-range", "bounded-range-natural", "latest-only":
 		return upsertWeights(ctx, api, []weightState{
+			{Date: "2026-03-28", Value: 153.0, Unit: "lb"},
+			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
+			{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
+		})
+	case "history-limit-two":
+		return upsertWeights(ctx, api, []weightState{
+			{Date: "2026-03-27", Value: 154.1, Unit: "lb"},
 			{Date: "2026-03-28", Value: 153.0, Unit: "lb"},
 			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
 			{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
@@ -761,6 +796,25 @@ func verifyScenario(dbPath string, sc scenario, finalMessage string) (verificati
 		result.DatabasePass = weightsEqual(states, expectedDB)
 		result.AssistantPass = boundedRangeAssistantPass(finalMessage)
 		result.Details = fmt.Sprintf("expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed %s%s", describeWeights(states), listErrorDetail)
+	case "latest-only":
+		expectedDB := []weightState{
+			{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
+			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
+			{Date: "2026-03-28", Value: 153.0, Unit: "lb"},
+		}
+		result.DatabasePass = weightsEqual(states, expectedDB)
+		result.AssistantPass = latestOnlyAssistantPass(finalMessage)
+		result.Details = fmt.Sprintf("expected unchanged seed rows and assistant output limited to latest row 2026-03-30; observed %s%s", describeWeights(states), listErrorDetail)
+	case "history-limit-two":
+		expectedDB := []weightState{
+			{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
+			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
+			{Date: "2026-03-28", Value: 153.0, Unit: "lb"},
+			{Date: "2026-03-27", Value: 154.1, Unit: "lb"},
+		}
+		result.DatabasePass = weightsEqual(states, expectedDB)
+		result.AssistantPass = historyLimitTwoAssistantPass(finalMessage)
+		result.Details = fmt.Sprintf("expected unchanged seed rows and assistant output limited to 2026-03-30 and 2026-03-29 newest-first; observed %s%s", describeWeights(states), listErrorDetail)
 	case "ambiguous-short-date":
 		result.DatabasePass = len(states) == 0
 		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"year", "which year", "clarify", "ambiguous"})
@@ -769,6 +823,10 @@ func verifyScenario(dbPath string, sc scenario, finalMessage string) (verificati
 		result.DatabasePass = len(states) == 0
 		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"invalid", "unsupported", "positive", "cannot", "can't", "unit", "value", "lb", "pounds"})
 		result.Details = fmt.Sprintf("expected no write and an invalid input rejection; observed %s%s", describeWeights(states), listErrorDetail)
+	case "non-iso-date-reject":
+		result.DatabasePass = len(states) == 0
+		result.AssistantPass = nonISODateRejectAssistantPass(finalMessage)
+		result.Details = fmt.Sprintf("expected no write and a strict YYYY-MM-DD date rejection; observed %s%s", describeWeights(states), listErrorDetail)
 	default:
 		return verificationResult{}, fmt.Errorf("unknown scenario %q", sc.ID)
 	}
@@ -896,6 +954,14 @@ func parseMetrics(path string) (parsedMetrics, error) {
 				if inspectsModuleCache(event.Item.Command) {
 					out.metrics.ModuleCacheInspected = true
 					addMetricEvidence(&out.metrics.ModuleCacheEvidence, event.Item.Command)
+				}
+				if usesOpenHealthCLI(event.Item.Command) {
+					out.metrics.CLIUsed = true
+					addMetricEvidence(&out.metrics.CLIUsageEvidence, event.Item.Command)
+				}
+				if usesDirectSQLite(event.Item.Command) {
+					out.metrics.DirectSQLiteAccess = true
+					addMetricEvidence(&out.metrics.DirectSQLiteEvidence, event.Item.Command)
 				}
 			}
 		}
@@ -1227,6 +1293,8 @@ func compareReports(baseline report, current report, baselineRef string) *compar
 		entry.GeneratedPathFromBroadSearchChange = boolChange(baselineResult.Metrics.GeneratedPathFromBroadSearch, currentResult.Metrics.GeneratedPathFromBroadSearch)
 		entry.BroadRepoSearchChange = boolChange(baselineResult.Metrics.BroadRepoSearch, currentResult.Metrics.BroadRepoSearch)
 		entry.ModuleCacheInspectionChange = boolChange(baselineResult.Metrics.ModuleCacheInspected, currentResult.Metrics.ModuleCacheInspected)
+		entry.CLIUsageChange = boolChange(baselineResult.Metrics.CLIUsed, currentResult.Metrics.CLIUsed)
+		entry.DirectSQLiteAccessChange = boolChange(baselineResult.Metrics.DirectSQLiteAccess, currentResult.Metrics.DirectSQLiteAccess)
 		entries = append(entries, entry)
 	}
 	return &comparisonSummary{
@@ -1240,6 +1308,8 @@ func metricNotes(reportDate string, results []runResult) []string {
 	productionGeneratedFromBroad := []string{}
 	productionBroadSearch := []string{}
 	productionModuleCache := []string{}
+	productionCLIUsage := []string{}
+	productionDirectSQLite := []string{}
 	for _, result := range results {
 		if result.Variant != "production" {
 			continue
@@ -1256,6 +1326,12 @@ func metricNotes(reportDate string, results []runResult) []string {
 		if result.Metrics.ModuleCacheInspected {
 			productionModuleCache = append(productionModuleCache, result.Scenario)
 		}
+		if result.Metrics.CLIUsed {
+			productionCLIUsage = append(productionCLIUsage, result.Scenario)
+		}
+		if result.Metrics.DirectSQLiteAccess {
+			productionDirectSQLite = append(productionDirectSQLite, result.Scenario)
+		}
 	}
 
 	notes := []string{}
@@ -1270,6 +1346,12 @@ func metricNotes(reportDate string, results []runResult) []string {
 	}
 	if len(productionModuleCache) > 0 {
 		notes = append(notes, fmt.Sprintf("Production module-cache inspection remained in %s in the %s run.", strings.Join(productionModuleCache, ", "), reportDate))
+	}
+	if len(productionCLIUsage) > 0 {
+		notes = append(notes, fmt.Sprintf("Production CLI usage remained in %s in the %s run.", strings.Join(productionCLIUsage, ", "), reportDate))
+	}
+	if len(productionDirectSQLite) > 0 {
+		notes = append(notes, fmt.Sprintf("Production direct SQLite access remained in %s in the %s run.", strings.Join(productionDirectSQLite, ", "), reportDate))
 	}
 	return notes
 }
@@ -1294,6 +1376,8 @@ func productionStopLoss(results []runResult) *stopLossSummary {
 	directGenerated := []string{}
 	moduleCache := []string{}
 	broadSearch := []string{}
+	cliUsage := []string{}
+	directSQLite := []string{}
 	for _, result := range productionByScenario {
 		if !result.Passed || !result.Verification.DatabasePass || !result.Verification.AssistantPass {
 			failed = append(failed, result.Scenario)
@@ -1307,6 +1391,12 @@ func productionStopLoss(results []runResult) *stopLossSummary {
 		if result.Metrics.BroadRepoSearch && isRoutineWeightScenario(result.Scenario) {
 			broadSearch = append(broadSearch, result.Scenario)
 		}
+		if result.Metrics.CLIUsed {
+			cliUsage = append(cliUsage, result.Scenario)
+		}
+		if result.Metrics.DirectSQLiteAccess {
+			directSQLite = append(directSQLite, result.Scenario)
+		}
 	}
 	if len(failed) > 0 {
 		triggers = append(triggers, fmt.Sprintf("production correctness below 100%% in %s", sortedJoin(failed)))
@@ -1319,6 +1409,12 @@ func productionStopLoss(results []runResult) *stopLossSummary {
 	}
 	if len(broadSearch) > 1 {
 		triggers = append(triggers, fmt.Sprintf("broad repo search in more than one routine scenario: %s", sortedJoin(broadSearch)))
+	}
+	if len(cliUsage) > 0 {
+		triggers = append(triggers, fmt.Sprintf("production used the openhealth CLI in %s", sortedJoin(cliUsage)))
+	}
+	if len(directSQLite) > 0 {
+		triggers = append(triggers, fmt.Sprintf("production used direct SQLite access in %s", sortedJoin(directSQLite)))
 	}
 
 	toolThresholds := map[string]int{
@@ -1351,16 +1447,19 @@ func productionStopLoss(results []runResult) *stopLossSummary {
 		recommendation = "pivot_to_cli_for_agent_operations"
 	}
 	return &stopLossSummary{
-		Policy:         "After two focused production hardening cycles, pivot if production loses correctness, directly inspects generated files, inspects the module cache, uses broad repo search in more than one routine scenario, exceeds core tool thresholds, or uses more than 2x CLI tools in at least three comparable scenarios.",
+		Policy:         "After production hardening, pivot if production loses correctness, directly inspects generated files, inspects the module cache, uses broad repo search in more than one routine scenario, uses the openhealth CLI, uses direct SQLite access, exceeds core tool thresholds, or uses more than 2x CLI tools in at least three comparable scenarios.",
 		Triggered:      len(triggers) > 0,
 		Recommendation: recommendation,
 		Triggers:       triggers,
 	}
 }
 
-func codeFirstSummaryFor(results []runResult) *codeFirstSummary {
-	const candidateVariant = "agentops-code"
+func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirstSummary {
 	const baselineVariant = "cli"
+
+	if strings.TrimSpace(candidateVariant) == "" {
+		candidateVariant = "agentops-code"
+	}
 
 	candidateByScenario := map[string]runResult{}
 	cliByScenario := map[string]runResult{}
@@ -1381,18 +1480,21 @@ func codeFirstSummaryFor(results []runResult) *codeFirstSummary {
 	noGenerated := true
 	noModuleCache := true
 	noRoutineBroadSearch := true
+	noCLIUsage := true
+	noDirectSQLite := true
 	totalCandidateTools := 0
 	totalCLITools := 0
 	scenariosAtOrBelowCLI := 0
 	routineExceedsCLIByMoreThanOne := []string{}
 	missingCLI := []string{}
 
+	candidateScenarioIDs := []string{}
 	for _, scenario := range scenarioIDs() {
 		candidate, ok := candidateByScenario[scenario]
 		if !ok {
-			candidatePassedAll = false
 			continue
 		}
+		candidateScenarioIDs = append(candidateScenarioIDs, scenario)
 		cli, hasCLI := cliByScenario[scenario]
 		if !hasCLI {
 			missingCLI = append(missingCLI, scenario)
@@ -1409,17 +1511,22 @@ func codeFirstSummaryFor(results []runResult) *codeFirstSummary {
 		if candidate.Metrics.BroadRepoSearch && isRoutineWeightScenario(candidate.Scenario) {
 			noRoutineBroadSearch = false
 		}
+		if candidate.Metrics.CLIUsed {
+			noCLIUsage = false
+		}
+		if candidate.Metrics.DirectSQLiteAccess {
+			noDirectSQLite = false
+		}
 		totalCandidateTools += candidate.Metrics.ToolCalls
 		row := codeFirstComparisonRow{
 			Scenario:       scenario,
 			CandidatePass:  candidate.Passed,
-			CLIPass:        cli.Passed,
 			CandidateTools: candidate.Metrics.ToolCalls,
-			CLITools:       cli.Metrics.ToolCalls,
 		}
 		if hasCLI {
 			totalCLITools += cli.Metrics.ToolCalls
 			row.CLIPass = cli.Passed
+			row.CLITools = cli.Metrics.ToolCalls
 			delta := candidate.Metrics.ToolCalls - cli.Metrics.ToolCalls
 			row.ToolDelta = &delta
 			if candidate.Metrics.ToolCalls <= cli.Metrics.ToolCalls {
@@ -1431,37 +1538,48 @@ func codeFirstSummaryFor(results []runResult) *codeFirstSummary {
 		}
 		entries = append(entries, row)
 	}
+	requiredAtOrBelowCLI := requiredScenariosAtOrBelowCLI(len(candidateScenarioIDs))
 
 	criteria := []codeFirstCriterion{
 		{
 			Name:    "candidate_passes_all_scenarios",
 			Passed:  candidatePassedAll,
-			Details: fmt.Sprintf("%d/%d candidate scenarios present", len(candidateByScenario), len(scenarios())),
+			Details: fmt.Sprintf("%d/%d candidate scenarios passed", countPassed(candidateByScenario), len(candidateScenarioIDs)),
 		},
 		{
 			Name:    "no_direct_generated_file_inspection",
 			Passed:  noGenerated,
-			Details: "agentops-code must not directly inspect generated files",
+			Details: fmt.Sprintf("%s must not directly inspect generated files", candidateVariant),
 		},
 		{
 			Name:    "no_module_cache_inspection",
 			Passed:  noModuleCache,
-			Details: "agentops-code must not inspect the Go module cache",
+			Details: fmt.Sprintf("%s must not inspect the Go module cache", candidateVariant),
 		},
 		{
 			Name:    "no_routine_broad_repo_search",
 			Passed:  noRoutineBroadSearch,
-			Details: "agentops-code must not use broad repo search in routine weight scenarios",
+			Details: fmt.Sprintf("%s must not use broad repo search in routine weight scenarios", candidateVariant),
+		},
+		{
+			Name:    "no_openhealth_cli_usage",
+			Passed:  noCLIUsage,
+			Details: fmt.Sprintf("%s must not use the openhealth CLI", candidateVariant),
+		},
+		{
+			Name:    "no_direct_sqlite_access",
+			Passed:  noDirectSQLite,
+			Details: fmt.Sprintf("%s must not use direct SQLite access", candidateVariant),
 		},
 		{
 			Name:    "total_tools_less_than_or_equal_cli",
 			Passed:  len(missingCLI) == 0 && totalCandidateTools <= totalCLITools,
-			Details: fmt.Sprintf("agentops-code tools %d vs cli tools %d", totalCandidateTools, totalCLITools),
+			Details: fmt.Sprintf("%s tools %d vs cli tools %d", candidateVariant, totalCandidateTools, totalCLITools),
 		},
 		{
-			Name:    "at_least_five_scenarios_at_or_below_cli",
-			Passed:  scenariosAtOrBelowCLI >= 5,
-			Details: fmt.Sprintf("%d scenarios at or below CLI tools", scenariosAtOrBelowCLI),
+			Name:    "minimum_scenarios_at_or_below_cli",
+			Passed:  scenariosAtOrBelowCLI >= requiredAtOrBelowCLI,
+			Details: fmt.Sprintf("%d scenarios at or below CLI tools; required %d of %d", scenariosAtOrBelowCLI, requiredAtOrBelowCLI, len(candidateScenarioIDs)),
 		},
 		{
 			Name:    "no_routine_scenario_exceeds_cli_by_more_than_one_tool",
@@ -1479,7 +1597,7 @@ func codeFirstSummaryFor(results []runResult) *codeFirstSummary {
 	}
 	recommendation := "continue_cli_for_routine_weight_operations"
 	if beatsCLI {
-		recommendation = "prefer_agentops_code_for_routine_weight_operations"
+		recommendation = recommendationForCandidate(candidateVariant)
 	}
 
 	return &codeFirstSummary{
@@ -1502,6 +1620,30 @@ func missingAwareDetails(missingCLI []string, exceeded []string) string {
 	return "no routine scenario exceeded CLI by more than one tool"
 }
 
+func countPassed(results map[string]runResult) int {
+	count := 0
+	for _, result := range results {
+		if result.Passed {
+			count++
+		}
+	}
+	return count
+}
+
+func requiredScenariosAtOrBelowCLI(candidateScenarios int) int {
+	if candidateScenarios <= 7 {
+		return min(5, candidateScenarios)
+	}
+	return candidateScenarios - 2
+}
+
+func recommendationForCandidate(candidateVariant string) string {
+	if candidateVariant == "production" {
+		return "prefer_agentops_production_for_routine_weight_operations"
+	}
+	return "prefer_agentops_code_for_routine_weight_operations"
+}
+
 func scenarioIDs() []string {
 	ids := []string{}
 	for _, scenario := range scenarios() {
@@ -1512,7 +1654,7 @@ func scenarioIDs() []string {
 
 func isRoutineWeightScenario(id string) bool {
 	switch id {
-	case "add-two", "repeat-add", "update-existing", "bounded-range", "bounded-range-natural":
+	case "add-two", "repeat-add", "update-existing", "bounded-range", "bounded-range-natural", "latest-only", "history-limit-two":
 		return true
 	default:
 		return false
@@ -1606,8 +1748,8 @@ func writeMarkdown(path string, value report) error {
 	fmt.Fprintf(&b, "\n")
 
 	fmt.Fprintf(&b, "## Results\n\n")
-	fmt.Fprintf(&b, "| Variant | Scenario | Result | DB | Assistant | Tools | Assistant Calls | Wall Seconds | Tokens | Direct Generated Files | Broad Search | Generated From Broad | Module Cache |\n")
-	fmt.Fprintf(&b, "| --- | --- | --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- | --- |\n")
+	fmt.Fprintf(&b, "| Variant | Scenario | Result | DB | Assistant | Tools | Assistant Calls | Wall Seconds | Tokens | Direct Generated Files | Broad Search | Generated From Broad | Module Cache | CLI Used | Direct SQLite |\n")
+	fmt.Fprintf(&b, "| --- | --- | --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- | --- |\n")
 	for _, result := range value.Results {
 		tokenSummary := "not_exposed"
 		if result.Metrics.UsageExposed {
@@ -1615,7 +1757,7 @@ func writeMarkdown(path string, value report) error {
 		}
 		fmt.Fprintf(
 			&b,
-			"| `%s` | `%s` | %s | %s | %s | %d | %d | %.2f | %s | %s | %s | %s | %s |\n",
+			"| `%s` | `%s` | %s | %s | %s | %d | %d | %.2f | %s | %s | %s | %s | %s | %s | %s |\n",
 			result.Variant,
 			result.Scenario,
 			passText(result.Passed),
@@ -1629,18 +1771,20 @@ func writeMarkdown(path string, value report) error {
 			yesNo(result.Metrics.BroadRepoSearch),
 			yesNo(result.Metrics.GeneratedPathFromBroadSearch),
 			yesNo(result.Metrics.ModuleCacheInspected),
+			yesNo(result.Metrics.CLIUsed),
+			yesNo(result.Metrics.DirectSQLiteAccess),
 		)
 	}
 
 	if value.Comparison != nil {
 		fmt.Fprintf(&b, "\n## Comparison\n\n")
 		fmt.Fprintf(&b, "Baseline: `%s`.\n\n", value.Comparison.BaselineReport)
-		fmt.Fprintf(&b, "| Variant | Scenario | Result | Tools Δ | Assistant Calls Δ | Wall Seconds Δ | Non-cache Tokens Δ | Direct Generated Files | Broad Search | Generated From Broad | Module Cache |\n")
-		fmt.Fprintf(&b, "| --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- |\n")
+		fmt.Fprintf(&b, "| Variant | Scenario | Result | Tools Δ | Assistant Calls Δ | Wall Seconds Δ | Non-cache Tokens Δ | Direct Generated Files | Broad Search | Generated From Broad | Module Cache | CLI Used | Direct SQLite |\n")
+		fmt.Fprintf(&b, "| --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- |\n")
 		for _, entry := range value.Comparison.Entries {
 			fmt.Fprintf(
 				&b,
-				"| `%s` | `%s` | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n",
+				"| `%s` | `%s` | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n",
 				entry.Variant,
 				entry.Scenario,
 				entry.Result,
@@ -1652,6 +1796,8 @@ func writeMarkdown(path string, value report) error {
 				entry.BroadRepoSearchChange,
 				entry.GeneratedPathFromBroadSearchChange,
 				entry.ModuleCacheInspectionChange,
+				entry.CLIUsageChange,
+				entry.DirectSQLiteAccessChange,
 			)
 		}
 	}
@@ -1718,7 +1864,9 @@ func hasMetricEvidence(results []runResult) bool {
 		if len(result.Metrics.GeneratedFileEvidence) > 0 ||
 			len(result.Metrics.GeneratedPathFromBroadSearchEvidence) > 0 ||
 			len(result.Metrics.BroadRepoSearchEvidence) > 0 ||
-			len(result.Metrics.ModuleCacheEvidence) > 0 {
+			len(result.Metrics.ModuleCacheEvidence) > 0 ||
+			len(result.Metrics.CLIUsageEvidence) > 0 ||
+			len(result.Metrics.DirectSQLiteEvidence) > 0 {
 			return true
 		}
 	}
@@ -1729,7 +1877,9 @@ func writeMetricEvidence(b *strings.Builder, result runResult) {
 	if len(result.Metrics.GeneratedFileEvidence) == 0 &&
 		len(result.Metrics.GeneratedPathFromBroadSearchEvidence) == 0 &&
 		len(result.Metrics.BroadRepoSearchEvidence) == 0 &&
-		len(result.Metrics.ModuleCacheEvidence) == 0 {
+		len(result.Metrics.ModuleCacheEvidence) == 0 &&
+		len(result.Metrics.CLIUsageEvidence) == 0 &&
+		len(result.Metrics.DirectSQLiteEvidence) == 0 {
 		return
 	}
 	prefix := fmt.Sprintf("- `%s/%s`", result.Variant, result.Scenario)
@@ -1744,6 +1894,12 @@ func writeMetricEvidence(b *strings.Builder, result runResult) {
 	}
 	if len(result.Metrics.ModuleCacheEvidence) > 0 {
 		fmt.Fprintf(b, "%s module cache: `%s`.\n", prefix, strings.Join(result.Metrics.ModuleCacheEvidence, "`; `"))
+	}
+	if len(result.Metrics.CLIUsageEvidence) > 0 {
+		fmt.Fprintf(b, "%s openhealth CLI: `%s`.\n", prefix, strings.Join(result.Metrics.CLIUsageEvidence, "`; `"))
+	}
+	if len(result.Metrics.DirectSQLiteEvidence) > 0 {
+		fmt.Fprintf(b, "%s direct SQLite: `%s`.\n", prefix, strings.Join(result.Metrics.DirectSQLiteEvidence, "`; `"))
 	}
 }
 
@@ -1880,6 +2036,29 @@ func boundedRangeAssistantPass(message string) bool {
 	return !mentionsIncludedDate(message, "2026-03-28")
 }
 
+func latestOnlyAssistantPass(message string) bool {
+	return mentionsIncludedDate(message, "2026-03-30") &&
+		!mentionsIncludedDate(message, "2026-03-29") &&
+		!mentionsIncludedDate(message, "2026-03-28")
+}
+
+func historyLimitTwoAssistantPass(message string) bool {
+	previous := -1
+	for _, date := range []string{"2026-03-30", "2026-03-29"} {
+		index := includedDateResultLineIndex(message, date)
+		if index < 0 || index <= previous {
+			return false
+		}
+		previous = index
+	}
+	return !mentionsIncludedDate(message, "2026-03-28") &&
+		!mentionsIncludedDate(message, "2026-03-27")
+}
+
+func nonISODateRejectAssistantPass(message string) bool {
+	return containsAny(strings.ToLower(message), []string{"yyyy-mm-dd", "iso", "invalid", "cannot", "can't", "reject", "unsupported", "format"})
+}
+
 func mentionsIncludedDate(message string, date string) bool {
 	return includedDateResultLineIndex(message, date) >= 0
 }
@@ -1970,10 +2149,16 @@ func promptSummary(sc scenario) string {
 		return "list only 2026-03-29 through 2026-03-30 from preseeded rows"
 	case "bounded-range-natural":
 		return "naturally ask for 2026-03-29 and 2026-03-30 from preseeded rows"
+	case "latest-only":
+		return "list only the latest row from preseeded rows"
+	case "history-limit-two":
+		return "list only the two most recent rows from preseeded rows"
 	case "ambiguous-short-date":
 		return "ask for year before writing 03/29 152.2 lb"
 	case "invalid-input":
 		return "reject -5 stone for 2026-03-31"
+	case "non-iso-date-reject":
+		return "reject non-ISO date 2026/03/31"
 	default:
 		return sc.Title
 	}
@@ -1987,10 +2172,13 @@ func inspectsGeneratedFileCommand(command string, output string) bool {
 	if !isFileInspectionCommand(command) || isBroadRepoSearchCommand(command) {
 		return false
 	}
+	if onlyAgentSkillTargets(commandPathTargets(commandFields(command))) {
+		return false
+	}
 	if mentionsGeneratedPath(command) {
 		return true
 	}
-	return isContentSearchCommand(command) && mentionsGeneratedPath(output)
+	return isContentSearchCommand(command) && outputHasGeneratedResultPath(output)
 }
 
 func isBroadRepoSearchCommand(command string) bool {
@@ -2133,6 +2321,19 @@ func onlyRepoRootTargets(targets []string) bool {
 	return true
 }
 
+func onlyAgentSkillTargets(targets []string) bool {
+	if len(targets) == 0 {
+		return false
+	}
+	for _, target := range targets {
+		cleaned := filepath.ToSlash(strings.Trim(target, `"'`))
+		if !strings.HasPrefix(cleaned, ".agents/skills/") && !strings.HasPrefix(cleaned, "skills/openhealth/") && cleaned != "references/weights.md" {
+			return false
+		}
+	}
+	return true
+}
+
 func hasRepoRootTarget(fields []string) bool {
 	for _, field := range fields {
 		if field == "." || field == "./" || field == "./." {
@@ -2152,10 +2353,132 @@ func mentionsGeneratedPath(text string) bool {
 		strings.Contains(text, "server.gen.go")
 }
 
+func outputHasGeneratedResultPath(text string) bool {
+	for _, line := range strings.Split(text, "\n") {
+		trimmed := strings.TrimSpace(line)
+		trimmed = strings.TrimPrefix(trimmed, "./")
+		if strings.HasPrefix(trimmed, "client/client.gen.go:") ||
+			strings.HasPrefix(trimmed, "client.gen.go:") ||
+			strings.HasPrefix(trimmed, "internal/api/generated/") ||
+			strings.HasPrefix(trimmed, "server.gen.go:") {
+			return true
+		}
+	}
+	return false
+}
+
 func inspectsModuleCache(command string) bool {
 	lower := strings.ToLower(command)
 	return strings.Contains(lower, "gomodcache") ||
 		strings.Contains(lower, "pkg/mod")
+}
+
+func usesOpenHealthCLI(command string) bool {
+	for _, segment := range shellCommandSegments(shellCommandPayload(command)) {
+		if segmentUsesOpenHealthCLI(segment) {
+			return true
+		}
+	}
+	return false
+}
+
+func segmentUsesOpenHealthCLI(segment string) bool {
+	fields := commandFields(segment)
+	if primaryExecutableIs(fields, "rg", "grep", "sed", "awk", "find", "cat", "head", "tail", "nl", "echo", "printf") {
+		return false
+	}
+	for i, field := range fields {
+		if filepath.Base(field) == "go" && i+2 < len(fields) && fields[i+1] == "run" {
+			for _, candidate := range fields[i+2:] {
+				trimmed := strings.Trim(candidate, `"'`)
+				if trimmed == "./cmd/openhealth" || trimmed == "cmd/openhealth" || strings.HasSuffix(trimmed, "/cmd/openhealth") {
+					return true
+				}
+			}
+		}
+		if (field == "openhealth" || strings.HasSuffix(field, "/openhealth")) && i+1 < len(fields) {
+			switch fields[i+1] {
+			case "weight", "migrate", "serve":
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func shellCommandPayload(command string) string {
+	lower := strings.ToLower(command)
+	for _, marker := range []string{" -lc ", " -c "} {
+		index := strings.Index(lower, marker)
+		if index < 0 {
+			continue
+		}
+		return trimShellArgument(strings.TrimSpace(command[index+len(marker):]))
+	}
+	return command
+}
+
+func trimShellArgument(value string) string {
+	if len(value) < 2 {
+		return value
+	}
+	quote := value[0]
+	if (quote == '\'' || quote == '"') && value[len(value)-1] == quote {
+		return value[1 : len(value)-1]
+	}
+	return value
+}
+
+func shellCommandSegments(command string) []string {
+	segments := []string{}
+	start := 0
+	var quote rune
+	for i, r := range command {
+		if quote != 0 {
+			if r == quote {
+				quote = 0
+			}
+			continue
+		}
+		if r == '\'' || r == '"' {
+			quote = r
+			continue
+		}
+		if r == ';' || r == '|' || r == '&' || r == '\n' {
+			if segment := strings.TrimSpace(command[start:i]); segment != "" {
+				segments = append(segments, segment)
+			}
+			start = i + 1
+		}
+	}
+	if segment := strings.TrimSpace(command[start:]); segment != "" {
+		segments = append(segments, segment)
+	}
+	return segments
+}
+
+func primaryExecutableIs(fields []string, names ...string) bool {
+	nameSet := map[string]struct{}{}
+	for _, name := range names {
+		nameSet[name] = struct{}{}
+	}
+	for _, field := range fields {
+		base := filepath.Base(field)
+		if base == "zsh" || base == "bash" || base == "sh" || field == "lc" || field == "cd" || strings.Contains(field, "=") {
+			continue
+		}
+		_, ok := nameSet[base]
+		return ok
+	}
+	return false
+}
+
+func usesDirectSQLite(command string) bool {
+	lower := strings.ToLower(command)
+	return commandHasExecutable(command, "sqlite3") ||
+		strings.Contains(lower, "import sqlite3") ||
+		strings.Contains(lower, "modernc.org/sqlite") ||
+		(strings.Contains(lower, "database/sql") && strings.Contains(lower, "sqlite"))
 }
 
 func addMetricEvidence(evidence *[]string, command string) {

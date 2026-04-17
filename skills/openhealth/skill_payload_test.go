@@ -44,6 +44,31 @@ func TestSkillMarkdownLinksReferenceInstalledFiles(t *testing.T) {
 	}
 }
 
+func TestProductionSkillUsesAgentOpsForRoutineWeights(t *testing.T) {
+	t.Parallel()
+
+	content, err := os.ReadFile("SKILL.md")
+	if err != nil {
+		t.Fatalf("read skill: %v", err)
+	}
+	text := string(content)
+	for _, want := range []string{
+		"agentops.RunWeightTask",
+		"github.com/yazanabuashour/openhealth/agentops",
+		"GOPROXY=off GOSUMDB=off go run -mod=mod .",
+		"Do not use `go run ./cmd/openhealth`",
+		"Do not read `go.mod`",
+		"search for `RunWeightTask`",
+		"AgentOps `entries` are already newest-first",
+		"`bd prime`",
+		"2026/03/31",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("skill missing %q", want)
+		}
+	}
+}
+
 func shouldSkipLinkTarget(target string) bool {
 	return target == "" ||
 		strings.HasPrefix(target, "#") ||

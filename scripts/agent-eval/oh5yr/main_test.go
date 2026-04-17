@@ -226,6 +226,12 @@ func TestGeneratedFileInspectionIgnoresBroadListings(t *testing.T) {
 			wantDirect: true,
 		},
 		{
+			name:       "skill guidance mentions generated file",
+			command:    "/bin/zsh -lc sed -n '1,220p' .agents/skills/openhealth/SKILL.md",
+			output:     "Do not inspect client.gen.go\n",
+			wantDirect: false,
+		},
+		{
 			name:            "broad content search with generated output",
 			command:         "/bin/zsh -lc rg 'CreateHealthWeight' .",
 			output:          "client/client.gen.go:func (c *Client) CreateHealthWeight(...)\n",
@@ -280,6 +286,114 @@ func TestGeneratedFileInspectionIgnoresBroadListings(t *testing.T) {
 	}
 }
 
+func TestCLIAndDirectSQLiteMetrics(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		command    string
+		wantCLI    bool
+		wantSQLite bool
+	}{
+		{
+			name:    "go run cli",
+			command: "go run ./cmd/openhealth weight list --limit 2",
+			wantCLI: true,
+		},
+		{
+			name:    "go run cli after shell setup",
+			command: `/bin/zsh -lc 'cd repo && go run ./cmd/openhealth weight list --limit 2'`,
+			wantCLI: true,
+		},
+		{
+			name:    "installed cli",
+			command: "/usr/local/bin/openhealth weight add --date 2026-03-29 --value 152.2",
+			wantCLI: true,
+		},
+		{
+			name:    "search for go run cli text",
+			command: `/bin/zsh -lc 'rg -n "go run ./cmd/openhealth" skills/openhealth'`,
+		},
+		{
+			name:    "grep for installed cli text",
+			command: `grep -R "openhealth weight" skills/openhealth`,
+		},
+		{
+			name: "agentops temp runner",
+			command: `tmp="$(mktemp -d)" && repo="$(pwd)" && cat > "$tmp/go.mod" <<EOF
+require github.com/yazanabuashour/openhealth v0.0.0
+replace github.com/yazanabuashour/openhealth => $repo
+EOF
+(cd "$tmp" && GOPROXY=off GOSUMDB=off go run -mod=mod .)`,
+		},
+		{
+			name:       "sqlite executable",
+			command:    `sqlite3 "$OPENHEALTH_DATABASE_PATH" "select * from health_weight_entry"`,
+			wantSQLite: true,
+		},
+		{
+			name: "python sqlite import",
+			command: `python - <<'PY'
+import sqlite3
+sqlite3.connect("openhealth.db")
+PY`,
+			wantSQLite: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := usesOpenHealthCLI(tt.command); got != tt.wantCLI {
+				t.Fatalf("usesOpenHealthCLI(%q) = %v, want %v", tt.command, got, tt.wantCLI)
+			}
+			if got := usesDirectSQLite(tt.command); got != tt.wantSQLite {
+				t.Fatalf("usesDirectSQLite(%q) = %v, want %v", tt.command, got, tt.wantSQLite)
+			}
+		})
+	}
+}
+
+func TestNonISODateRejectAssistantPass(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		message string
+		want    bool
+	}{
+		{
+			name:    "strict format rejection",
+			message: "Invalid date: use YYYY-MM-DD.",
+			want:    true,
+		},
+		{
+			name:    "reject wording",
+			message: "I can't record 2026/03/31 because that date format is unsupported.",
+			want:    true,
+		},
+		{
+			name:    "bare date mention is not a rejection",
+			message: "The date is 2026/03/31.",
+			want:    false,
+		},
+		{
+			name:    "successful write wording is not a rejection",
+			message: "Recorded 2026/03/31 152.2 lb.",
+			want:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := nonISODateRejectAssistantPass(tt.message); got != tt.want {
+				t.Fatalf("nonISODateRejectAssistantPass(%q) = %v, want %v", tt.message, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSelectVariantsAndScenarios(t *testing.T) {
 	t.Parallel()
 
@@ -290,11 +404,11 @@ func TestSelectVariantsAndScenarios(t *testing.T) {
 	if got := []string{selectedVariants[0].ID, selectedVariants[1].ID, selectedVariants[2].ID}; strings.Join(got, ",") != "production,agentops-code,cli" {
 		t.Fatalf("selected variants = %v", got)
 	}
-	selectedScenarios, err := selectScenarios("add-two,bounded-range")
+	selectedScenarios, err := selectScenarios("add-two,bounded-range,latest-only")
 	if err != nil {
 		t.Fatalf("selectScenarios: %v", err)
 	}
-	if got := []string{selectedScenarios[0].ID, selectedScenarios[1].ID}; strings.Join(got, ",") != "add-two,bounded-range" {
+	if got := []string{selectedScenarios[0].ID, selectedScenarios[1].ID, selectedScenarios[2].ID}; strings.Join(got, ",") != "add-two,bounded-range,latest-only" {
 		t.Fatalf("selected scenarios = %v", got)
 	}
 	if _, err := selectVariants("missing"); err == nil {
@@ -302,6 +416,68 @@ func TestSelectVariantsAndScenarios(t *testing.T) {
 	}
 	if _, err := selectScenarios("missing"); err == nil {
 		t.Fatal("selectScenarios missing id error = nil")
+	}
+}
+
+func TestExpandedWeightScenariosVerifyExpectedOutput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		scenarioID   string
+		finalMessage string
+		wantWeights  []weightState
+	}{
+		{
+			scenarioID:   "latest-only",
+			finalMessage: "2026-03-30 151.6 lb",
+			wantWeights: []weightState{
+				{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
+				{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
+				{Date: "2026-03-28", Value: 153.0, Unit: "lb"},
+			},
+		},
+		{
+			scenarioID: "history-limit-two",
+			finalMessage: strings.Join([]string{
+				"2026-03-30 151.6 lb",
+				"2026-03-29 152.2 lb",
+			}, "\n"),
+			wantWeights: []weightState{
+				{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
+				{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
+				{Date: "2026-03-28", Value: 153.0, Unit: "lb"},
+				{Date: "2026-03-27", Value: 154.1, Unit: "lb"},
+			},
+		},
+		{
+			scenarioID:   "non-iso-date-reject",
+			finalMessage: "Invalid date: use YYYY-MM-DD.",
+			wantWeights:  []weightState{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.scenarioID, func(t *testing.T) {
+			t.Parallel()
+			sc, ok := scenarioByID(tt.scenarioID)
+			if !ok {
+				t.Fatalf("missing scenario %q", tt.scenarioID)
+			}
+			databasePath := filepath.Join(t.TempDir(), "openhealth.db")
+			if err := seedScenario(databasePath, sc); err != nil {
+				t.Fatalf("seedScenario: %v", err)
+			}
+			verification, err := verifyScenario(databasePath, sc, tt.finalMessage)
+			if err != nil {
+				t.Fatalf("verifyScenario: %v", err)
+			}
+			if !verification.Passed {
+				t.Fatalf("verification failed: %#v", verification)
+			}
+			if !weightsEqual(verification.Weights, tt.wantWeights) {
+				t.Fatalf("weights = %s, want %s", describeWeights(verification.Weights), describeWeights(tt.wantWeights))
+			}
+		})
 	}
 }
 
@@ -670,7 +846,7 @@ func TestCodeFirstSummaryBeatsCLI(t *testing.T) {
 		)
 	}
 
-	summary := codeFirstSummaryFor(results)
+	summary := codeFirstSummaryFor(results, "agentops-code")
 	if summary == nil {
 		t.Fatal("codeFirstSummaryFor returned nil")
 	}
@@ -678,6 +854,46 @@ func TestCodeFirstSummaryBeatsCLI(t *testing.T) {
 		t.Fatalf("beats_cli = false, criteria = %#v", summary.Criteria)
 	}
 	if summary.Recommendation != "prefer_agentops_code_for_routine_weight_operations" {
+		t.Fatalf("recommendation = %q", summary.Recommendation)
+	}
+}
+
+func TestCodeFirstSummarySupportsProductionCandidate(t *testing.T) {
+	t.Parallel()
+
+	results := []runResult{}
+	for _, sc := range scenarios() {
+		results = append(results,
+			runResult{
+				Variant:  "production",
+				Scenario: sc.ID,
+				Passed:   true,
+				Metrics: metrics{
+					ToolCalls: 1,
+				},
+			},
+			runResult{
+				Variant:  "cli",
+				Scenario: sc.ID,
+				Passed:   true,
+				Metrics: metrics{
+					ToolCalls: 2,
+				},
+			},
+		)
+	}
+
+	summary := codeFirstSummaryFor(results, "production")
+	if summary == nil {
+		t.Fatal("codeFirstSummaryFor returned nil")
+	}
+	if !summary.BeatsCLI {
+		t.Fatalf("beats_cli = false, criteria = %#v", summary.Criteria)
+	}
+	if summary.CandidateVariant != "production" {
+		t.Fatalf("candidate = %q, want production", summary.CandidateVariant)
+	}
+	if summary.Recommendation != "prefer_agentops_production_for_routine_weight_operations" {
 		t.Fatalf("recommendation = %q", summary.Recommendation)
 	}
 }
@@ -712,7 +928,7 @@ func TestCodeFirstSummaryFailsWhenRoutineScenarioExceedsCLI(t *testing.T) {
 		)
 	}
 
-	summary := codeFirstSummaryFor(results)
+	summary := codeFirstSummaryFor(results, "agentops-code")
 	if summary == nil {
 		t.Fatal("codeFirstSummaryFor returned nil")
 	}

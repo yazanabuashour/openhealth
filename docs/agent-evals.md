@@ -73,3 +73,26 @@ scenario and does not satisfy the more-than-one routine scenario trigger. Keep
 production as the SDK/developer integration surface, but prefer the CLI-oriented
 agent surface for routine local weight operations unless a later eval clears the
 stop-loss triggers without hidden evaluator-only instructions.
+
+## Code-First Pivot Trial
+
+The next trial uses a structured code-first AgentOps facade rather than the raw
+SDK helper snippets. The candidate variant is `agentops-code`: it creates a
+short temporary Go module outside the repository, imports
+`github.com/yazanabuashour/openhealth/agentops`, runs a task-shaped
+`WeightTaskRequest`, prints JSON, and answers from that JSON only.
+
+Run exactly three code-first iterations, then stop and report whether the final
+iteration beat CLI. The candidate beats CLI only if it passes every scenario,
+does not directly inspect generated files, does not inspect the Go module cache,
+does not use broad repo search in routine scenarios, uses no more total tools
+than CLI, is at or below CLI tools in at least five of seven scenarios, and no
+routine scenario exceeds CLI by more than one tool.
+
+Status: completed in `docs/agent-eval-results/oh-5yr-code-first-pivot.md`.
+The first code-first iteration proved correctness but failed operational
+criteria; the second cleared search/cache/generated-file violations but still
+lost on tool count and one assistant-format check; the third passed every
+criterion. Final measured verdict: prefer `agentops-code` for the routine local
+weight tasks covered by `oh-5yr`, while keeping CLI as a human-facing and
+fallback path.

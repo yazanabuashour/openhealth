@@ -52,6 +52,7 @@ type report struct {
 	CLIStatus         string                  `json:"cli_status"`
 	MetricNotes       []string                `json:"metric_notes,omitempty"`
 	StopLoss          *stopLossSummary        `json:"stop_loss,omitempty"`
+	CodeFirst         *codeFirstSummary       `json:"code_first,omitempty"`
 	Results           []runResult             `json:"results"`
 	Comparison        *comparisonSummary      `json:"comparison,omitempty"`
 	RawLogsCommitted  bool                    `json:"raw_logs_committed"`
@@ -124,6 +125,30 @@ type stopLossSummary struct {
 	Triggered      bool     `json:"triggered"`
 	Recommendation string   `json:"recommendation"`
 	Triggers       []string `json:"triggers,omitempty"`
+}
+
+type codeFirstSummary struct {
+	CandidateVariant string                   `json:"candidate_variant"`
+	BaselineVariant  string                   `json:"baseline_variant"`
+	BeatsCLI         bool                     `json:"beats_cli"`
+	Recommendation   string                   `json:"recommendation"`
+	Criteria         []codeFirstCriterion     `json:"criteria"`
+	Entries          []codeFirstComparisonRow `json:"entries"`
+}
+
+type codeFirstCriterion struct {
+	Name    string `json:"name"`
+	Passed  bool   `json:"passed"`
+	Details string `json:"details"`
+}
+
+type codeFirstComparisonRow struct {
+	Scenario       string `json:"scenario"`
+	CandidatePass  bool   `json:"candidate_pass"`
+	CLIPass        bool   `json:"cli_pass"`
+	CandidateTools int    `json:"candidate_tools"`
+	CLITools       int    `json:"cli_tools"`
+	ToolDelta      *int   `json:"tool_delta,omitempty"`
 }
 
 type comparisonEntry struct {
@@ -299,6 +324,7 @@ func runCommand(args []string) {
 		CLIStatus:         "runnable: cli variant uses go run ./cmd/openhealth weight add/list with a prewarmed per-scenario module cache",
 		MetricNotes:       metricNotes(*dateFlag, results),
 		StopLoss:          productionStopLoss(results),
+		CodeFirst:         codeFirstSummaryFor(results),
 		Results:           results,
 		RawLogsCommitted:  false,
 		RawLogsNote:       "Raw codex exec event logs and stderr files were retained under <run-root> during execution and intentionally not committed.",
@@ -535,6 +561,7 @@ func variants() []variant {
 	return []variant{
 		{ID: "production", Title: "Production SDK skill"},
 		{ID: "generated-client", Title: "Generated-client baseline skill"},
+		{ID: "agentops-code", Title: "Code-first AgentOps facade skill"},
 		{ID: "cli", Title: "CLI-oriented skill"},
 	}
 }
@@ -991,6 +1018,8 @@ func installVariant(repoRoot string, runRepo string, currentVariant variant) err
 		src = filepath.Join(repoRoot, "skills", "openhealth")
 	case "generated-client":
 		src = filepath.Join(repoRoot, "docs", "agent-eval-assets", "variants", "generated-client")
+	case "agentops-code":
+		src = filepath.Join(repoRoot, "docs", "agent-eval-assets", "variants", "agentops-code")
 	case "cli":
 		src = filepath.Join(repoRoot, "docs", "agent-eval-assets", "variants", "cli")
 	default:
@@ -999,10 +1028,64 @@ func installVariant(repoRoot string, runRepo string, currentVariant variant) err
 	if err := copyDir(src, dest); err != nil {
 		return err
 	}
-	if currentVariant.ID == "generated-client" || currentVariant.ID == "cli" {
-		return normalizeSkillName(filepath.Join(dest, "SKILL.md"), "openhealth")
+	if currentVariant.ID == "generated-client" || currentVariant.ID == "agentops-code" || currentVariant.ID == "cli" {
+		if err := normalizeSkillName(filepath.Join(dest, "SKILL.md"), "openhealth"); err != nil {
+			return err
+		}
+	}
+	if currentVariant.ID == "agentops-code" {
+		return appendAgentOpsVariantInstructions(filepath.Join(runRepo, "AGENTS.md"))
 	}
 	return nil
+}
+
+func appendAgentOpsVariantInstructions(path string) error {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+	_, err = file.WriteString(agentOpsVariantInstructions())
+	return err
+}
+
+func agentOpsVariantInstructions() string {
+	return `
+
+## AgentOps Code Eval Variant
+
+For OpenHealth weight tasks in this isolated eval, use the code-first
+agentops facade directly. Do not run bd prime. Do not inspect .agents files,
+generated files, the Go module cache, SQLite, or repo-wide search/listing
+commands. Do not use the openhealth CLI.
+
+If the request has an ambiguous short date, a non-positive value, or a unit
+other than lb/lbs/pound/pounds, reject it directly without running code.
+
+For valid write/list requests, run a single shell command that creates a
+temporary Go module outside the repository, uses:
+
+  require github.com/yazanabuashour/openhealth v0.0.0
+  replace github.com/yazanabuashour/openhealth => $repo
+
+then imports github.com/yazanabuashour/openhealth/agentops and calls
+agentops.RunWeightTask(context.Background(), client.LocalConfig{}, request).
+Run the temporary module with exactly:
+
+  (cd "$tmp" && GOPROXY=off GOSUMDB=off go run -mod=mod .)
+
+Do not retry with module-cache inspection, repo search, or other Go command
+shapes. For writes, use agentops.WeightTaskRequest{Action:
+agentops.WeightTaskActionUpsert, Weights: []agentops.WeightInput{{Date:
+"2026-03-29", Value: 152.2, Unit: "lb"}}}. For bounded ranges, use Action:
+agentops.WeightTaskActionList, ListMode: agentops.WeightListModeRange,
+FromDate: "2026-03-29", ToDate: "2026-03-30". Print JSON and answer only from
+the JSON entries/writes/rejection fields. When reporting entries, convert them
+to plain newest-first rows such as "2026-03-30 151.6 lb"; for bounded ranges,
+include every JSON entry and do not mention excluded dates.
+`
 }
 
 func copyDir(src string, dst string) error {
@@ -1275,6 +1358,158 @@ func productionStopLoss(results []runResult) *stopLossSummary {
 	}
 }
 
+func codeFirstSummaryFor(results []runResult) *codeFirstSummary {
+	const candidateVariant = "agentops-code"
+	const baselineVariant = "cli"
+
+	candidateByScenario := map[string]runResult{}
+	cliByScenario := map[string]runResult{}
+	for _, result := range results {
+		switch result.Variant {
+		case candidateVariant:
+			candidateByScenario[result.Scenario] = result
+		case baselineVariant:
+			cliByScenario[result.Scenario] = result
+		}
+	}
+	if len(candidateByScenario) == 0 {
+		return nil
+	}
+
+	entries := []codeFirstComparisonRow{}
+	candidatePassedAll := true
+	noGenerated := true
+	noModuleCache := true
+	noRoutineBroadSearch := true
+	totalCandidateTools := 0
+	totalCLITools := 0
+	scenariosAtOrBelowCLI := 0
+	routineExceedsCLIByMoreThanOne := []string{}
+	missingCLI := []string{}
+
+	for _, scenario := range scenarioIDs() {
+		candidate, ok := candidateByScenario[scenario]
+		if !ok {
+			candidatePassedAll = false
+			continue
+		}
+		cli, hasCLI := cliByScenario[scenario]
+		if !hasCLI {
+			missingCLI = append(missingCLI, scenario)
+		}
+		if !candidate.Passed {
+			candidatePassedAll = false
+		}
+		if candidate.Metrics.GeneratedFileInspected {
+			noGenerated = false
+		}
+		if candidate.Metrics.ModuleCacheInspected {
+			noModuleCache = false
+		}
+		if candidate.Metrics.BroadRepoSearch && isRoutineWeightScenario(candidate.Scenario) {
+			noRoutineBroadSearch = false
+		}
+		totalCandidateTools += candidate.Metrics.ToolCalls
+		row := codeFirstComparisonRow{
+			Scenario:       scenario,
+			CandidatePass:  candidate.Passed,
+			CLIPass:        cli.Passed,
+			CandidateTools: candidate.Metrics.ToolCalls,
+			CLITools:       cli.Metrics.ToolCalls,
+		}
+		if hasCLI {
+			totalCLITools += cli.Metrics.ToolCalls
+			row.CLIPass = cli.Passed
+			delta := candidate.Metrics.ToolCalls - cli.Metrics.ToolCalls
+			row.ToolDelta = &delta
+			if candidate.Metrics.ToolCalls <= cli.Metrics.ToolCalls {
+				scenariosAtOrBelowCLI++
+			}
+			if isRoutineWeightScenario(scenario) && candidate.Metrics.ToolCalls > cli.Metrics.ToolCalls+1 {
+				routineExceedsCLIByMoreThanOne = append(routineExceedsCLIByMoreThanOne, scenario)
+			}
+		}
+		entries = append(entries, row)
+	}
+
+	criteria := []codeFirstCriterion{
+		{
+			Name:    "candidate_passes_all_scenarios",
+			Passed:  candidatePassedAll,
+			Details: fmt.Sprintf("%d/%d candidate scenarios present", len(candidateByScenario), len(scenarios())),
+		},
+		{
+			Name:    "no_direct_generated_file_inspection",
+			Passed:  noGenerated,
+			Details: "agentops-code must not directly inspect generated files",
+		},
+		{
+			Name:    "no_module_cache_inspection",
+			Passed:  noModuleCache,
+			Details: "agentops-code must not inspect the Go module cache",
+		},
+		{
+			Name:    "no_routine_broad_repo_search",
+			Passed:  noRoutineBroadSearch,
+			Details: "agentops-code must not use broad repo search in routine weight scenarios",
+		},
+		{
+			Name:    "total_tools_less_than_or_equal_cli",
+			Passed:  len(missingCLI) == 0 && totalCandidateTools <= totalCLITools,
+			Details: fmt.Sprintf("agentops-code tools %d vs cli tools %d", totalCandidateTools, totalCLITools),
+		},
+		{
+			Name:    "at_least_five_scenarios_at_or_below_cli",
+			Passed:  scenariosAtOrBelowCLI >= 5,
+			Details: fmt.Sprintf("%d scenarios at or below CLI tools", scenariosAtOrBelowCLI),
+		},
+		{
+			Name:    "no_routine_scenario_exceeds_cli_by_more_than_one_tool",
+			Passed:  len(missingCLI) == 0 && len(routineExceedsCLIByMoreThanOne) == 0,
+			Details: missingAwareDetails(missingCLI, routineExceedsCLIByMoreThanOne),
+		},
+	}
+
+	beatsCLI := true
+	for _, criterion := range criteria {
+		if !criterion.Passed {
+			beatsCLI = false
+			break
+		}
+	}
+	recommendation := "continue_cli_for_routine_weight_operations"
+	if beatsCLI {
+		recommendation = "prefer_agentops_code_for_routine_weight_operations"
+	}
+
+	return &codeFirstSummary{
+		CandidateVariant: candidateVariant,
+		BaselineVariant:  baselineVariant,
+		BeatsCLI:         beatsCLI,
+		Recommendation:   recommendation,
+		Criteria:         criteria,
+		Entries:          entries,
+	}
+}
+
+func missingAwareDetails(missingCLI []string, exceeded []string) string {
+	if len(missingCLI) > 0 {
+		return fmt.Sprintf("missing cli scenarios: %s", sortedJoin(missingCLI))
+	}
+	if len(exceeded) > 0 {
+		return fmt.Sprintf("routine scenarios over CLI by more than one tool: %s", sortedJoin(exceeded))
+	}
+	return "no routine scenario exceeded CLI by more than one tool"
+}
+
+func scenarioIDs() []string {
+	ids := []string{}
+	for _, scenario := range scenarios() {
+		ids = append(ids, scenario.ID)
+	}
+	return ids
+}
+
 func isRoutineWeightScenario(id string) bool {
 	switch id {
 	case "add-two", "repeat-add", "update-existing", "bounded-range", "bounded-range-natural":
@@ -1436,6 +1671,24 @@ func writeMarkdown(path string, value report) error {
 			for _, trigger := range value.StopLoss.Triggers {
 				fmt.Fprintf(&b, "- Trigger: %s\n", trigger)
 			}
+		}
+	}
+
+	if value.CodeFirst != nil {
+		fmt.Fprintf(&b, "\n## Code-First CLI Comparison\n\n")
+		fmt.Fprintf(&b, "- Candidate: `%s`\n", value.CodeFirst.CandidateVariant)
+		fmt.Fprintf(&b, "- Baseline: `%s`\n", value.CodeFirst.BaselineVariant)
+		fmt.Fprintf(&b, "- Beats CLI: `%s`\n", yesNo(value.CodeFirst.BeatsCLI))
+		fmt.Fprintf(&b, "- Recommendation: `%s`\n\n", value.CodeFirst.Recommendation)
+		fmt.Fprintf(&b, "| Criterion | Result | Details |\n")
+		fmt.Fprintf(&b, "| --- | --- | --- |\n")
+		for _, criterion := range value.CodeFirst.Criteria {
+			fmt.Fprintf(&b, "| `%s` | %s | %s |\n", criterion.Name, passText(criterion.Passed), criterion.Details)
+		}
+		fmt.Fprintf(&b, "\n| Scenario | Candidate | CLI | Tools Δ |\n")
+		fmt.Fprintf(&b, "| --- | ---: | ---: | ---: |\n")
+		for _, entry := range value.CodeFirst.Entries {
+			fmt.Fprintf(&b, "| `%s` | %d | %d | %s |\n", entry.Scenario, entry.CandidateTools, entry.CLITools, formatIntDelta(entry.ToolDelta))
 		}
 	}
 

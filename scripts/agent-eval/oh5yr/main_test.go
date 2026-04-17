@@ -47,7 +47,7 @@ func TestVariantsIncludeCLI(t *testing.T) {
 	for _, variant := range variants() {
 		ids[variant.ID] = true
 	}
-	for _, want := range []string{"production", "generated-client", "cli"} {
+	for _, want := range []string{"production", "generated-client", "agentops-code", "cli"} {
 		if !ids[want] {
 			t.Fatalf("variants() missing %q: %#v", want, variants())
 		}
@@ -82,6 +82,44 @@ func TestWriteMarkdownReportsRunnableCLIStatus(t *testing.T) {
 	}
 }
 
+func TestWriteMarkdownIncludesCodeFirstSummary(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "report.md")
+	if err := writeMarkdown(path, report{
+		Issue:           issueID,
+		Date:            "code-first-test",
+		Harness:         "test",
+		Model:           modelName,
+		ReasoningEffort: reasoningEffort,
+		CodexVersion:    "test",
+		CodeFirst: &codeFirstSummary{
+			CandidateVariant: "agentops-code",
+			BaselineVariant:  "cli",
+			BeatsCLI:         true,
+			Recommendation:   "prefer_agentops_code_for_routine_weight_operations",
+			Criteria: []codeFirstCriterion{
+				{Name: "candidate_passes_all_scenarios", Passed: true, Details: "ok"},
+			},
+			Entries: []codeFirstComparisonRow{
+				{Scenario: "add-two", CandidateTools: 1, CLITools: 2, ToolDelta: intPointer(1)},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("writeMarkdown: %v", err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read markdown: %v", err)
+	}
+	text := string(content)
+	for _, want := range []string{"## Code-First CLI Comparison", "Candidate: `agentops-code`", "Beats CLI: `yes`", "`candidate_passes_all_scenarios`"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("markdown = %q, want %q", text, want)
+		}
+	}
+}
+
 func TestShouldSkipEvalPath(t *testing.T) {
 	t.Parallel()
 
@@ -106,6 +144,26 @@ func TestShouldSkipEvalPath(t *testing.T) {
 	} {
 		if shouldSkipEvalPath(path) {
 			t.Fatalf("shouldSkipEvalPath(%q) = true, want false", path)
+		}
+	}
+}
+
+func TestAgentOpsVariantInstructionsAreSelfContained(t *testing.T) {
+	t.Parallel()
+
+	text := agentOpsVariantInstructions()
+	for _, want := range []string{
+		"Do not run bd prime",
+		"agentops.RunWeightTask",
+		"agentops.WeightTaskActionUpsert",
+		"agentops.WeightListModeRange",
+		"client.LocalConfig{}",
+		"context.Background()",
+		"GOPROXY=off GOSUMDB=off go run -mod=mod .",
+		"2026-03-30 151.6 lb",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("agentOpsVariantInstructions() missing %q: %s", want, text)
 		}
 	}
 }
@@ -225,11 +283,11 @@ func TestGeneratedFileInspectionIgnoresBroadListings(t *testing.T) {
 func TestSelectVariantsAndScenarios(t *testing.T) {
 	t.Parallel()
 
-	selectedVariants, err := selectVariants("production,cli")
+	selectedVariants, err := selectVariants("production,agentops-code,cli")
 	if err != nil {
 		t.Fatalf("selectVariants: %v", err)
 	}
-	if got := []string{selectedVariants[0].ID, selectedVariants[1].ID}; strings.Join(got, ",") != "production,cli" {
+	if got := []string{selectedVariants[0].ID, selectedVariants[1].ID, selectedVariants[2].ID}; strings.Join(got, ",") != "production,agentops-code,cli" {
 		t.Fatalf("selected variants = %v", got)
 	}
 	selectedScenarios, err := selectScenarios("add-two,bounded-range")
@@ -585,4 +643,91 @@ func TestProductionStopLossIgnoresValidationBroadSearchForRoutineThreshold(t *te
 	if summary.Recommendation != "continue_production_hardening" {
 		t.Fatalf("recommendation = %q", summary.Recommendation)
 	}
+}
+
+func TestCodeFirstSummaryBeatsCLI(t *testing.T) {
+	t.Parallel()
+
+	results := []runResult{}
+	for _, sc := range scenarios() {
+		results = append(results,
+			runResult{
+				Variant:  "agentops-code",
+				Scenario: sc.ID,
+				Passed:   true,
+				Metrics: metrics{
+					ToolCalls: 1,
+				},
+			},
+			runResult{
+				Variant:  "cli",
+				Scenario: sc.ID,
+				Passed:   true,
+				Metrics: metrics{
+					ToolCalls: 2,
+				},
+			},
+		)
+	}
+
+	summary := codeFirstSummaryFor(results)
+	if summary == nil {
+		t.Fatal("codeFirstSummaryFor returned nil")
+	}
+	if !summary.BeatsCLI {
+		t.Fatalf("beats_cli = false, criteria = %#v", summary.Criteria)
+	}
+	if summary.Recommendation != "prefer_agentops_code_for_routine_weight_operations" {
+		t.Fatalf("recommendation = %q", summary.Recommendation)
+	}
+}
+
+func TestCodeFirstSummaryFailsWhenRoutineScenarioExceedsCLI(t *testing.T) {
+	t.Parallel()
+
+	results := []runResult{}
+	for _, sc := range scenarios() {
+		candidateTools := 1
+		cliTools := 1
+		if sc.ID == "update-existing" {
+			candidateTools = 4
+		}
+		results = append(results,
+			runResult{
+				Variant:  "agentops-code",
+				Scenario: sc.ID,
+				Passed:   true,
+				Metrics: metrics{
+					ToolCalls: candidateTools,
+				},
+			},
+			runResult{
+				Variant:  "cli",
+				Scenario: sc.ID,
+				Passed:   true,
+				Metrics: metrics{
+					ToolCalls: cliTools,
+				},
+			},
+		)
+	}
+
+	summary := codeFirstSummaryFor(results)
+	if summary == nil {
+		t.Fatal("codeFirstSummaryFor returned nil")
+	}
+	if summary.BeatsCLI {
+		t.Fatalf("beats_cli = true, want false")
+	}
+	joined := ""
+	for _, criterion := range summary.Criteria {
+		joined += criterion.Name + ":" + criterion.Details + "\n"
+	}
+	if !strings.Contains(joined, "update-existing") {
+		t.Fatalf("criteria = %q, want update-existing detail", joined)
+	}
+}
+
+func intPointer(value int) *int {
+	return &value
 }

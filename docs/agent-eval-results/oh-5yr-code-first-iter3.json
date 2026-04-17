@@ -1,0 +1,1009 @@
+{
+  "issue": "oh-5yr",
+  "date": "code-first-iter3",
+  "model": "gpt-5.4-mini",
+  "reasoning_effort": "medium",
+  "harness": "codex exec --json --ephemeral --full-auto from throwaway run directories",
+  "codex_version": "codex-cli 0.121.0",
+  "history_isolation": {
+    "status": "review",
+    "ephemeral_flag_required": true,
+    "run_directory_outside_repo": true,
+    "new_session_files_after_run": 1,
+    "openhealth_workspace_used": false,
+    "desktop_app_used": false,
+    "verification_method": "The runner required --ephemeral, used -C \u003crun-root\u003e/.../repo, kept raw logs under \u003crun-root\u003e, and counted new Codex session files that referenced the throwaway run root.",
+    "verification_limitation": "A session-file count changed while evals ran; this may be from another Codex process, because the harness uses --ephemeral and a throwaway cwd."
+  },
+  "command_template": [
+    "OPENHEALTH_DATABASE_PATH=\u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/openhealth.db",
+    "GOCACHE=\u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/gocache",
+    "GOMODCACHE=\u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/gomodcache (prewarmed with go mod download before agent execution)",
+    "codex exec --json --ephemeral --full-auto --skip-git-repo-check --add-dir \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e -C \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/repo -m gpt-5.4-mini -c model_reasoning_effort=\"medium\" -c shell_environment_policy.inherit=all \u003cnatural user prompt\u003e"
+  ],
+  "cli_status": "runnable: cli variant uses go run ./cmd/openhealth weight add/list with a prewarmed per-scenario module cache",
+  "code_first": {
+    "candidate_variant": "agentops-code",
+    "baseline_variant": "cli",
+    "beats_cli": true,
+    "recommendation": "prefer_agentops_code_for_routine_weight_operations",
+    "criteria": [
+      {
+        "name": "candidate_passes_all_scenarios",
+        "passed": true,
+        "details": "7/7 candidate scenarios present"
+      },
+      {
+        "name": "no_direct_generated_file_inspection",
+        "passed": true,
+        "details": "agentops-code must not directly inspect generated files"
+      },
+      {
+        "name": "no_module_cache_inspection",
+        "passed": true,
+        "details": "agentops-code must not inspect the Go module cache"
+      },
+      {
+        "name": "no_routine_broad_repo_search",
+        "passed": true,
+        "details": "agentops-code must not use broad repo search in routine weight scenarios"
+      },
+      {
+        "name": "total_tools_less_than_or_equal_cli",
+        "passed": true,
+        "details": "agentops-code tools 7 vs cli tools 28"
+      },
+      {
+        "name": "at_least_five_scenarios_at_or_below_cli",
+        "passed": true,
+        "details": "7 scenarios at or below CLI tools"
+      },
+      {
+        "name": "no_routine_scenario_exceeds_cli_by_more_than_one_tool",
+        "passed": true,
+        "details": "no routine scenario exceeded CLI by more than one tool"
+      }
+    ],
+    "entries": [
+      {
+        "scenario": "add-two",
+        "candidate_pass": true,
+        "cli_pass": true,
+        "candidate_tools": 1,
+        "cli_tools": 7,
+        "tool_delta": -6
+      },
+      {
+        "scenario": "repeat-add",
+        "candidate_pass": true,
+        "cli_pass": true,
+        "candidate_tools": 2,
+        "cli_tools": 6,
+        "tool_delta": -4
+      },
+      {
+        "scenario": "update-existing",
+        "candidate_pass": true,
+        "cli_pass": true,
+        "candidate_tools": 1,
+        "cli_tools": 8,
+        "tool_delta": -7
+      },
+      {
+        "scenario": "bounded-range",
+        "candidate_pass": true,
+        "cli_pass": true,
+        "candidate_tools": 1,
+        "cli_tools": 2,
+        "tool_delta": -1
+      },
+      {
+        "scenario": "bounded-range-natural",
+        "candidate_pass": true,
+        "cli_pass": true,
+        "candidate_tools": 2,
+        "cli_tools": 2,
+        "tool_delta": 0
+      },
+      {
+        "scenario": "ambiguous-short-date",
+        "candidate_pass": true,
+        "cli_pass": true,
+        "candidate_tools": 0,
+        "cli_tools": 1,
+        "tool_delta": -1
+      },
+      {
+        "scenario": "invalid-input",
+        "candidate_pass": true,
+        "cli_pass": true,
+        "candidate_tools": 0,
+        "cli_tools": 2,
+        "tool_delta": -2
+      }
+    ]
+  },
+  "results": [
+    {
+      "variant": "agentops-code",
+      "scenario": "add-two",
+      "scenario_title": "Add two weights and verify newest-first output",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 25.39,
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 46063,
+        "cached_input_tokens": 41728,
+        "non_cached_input_tokens": 4335,
+        "output_tokens": 883,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "add 2026-03-29 152.2 lb and 2026-03-30 151.6 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/agentops-code/add-two/events.jsonl"
+    },
+    {
+      "variant": "agentops-code",
+      "scenario": "repeat-add",
+      "scenario_title": "Repeat the same add request without creating duplicates",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 28.65,
+      "metrics": {
+        "assistant_calls": 4,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 2,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 118511,
+        "cached_input_tokens": 105344,
+        "non_cached_input_tokens": 13167,
+        "output_tokens": 1841,
+        "event_type_counts": {
+          "item.completed": 6,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "reapply the same two weights against preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/agentops-code/repeat-add/events.jsonl"
+    },
+    {
+      "variant": "agentops-code",
+      "scenario": "update-existing",
+      "scenario_title": "Correct an existing same-date weight value",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 22.85,
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 69938,
+        "cached_input_tokens": 65664,
+        "non_cached_input_tokens": 4274,
+        "output_tokens": 1127,
+        "event_type_counts": {
+          "item.completed": 4,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected one updated row; observed [2026-03-29 151.6 lb]",
+        "weights": [
+          {
+            "date": "2026-03-29",
+            "value": 151.6,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "correct 2026-03-29 from 152.2 lb to 151.6 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/agentops-code/update-existing/events.jsonl"
+    },
+    {
+      "variant": "agentops-code",
+      "scenario": "bounded-range",
+      "scenario_title": "List a bounded date range newest-first",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 20.79,
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 46147,
+        "cached_input_tokens": 41728,
+        "non_cached_input_tokens": 4419,
+        "output_tokens": 886,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "list only 2026-03-29 through 2026-03-30 from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/agentops-code/bounded-range/events.jsonl"
+    },
+    {
+      "variant": "agentops-code",
+      "scenario": "bounded-range-natural",
+      "scenario_title": "List a naturally phrased bounded date range",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 22.51,
+      "metrics": {
+        "assistant_calls": 4,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 2,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 94805,
+        "cached_input_tokens": 89088,
+        "non_cached_input_tokens": 5717,
+        "output_tokens": 939,
+        "event_type_counts": {
+          "item.completed": 6,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "naturally ask for 2026-03-29 and 2026-03-30 from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/agentops-code/bounded-range-natural/events.jsonl"
+    },
+    {
+      "variant": "agentops-code",
+      "scenario": "ambiguous-short-date",
+      "scenario_title": "Clarify an ambiguous short date without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 4.14,
+      "metrics": {
+        "assistant_calls": 1,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "file_inspection_commands": 0,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 22560,
+        "cached_input_tokens": 18816,
+        "non_cached_input_tokens": 3744,
+        "output_tokens": 136,
+        "event_type_counts": {
+          "item.completed": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected no write and a year clarification; observed []",
+        "weights": []
+      },
+      "prompt_summary": "ask for year before writing 03/29 152.2 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/agentops-code/ambiguous-short-date/events.jsonl"
+    },
+    {
+      "variant": "agentops-code",
+      "scenario": "invalid-input",
+      "scenario_title": "Reject invalid unit and value without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 5.14,
+      "metrics": {
+        "assistant_calls": 1,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "file_inspection_commands": 0,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 22538,
+        "cached_input_tokens": 18816,
+        "non_cached_input_tokens": 3722,
+        "output_tokens": 168,
+        "event_type_counts": {
+          "item.completed": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected no write and an invalid input rejection; observed []",
+        "weights": []
+      },
+      "prompt_summary": "reject -5 stone for 2026-03-31",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/agentops-code/invalid-input/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "add-two",
+      "scenario_title": "Add two weights and verify newest-first output",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 31.4,
+      "metrics": {
+        "assistant_calls": 5,
+        "tool_calls": 7,
+        "command_executions": 7,
+        "file_inspection_commands": 4,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": true,
+        "module_cache_inspected": false,
+        "broad_repo_search_evidence": [
+          "/bin/zsh -lc \"pwd \u0026\u0026 rg --files .agents/skills/openhealth repo . | rg 'SKILL\\\\.md\"'$|openhealth|bd'\"'\""
+        ],
+        "usage_exposed": true,
+        "input_tokens": 196629,
+        "cached_input_tokens": 172032,
+        "non_cached_input_tokens": 24597,
+        "output_tokens": 1171,
+        "event_type_counts": {
+          "item.completed": 12,
+          "item.started": 7,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "add 2026-03-29 152.2 lb and 2026-03-30 151.6 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/add-two/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "repeat-add",
+      "scenario_title": "Repeat the same add request without creating duplicates",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 43.19,
+      "metrics": {
+        "assistant_calls": 7,
+        "tool_calls": 6,
+        "command_executions": 6,
+        "file_inspection_commands": 4,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": true,
+        "module_cache_inspected": false,
+        "broad_repo_search_evidence": [
+          "/bin/zsh -lc \"bd prime \u0026\u0026 pwd \u0026\u0026 rg --files -g 'SKILL.md' -g 'AGENTS.md' -g '*weight*' -g '*openhealth*' -g '*.json' -g '*.csv' -g '*.tsv' -g '*.md' .\""
+        ],
+        "usage_exposed": true,
+        "input_tokens": 280460,
+        "cached_input_tokens": 268032,
+        "non_cached_input_tokens": 12428,
+        "output_tokens": 2734,
+        "event_type_counts": {
+          "item.completed": 15,
+          "item.started": 8,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "reapply the same two weights against preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/repeat-add/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "update-existing",
+      "scenario_title": "Correct an existing same-date weight value",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 43.19,
+      "metrics": {
+        "assistant_calls": 6,
+        "tool_calls": 8,
+        "command_executions": 8,
+        "file_inspection_commands": 5,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": true,
+        "broad_repo_search": true,
+        "module_cache_inspected": false,
+        "generated_path_from_broad_search_evidence": [
+          "/bin/zsh -lc \"bd prime \u0026\u0026 printf '\\\\n---\\\\n' \u0026\u0026 rg -n \\\"03/29/2026|152\\\\.2|151\\\\.6|weight\\\" .\""
+        ],
+        "broad_repo_search_evidence": [
+          "/bin/zsh -lc \"bd prime \u0026\u0026 printf '\\\\n---\\\\n' \u0026\u0026 rg -n \\\"03/29/2026|152\\\\.2|151\\\\.6|weight\\\" .\""
+        ],
+        "usage_exposed": true,
+        "input_tokens": 263379,
+        "cached_input_tokens": 245248,
+        "non_cached_input_tokens": 18131,
+        "output_tokens": 1898,
+        "event_type_counts": {
+          "item.completed": 14,
+          "item.started": 8,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected one updated row; observed [2026-03-29 151.6 lb]",
+        "weights": [
+          {
+            "date": "2026-03-29",
+            "value": 151.6,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "correct 2026-03-29 from 152.2 lb to 151.6 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/update-existing/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "bounded-range",
+      "scenario_title": "List a bounded date range newest-first",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 24.29,
+      "metrics": {
+        "assistant_calls": 4,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 115538,
+        "cached_input_tokens": 109952,
+        "non_cached_input_tokens": 5586,
+        "output_tokens": 578,
+        "event_type_counts": {
+          "item.completed": 6,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "list only 2026-03-29 through 2026-03-30 from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/bounded-range/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "bounded-range-natural",
+      "scenario_title": "List a naturally phrased bounded date range",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 19.72,
+      "metrics": {
+        "assistant_calls": 4,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 115209,
+        "cached_input_tokens": 109440,
+        "non_cached_input_tokens": 5769,
+        "output_tokens": 537,
+        "event_type_counts": {
+          "item.completed": 6,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "naturally ask for 2026-03-29 and 2026-03-30 from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/bounded-range-natural/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "ambiguous-short-date",
+      "scenario_title": "Clarify an ambiguous short date without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 7.66,
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 45186,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 4482,
+        "output_tokens": 354,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected no write and a year clarification; observed []",
+        "weights": []
+      },
+      "prompt_summary": "ask for year before writing 03/29 152.2 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/ambiguous-short-date/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "invalid-input",
+      "scenario_title": "Reject invalid unit and value without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 8.98,
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 45239,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 4535,
+        "output_tokens": 752,
+        "event_type_counts": {
+          "item.completed": 4,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected no write and an invalid input rejection; observed []",
+        "weights": []
+      },
+      "prompt_summary": "reject -5 stone for 2026-03-31",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/invalid-input/events.jsonl"
+    }
+  ],
+  "comparison": {
+    "baseline_report": "docs/agent-eval-results/oh-5yr-code-first-iter2.json",
+    "entries": [
+      {
+        "variant": "agentops-code",
+        "scenario": "add-two",
+        "result": "same_pass",
+        "tool_calls_delta": -4,
+        "assistant_calls_delta": -5,
+        "wall_seconds_delta": -45.56,
+        "non_cached_input_tokens_delta": -2999,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "agentops-code",
+        "scenario": "repeat-add",
+        "result": "same_pass",
+        "tool_calls_delta": -2,
+        "assistant_calls_delta": -2,
+        "wall_seconds_delta": -13.36,
+        "non_cached_input_tokens_delta": 7163,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "agentops-code",
+        "scenario": "update-existing",
+        "result": "same_pass",
+        "tool_calls_delta": -12,
+        "assistant_calls_delta": -9,
+        "wall_seconds_delta": -58.96,
+        "non_cached_input_tokens_delta": -5455,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "agentops-code",
+        "scenario": "bounded-range",
+        "result": "same_pass",
+        "tool_calls_delta": -5,
+        "assistant_calls_delta": -5,
+        "wall_seconds_delta": -32.82,
+        "non_cached_input_tokens_delta": -2725,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "agentops-code",
+        "scenario": "bounded-range-natural",
+        "result": "fixed",
+        "tool_calls_delta": -2,
+        "assistant_calls_delta": -2,
+        "wall_seconds_delta": -15.13,
+        "non_cached_input_tokens_delta": -372,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "agentops-code",
+        "scenario": "ambiguous-short-date",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -0.93,
+        "non_cached_input_tokens_delta": 97,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "agentops-code",
+        "scenario": "invalid-input",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -2.05,
+        "non_cached_input_tokens_delta": 97,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "cli",
+        "scenario": "add-two",
+        "result": "same_pass",
+        "tool_calls_delta": 3,
+        "assistant_calls_delta": 2,
+        "wall_seconds_delta": -0.19,
+        "non_cached_input_tokens_delta": 18125,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "regressed_to_yes",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "cli",
+        "scenario": "repeat-add",
+        "result": "same_pass",
+        "tool_calls_delta": -4,
+        "assistant_calls_delta": 1,
+        "wall_seconds_delta": 2.5,
+        "non_cached_input_tokens_delta": 1529,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "regressed_to_yes",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "cli",
+        "scenario": "update-existing",
+        "result": "same_pass",
+        "tool_calls_delta": 6,
+        "assistant_calls_delta": 2,
+        "wall_seconds_delta": 21.37,
+        "non_cached_input_tokens_delta": 12615,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "regressed_to_yes",
+        "broad_repo_search_change": "regressed_to_yes",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "cli",
+        "scenario": "bounded-range",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 3.29,
+        "non_cached_input_tokens_delta": 239,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "cli",
+        "scenario": "bounded-range-natural",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -3.26,
+        "non_cached_input_tokens_delta": 559,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "cli",
+        "scenario": "ambiguous-short-date",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -2.16,
+        "non_cached_input_tokens_delta": 21,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "cli",
+        "scenario": "invalid-input",
+        "result": "same_pass",
+        "tool_calls_delta": -3,
+        "assistant_calls_delta": -1,
+        "wall_seconds_delta": -3.23,
+        "non_cached_input_tokens_delta": -4963,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "improved_to_no",
+        "module_cache_inspection_change": "same_no"
+      }
+    ]
+  },
+  "raw_logs_committed": false,
+  "raw_logs_note": "Raw codex exec event logs and stderr files were retained under \u003crun-root\u003e during execution and intentionally not committed.",
+  "token_usage_caveat": "Token metrics come from codex exec turn.completed usage events when exposed; unavailable usage must be recorded as not_exposed.",
+  "app_server_fallback": "not used: codex exec --json exposed enough event detail for this run"
+}

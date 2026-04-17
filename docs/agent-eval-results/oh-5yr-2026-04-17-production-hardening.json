@@ -1,0 +1,1390 @@
+{
+  "issue": "oh-5yr",
+  "date": "2026-04-17-production-hardening",
+  "model": "gpt-5.4-mini",
+  "reasoning_effort": "medium",
+  "harness": "codex exec --json --ephemeral --full-auto from throwaway run directories",
+  "codex_version": "codex-cli 0.121.0",
+  "history_isolation": {
+    "status": "review",
+    "ephemeral_flag_required": true,
+    "run_directory_outside_repo": true,
+    "new_session_files_after_run": 1,
+    "openhealth_workspace_used": false,
+    "desktop_app_used": false,
+    "verification_method": "The runner required --ephemeral, used -C \u003crun-root\u003e/.../repo, kept raw logs under \u003crun-root\u003e, and counted new Codex session files that referenced the throwaway run root.",
+    "verification_limitation": "A session-file count changed while evals ran; this may be from another Codex process, because the harness uses --ephemeral and a throwaway cwd."
+  },
+  "command_template": [
+    "OPENHEALTH_DATABASE_PATH=\u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/openhealth.db",
+    "GOCACHE=\u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/gocache",
+    "GOMODCACHE=\u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/gomodcache (prewarmed with go mod download before agent execution)",
+    "codex exec --json --ephemeral --full-auto --skip-git-repo-check --add-dir \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e -C \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/repo -m gpt-5.4-mini -c model_reasoning_effort=\"medium\" -c shell_environment_policy.inherit=all \u003cnatural user prompt\u003e"
+  ],
+  "cli_status": "runnable: cli variant uses go run ./cmd/openhealth weight add/list with a prewarmed per-scenario module cache",
+  "metric_notes": [
+    "Production generated paths surfaced from broad repo searches in bounded-range, invalid-input in the 2026-04-17-production-hardening run; this is tracked separately from direct generated-file inspection.",
+    "Production broad repo search remained in bounded-range, invalid-input in the 2026-04-17-production-hardening run."
+  ],
+  "stop_loss": {
+    "policy": "After two focused production hardening cycles, pivot if production loses correctness, directly inspects generated files, inspects the module cache, uses broad repo search in more than one routine scenario, exceeds core tool thresholds, or uses more than 2x CLI tools in at least three comparable scenarios.",
+    "triggered": true,
+    "recommendation": "pivot_to_cli_for_agent_operations",
+    "triggers": [
+      "production update-existing used 14 tools, above threshold 12",
+      "production used more than 2x CLI tools in bounded-range, bounded-range-natural, update-existing"
+    ]
+  },
+  "results": [
+    {
+      "variant": "production",
+      "scenario": "add-two",
+      "scenario_title": "Add two weights and verify newest-first output",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 44.47,
+      "metrics": {
+        "assistant_calls": 6,
+        "tool_calls": 3,
+        "command_executions": 3,
+        "file_inspection_commands": 2,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 204024,
+        "cached_input_tokens": 195072,
+        "non_cached_input_tokens": 8952,
+        "output_tokens": 1885,
+        "event_type_counts": {
+          "item.completed": 10,
+          "item.started": 4,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "add 2026-03-29 152.2 lb and 2026-03-30 151.6 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/add-two/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "repeat-add",
+      "scenario_title": "Repeat the same add request without creating duplicates",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 47.26,
+      "metrics": {
+        "assistant_calls": 6,
+        "tool_calls": 3,
+        "command_executions": 3,
+        "file_inspection_commands": 2,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 231540,
+        "cached_input_tokens": 222592,
+        "non_cached_input_tokens": 8948,
+        "output_tokens": 1902,
+        "event_type_counts": {
+          "item.completed": 11,
+          "item.started": 5,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "reapply the same two weights against preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/repeat-add/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "update-existing",
+      "scenario_title": "Correct an existing same-date weight value",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 63.2,
+      "metrics": {
+        "assistant_calls": 10,
+        "tool_calls": 14,
+        "command_executions": 14,
+        "file_inspection_commands": 8,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 311006,
+        "cached_input_tokens": 294144,
+        "non_cached_input_tokens": 16862,
+        "output_tokens": 3029,
+        "event_type_counts": {
+          "item.completed": 24,
+          "item.started": 14,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected one updated row; observed [2026-03-29 151.6 lb]",
+        "weights": [
+          {
+            "date": "2026-03-29",
+            "value": 151.6,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "correct 2026-03-29 from 152.2 lb to 151.6 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/update-existing/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bounded-range",
+      "scenario_title": "List a bounded date range newest-first",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 36.72,
+      "metrics": {
+        "assistant_calls": 5,
+        "tool_calls": 7,
+        "command_executions": 7,
+        "file_inspection_commands": 6,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": true,
+        "broad_repo_search": true,
+        "module_cache_inspected": false,
+        "generated_path_from_broad_search_evidence": [
+          "/bin/zsh -lc \"pwd \u0026\u0026 rg --files .agents/skills/openhealth . | sed -n '1,120p'\""
+        ],
+        "broad_repo_search_evidence": [
+          "/bin/zsh -lc \"pwd \u0026\u0026 rg --files .agents/skills/openhealth . | sed -n '1,120p'\""
+        ],
+        "usage_exposed": true,
+        "input_tokens": 159048,
+        "cached_input_tokens": 148736,
+        "non_cached_input_tokens": 10312,
+        "output_tokens": 2281,
+        "event_type_counts": {
+          "item.completed": 12,
+          "item.started": 7,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "list only 2026-03-29 through 2026-03-30 from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bounded-range/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bounded-range-natural",
+      "scenario_title": "List a naturally phrased bounded date range",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 59.76,
+      "metrics": {
+        "assistant_calls": 7,
+        "tool_calls": 7,
+        "command_executions": 7,
+        "file_inspection_commands": 7,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 227897,
+        "cached_input_tokens": 216576,
+        "non_cached_input_tokens": 11321,
+        "output_tokens": 3912,
+        "event_type_counts": {
+          "item.completed": 14,
+          "item.started": 7,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "naturally ask for 2026-03-29 and 2026-03-30 from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bounded-range-natural/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "ambiguous-short-date",
+      "scenario_title": "Clarify an ambiguous short date without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 10.88,
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 46291,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 5587,
+        "output_tokens": 472,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected no write and a year clarification; observed []",
+        "weights": []
+      },
+      "prompt_summary": "ask for year before writing 03/29 152.2 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/ambiguous-short-date/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "invalid-input",
+      "scenario_title": "Reject invalid unit and value without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 9.09,
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": true,
+        "broad_repo_search": true,
+        "module_cache_inspected": false,
+        "generated_path_from_broad_search_evidence": [
+          "/bin/zsh -lc \"pwd \u0026\u0026 bd prime \u0026\u0026 sed -n '1,220p' .agents/skills/openhealth/SKILL.md \u0026\u0026 rg -n \\\"weight|stone|OpenHealth|entry\\\" -S . --hidden --glob '\"'!**/.git/**'\"'\""
+        ],
+        "broad_repo_search_evidence": [
+          "/bin/zsh -lc \"pwd \u0026\u0026 bd prime \u0026\u0026 sed -n '1,220p' .agents/skills/openhealth/SKILL.md \u0026\u0026 rg -n \\\"weight|stone|OpenHealth|entry\\\" -S . --hidden --glob '\"'!**/.git/**'\"'\""
+        ],
+        "usage_exposed": true,
+        "input_tokens": 55428,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 14724,
+        "output_tokens": 383,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected no write and an invalid input rejection; observed []",
+        "weights": []
+      },
+      "prompt_summary": "reject -5 stone for 2026-03-31",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/invalid-input/events.jsonl"
+    },
+    {
+      "variant": "generated-client",
+      "scenario": "add-two",
+      "scenario_title": "Add two weights and verify newest-first output",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 64.03,
+      "metrics": {
+        "assistant_calls": 7,
+        "tool_calls": 12,
+        "command_executions": 12,
+        "file_inspection_commands": 11,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": true,
+        "broad_repo_search": true,
+        "module_cache_inspected": false,
+        "generated_path_from_broad_search_evidence": [
+          "/bin/zsh -lc \"rg --files -g '\"'!*node_modules*'\"' -g '\"'!*.git*'\"' | sed -n '1,200p'\""
+        ],
+        "broad_repo_search_evidence": [
+          "/bin/zsh -lc \"rg --files -g '\"'!*node_modules*'\"' -g '\"'!*.git*'\"' | sed -n '1,200p'\""
+        ],
+        "usage_exposed": true,
+        "input_tokens": 345014,
+        "cached_input_tokens": 327296,
+        "non_cached_input_tokens": 17718,
+        "output_tokens": 4284,
+        "event_type_counts": {
+          "item.completed": 20,
+          "item.started": 13,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "add 2026-03-29 152.2 lb and 2026-03-30 151.6 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/generated-client/add-two/events.jsonl"
+    },
+    {
+      "variant": "generated-client",
+      "scenario": "repeat-add",
+      "scenario_title": "Repeat the same add request without creating duplicates",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 43.48,
+      "metrics": {
+        "assistant_calls": 8,
+        "tool_calls": 11,
+        "command_executions": 11,
+        "file_inspection_commands": 6,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": true,
+        "broad_repo_search": true,
+        "module_cache_inspected": false,
+        "generated_path_from_broad_search_evidence": [
+          "/bin/zsh -lc \"pwd \u0026\u0026 rg -n \\\"openhealth|weight|weights|client\\\" .agents/skills/openhealth/SKILL.md . -g '\"'!**/.git/**'\"'\""
+        ],
+        "broad_repo_search_evidence": [
+          "/bin/zsh -lc \"pwd \u0026\u0026 rg -n \\\"openhealth|weight|weights|client\\\" .agents/skills/openhealth/SKILL.md . -g '\"'!**/.git/**'\"'\""
+        ],
+        "usage_exposed": true,
+        "input_tokens": 281781,
+        "cached_input_tokens": 266112,
+        "non_cached_input_tokens": 15669,
+        "output_tokens": 2317,
+        "event_type_counts": {
+          "item.completed": 19,
+          "item.started": 11,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "reapply the same two weights against preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/generated-client/repeat-add/events.jsonl"
+    },
+    {
+      "variant": "generated-client",
+      "scenario": "update-existing",
+      "scenario_title": "Correct an existing same-date weight value",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 59.34,
+      "metrics": {
+        "assistant_calls": 7,
+        "tool_calls": 13,
+        "command_executions": 13,
+        "file_inspection_commands": 10,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": true,
+        "broad_repo_search": true,
+        "module_cache_inspected": false,
+        "generated_path_from_broad_search_evidence": [
+          "/bin/zsh -lc \"pwd \u0026\u0026 bd prime \u0026\u0026 sed -n '1,220p' .agents/skills/openhealth/SKILL.md \u0026\u0026 rg -n \\\"weight|weigh|body weight|03/29/2026|2026-03-29\\\" -S .\""
+        ],
+        "broad_repo_search_evidence": [
+          "/bin/zsh -lc \"pwd \u0026\u0026 bd prime \u0026\u0026 sed -n '1,220p' .agents/skills/openhealth/SKILL.md \u0026\u0026 rg -n \\\"weight|weigh|body weight|03/29/2026|2026-03-29\\\" -S .\""
+        ],
+        "usage_exposed": true,
+        "input_tokens": 391338,
+        "cached_input_tokens": 367360,
+        "non_cached_input_tokens": 23978,
+        "output_tokens": 4400,
+        "event_type_counts": {
+          "item.completed": 20,
+          "item.started": 13,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected one updated row; observed [2026-03-29 151.6 lb]",
+        "weights": [
+          {
+            "date": "2026-03-29",
+            "value": 151.6,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "correct 2026-03-29 from 152.2 lb to 151.6 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/generated-client/update-existing/events.jsonl"
+    },
+    {
+      "variant": "generated-client",
+      "scenario": "bounded-range",
+      "scenario_title": "List a bounded date range newest-first",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 38.44,
+      "metrics": {
+        "assistant_calls": 6,
+        "tool_calls": 8,
+        "command_executions": 8,
+        "file_inspection_commands": 3,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": true,
+        "module_cache_inspected": false,
+        "broad_repo_search_evidence": [
+          "/bin/zsh -lc 'rg -n \"OPENHEALTH_(DATA_DIR|DATABASE_PATH)|XDG_DATA_HOME|openhealth.db|LocalConfig\" -S .'"
+        ],
+        "usage_exposed": true,
+        "input_tokens": 151783,
+        "cached_input_tokens": 143104,
+        "non_cached_input_tokens": 8679,
+        "output_tokens": 1478,
+        "event_type_counts": {
+          "item.completed": 14,
+          "item.started": 8,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "list only 2026-03-29 through 2026-03-30 from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/generated-client/bounded-range/events.jsonl"
+    },
+    {
+      "variant": "generated-client",
+      "scenario": "bounded-range-natural",
+      "scenario_title": "List a naturally phrased bounded date range",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 40.33,
+      "metrics": {
+        "assistant_calls": 6,
+        "tool_calls": 8,
+        "command_executions": 8,
+        "file_inspection_commands": 6,
+        "generated_file_inspected": true,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": true,
+        "module_cache_inspected": false,
+        "generated_file_evidence": [
+          "/bin/zsh -lc \"rg -n \\\"type ListHealthWeightParams|ListHealthWeightWithResponse|CreateHealthWeight\\\" client internal -g'*.go'\""
+        ],
+        "broad_repo_search_evidence": [
+          "/bin/zsh -lc \"rg -n \\\"OPENHEALTH_(DATA_DIR|DATABASE_PATH)|openhealth\\\\.db|LocalConfig|Paths\\\\.DatabasePath\\\" .\""
+        ],
+        "usage_exposed": true,
+        "input_tokens": 162033,
+        "cached_input_tokens": 149248,
+        "non_cached_input_tokens": 12785,
+        "output_tokens": 2048,
+        "event_type_counts": {
+          "item.completed": 14,
+          "item.started": 8,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "naturally ask for 2026-03-29 and 2026-03-30 from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/generated-client/bounded-range-natural/events.jsonl"
+    },
+    {
+      "variant": "generated-client",
+      "scenario": "ambiguous-short-date",
+      "scenario_title": "Clarify an ambiguous short date without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 7.87,
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 46052,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 5348,
+        "output_tokens": 309,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected no write and a year clarification; observed []",
+        "weights": []
+      },
+      "prompt_summary": "ask for year before writing 03/29 152.2 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/generated-client/ambiguous-short-date/events.jsonl"
+    },
+    {
+      "variant": "generated-client",
+      "scenario": "invalid-input",
+      "scenario_title": "Reject invalid unit and value without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 13.47,
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 5,
+        "command_executions": 5,
+        "file_inspection_commands": 4,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": true,
+        "broad_repo_search": true,
+        "module_cache_inspected": false,
+        "generated_path_from_broad_search_evidence": [
+          "/bin/zsh -lc \"pwd \u0026\u0026 rg --files .agents/skills/openhealth . | sed 's#\"'^./##'\"'\""
+        ],
+        "broad_repo_search_evidence": [
+          "/bin/zsh -lc \"pwd \u0026\u0026 rg --files .agents/skills/openhealth . | sed 's#\"'^./##'\"'\""
+        ],
+        "usage_exposed": true,
+        "input_tokens": 71800,
+        "cached_input_tokens": 63616,
+        "non_cached_input_tokens": 8184,
+        "output_tokens": 934,
+        "event_type_counts": {
+          "item.completed": 8,
+          "item.started": 5,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected no write and an invalid input rejection; observed []",
+        "weights": []
+      },
+      "prompt_summary": "reject -5 stone for 2026-03-31",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/generated-client/invalid-input/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "add-two",
+      "scenario_title": "Add two weights and verify newest-first output",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 33.44,
+      "metrics": {
+        "assistant_calls": 5,
+        "tool_calls": 6,
+        "command_executions": 6,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 140881,
+        "cached_input_tokens": 134400,
+        "non_cached_input_tokens": 6481,
+        "output_tokens": 1127,
+        "event_type_counts": {
+          "item.completed": 11,
+          "item.started": 6,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "add 2026-03-29 152.2 lb and 2026-03-30 151.6 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/add-two/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "repeat-add",
+      "scenario_title": "Repeat the same add request without creating duplicates",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 335.44,
+      "metrics": {
+        "assistant_calls": 6,
+        "tool_calls": 4,
+        "command_executions": 4,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 140547,
+        "cached_input_tokens": 114432,
+        "non_cached_input_tokens": 26115,
+        "output_tokens": 1055,
+        "event_type_counts": {
+          "item.completed": 10,
+          "item.started": 4,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "reapply the same two weights against preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/repeat-add/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "update-existing",
+      "scenario_title": "Correct an existing same-date weight value",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 23.08,
+      "metrics": {
+        "assistant_calls": 4,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 115748,
+        "cached_input_tokens": 109952,
+        "non_cached_input_tokens": 5796,
+        "output_tokens": 776,
+        "event_type_counts": {
+          "item.completed": 6,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected one updated row; observed [2026-03-29 151.6 lb]",
+        "weights": [
+          {
+            "date": "2026-03-29",
+            "value": 151.6,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "correct 2026-03-29 from 152.2 lb to 151.6 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/update-existing/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "bounded-range",
+      "scenario_title": "List a bounded date range newest-first",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 22.04,
+      "metrics": {
+        "assistant_calls": 4,
+        "tool_calls": 3,
+        "command_executions": 3,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 139180,
+        "cached_input_tokens": 133376,
+        "non_cached_input_tokens": 5804,
+        "output_tokens": 655,
+        "event_type_counts": {
+          "item.completed": 7,
+          "item.started": 3,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "list only 2026-03-29 through 2026-03-30 from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/bounded-range/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "bounded-range-natural",
+      "scenario_title": "List a naturally phrased bounded date range",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 23.54,
+      "metrics": {
+        "assistant_calls": 5,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 115253,
+        "cached_input_tokens": 109440,
+        "non_cached_input_tokens": 5813,
+        "output_tokens": 566,
+        "event_type_counts": {
+          "item.completed": 7,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
+            "unit": "lb"
+          }
+        ]
+      },
+      "prompt_summary": "naturally ask for 2026-03-29 and 2026-03-30 from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/bounded-range-natural/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "ambiguous-short-date",
+      "scenario_title": "Clarify an ambiguous short date without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 9.74,
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 4,
+        "command_executions": 4,
+        "file_inspection_commands": 4,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": true,
+        "module_cache_inspected": false,
+        "broad_repo_search_evidence": [
+          "/bin/zsh -lc \"bd prime \u0026\u0026 pwd \u0026\u0026 rg --files -g 'SKILL.md' -g 'AGENTS.md' -g '.agents/**' -g 'README*' -g 'openhealth*' -g '*weight*' -g '*weights*' .\""
+        ],
+        "usage_exposed": true,
+        "input_tokens": 71105,
+        "cached_input_tokens": 63104,
+        "non_cached_input_tokens": 8001,
+        "output_tokens": 759,
+        "event_type_counts": {
+          "item.completed": 7,
+          "item.started": 4,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected no write and a year clarification; observed []",
+        "weights": []
+      },
+      "prompt_summary": "ask for year before writing 03/29 152.2 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/ambiguous-short-date/events.jsonl"
+    },
+    {
+      "variant": "cli",
+      "scenario": "invalid-input",
+      "scenario_title": "Reject invalid unit and value without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 8.96,
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "usage_exposed": true,
+        "input_tokens": 45136,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 4432,
+        "output_tokens": 412,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "expected no write and an invalid input rejection; observed []",
+        "weights": []
+      },
+      "prompt_summary": "reject -5 stone for 2026-03-31",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/cli/invalid-input/events.jsonl"
+    }
+  ],
+  "comparison": {
+    "baseline_report": "docs/agent-eval-results/oh-5yr-2026-04-17.json",
+    "entries": [
+      {
+        "variant": "production",
+        "scenario": "add-two",
+        "result": "same_pass",
+        "tool_calls_delta": -3,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 13.13,
+        "non_cached_input_tokens_delta": -3851,
+        "generated_file_inspection_change": "improved_to_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "repeat-add",
+        "result": "same_pass",
+        "tool_calls_delta": -5,
+        "assistant_calls_delta": -1,
+        "wall_seconds_delta": -0.02,
+        "non_cached_input_tokens_delta": -6722,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "update-existing",
+        "result": "same_pass",
+        "tool_calls_delta": -9,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 10.45,
+        "non_cached_input_tokens_delta": -9259,
+        "generated_file_inspection_change": "improved_to_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bounded-range",
+        "result": "same_pass",
+        "tool_calls_delta": -5,
+        "assistant_calls_delta": -1,
+        "wall_seconds_delta": 8.1,
+        "non_cached_input_tokens_delta": -502,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "regressed_to_yes",
+        "broad_repo_search_change": "regressed_to_yes",
+        "module_cache_inspection_change": "improved_to_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bounded-range-natural",
+        "result": "same_pass",
+        "tool_calls_delta": -1,
+        "assistant_calls_delta": 1,
+        "wall_seconds_delta": 23.81,
+        "non_cached_input_tokens_delta": -7081,
+        "generated_file_inspection_change": "improved_to_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "ambiguous-short-date",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 0.18,
+        "non_cached_input_tokens_delta": -10242,
+        "generated_file_inspection_change": "improved_to_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "invalid-input",
+        "result": "same_pass",
+        "tool_calls_delta": -6,
+        "assistant_calls_delta": -2,
+        "wall_seconds_delta": -10.13,
+        "non_cached_input_tokens_delta": -422,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "regressed_to_yes",
+        "broad_repo_search_change": "regressed_to_yes",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "generated-client",
+        "scenario": "add-two",
+        "result": "same_pass",
+        "tool_calls_delta": -3,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 14.32,
+        "non_cached_input_tokens_delta": -2295,
+        "generated_file_inspection_change": "improved_to_no",
+        "generated_path_from_broad_search_change": "regressed_to_yes",
+        "broad_repo_search_change": "regressed_to_yes",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "generated-client",
+        "scenario": "repeat-add",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 1,
+        "wall_seconds_delta": -0.21,
+        "non_cached_input_tokens_delta": -2566,
+        "generated_file_inspection_change": "improved_to_no",
+        "generated_path_from_broad_search_change": "regressed_to_yes",
+        "broad_repo_search_change": "regressed_to_yes",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "generated-client",
+        "scenario": "update-existing",
+        "result": "same_pass",
+        "tool_calls_delta": -1,
+        "assistant_calls_delta": -2,
+        "wall_seconds_delta": -12.51,
+        "non_cached_input_tokens_delta": -1264,
+        "generated_file_inspection_change": "improved_to_no",
+        "generated_path_from_broad_search_change": "regressed_to_yes",
+        "broad_repo_search_change": "regressed_to_yes",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "generated-client",
+        "scenario": "bounded-range",
+        "result": "same_pass",
+        "tool_calls_delta": -5,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -12.4,
+        "non_cached_input_tokens_delta": -10471,
+        "generated_file_inspection_change": "improved_to_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "regressed_to_yes",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "generated-client",
+        "scenario": "bounded-range-natural",
+        "result": "same_pass",
+        "tool_calls_delta": 3,
+        "assistant_calls_delta": 1,
+        "wall_seconds_delta": 6.89,
+        "non_cached_input_tokens_delta": 1705,
+        "generated_file_inspection_change": "regressed_to_yes",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "regressed_to_yes",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "generated-client",
+        "scenario": "ambiguous-short-date",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -0.66,
+        "non_cached_input_tokens_delta": 389,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "generated-client",
+        "scenario": "invalid-input",
+        "result": "same_pass",
+        "tool_calls_delta": 4,
+        "assistant_calls_delta": 1,
+        "wall_seconds_delta": 6,
+        "non_cached_input_tokens_delta": 3284,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "regressed_to_yes",
+        "broad_repo_search_change": "regressed_to_yes",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "cli",
+        "scenario": "add-two",
+        "result": "same_pass",
+        "tool_calls_delta": -2,
+        "assistant_calls_delta": -1,
+        "wall_seconds_delta": 2.87,
+        "non_cached_input_tokens_delta": -2065,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "cli",
+        "scenario": "repeat-add",
+        "result": "same_pass",
+        "tool_calls_delta": 2,
+        "assistant_calls_delta": 2,
+        "wall_seconds_delta": 312.95,
+        "non_cached_input_tokens_delta": 20656,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "cli",
+        "scenario": "update-existing",
+        "result": "same_pass",
+        "tool_calls_delta": -1,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -3.91,
+        "non_cached_input_tokens_delta": 200,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "cli",
+        "scenario": "bounded-range",
+        "result": "same_pass",
+        "tool_calls_delta": 1,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 0.12,
+        "non_cached_input_tokens_delta": 312,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "cli",
+        "scenario": "bounded-range-natural",
+        "result": "same_pass",
+        "tool_calls_delta": -3,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -6.84,
+        "non_cached_input_tokens_delta": -1615,
+        "generated_file_inspection_change": "improved_to_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "cli",
+        "scenario": "ambiguous-short-date",
+        "result": "same_pass",
+        "tool_calls_delta": 3,
+        "assistant_calls_delta": 1,
+        "wall_seconds_delta": 0.51,
+        "non_cached_input_tokens_delta": 3232,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "regressed_to_yes",
+        "module_cache_inspection_change": "same_no"
+      },
+      {
+        "variant": "cli",
+        "scenario": "invalid-input",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -2.44,
+        "non_cached_input_tokens_delta": -266,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no"
+      }
+    ]
+  },
+  "raw_logs_committed": false,
+  "raw_logs_note": "Raw codex exec event logs and stderr files were retained under \u003crun-root\u003e during execution and intentionally not committed.",
+  "token_usage_caveat": "Token metrics come from codex exec turn.completed usage events when exposed; unavailable usage must be recorded as not_exposed.",
+  "app_server_fallback": "not used: codex exec --json exposed enough event detail for this run"
+}

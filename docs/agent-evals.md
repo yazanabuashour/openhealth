@@ -16,6 +16,10 @@ also present in the production skill.
   whether the agent read generated files or the Go module cache.
 - The expected production path is `client.OpenLocal(...)` plus the ergonomic
   weight helpers on `LocalClient`.
+- Production agents should use the routine weight fast path in
+  `skills/openhealth/references/weights.md` before searching the repository.
+  Broad repo searches, generated-file inspection, and module-cache inspection
+  are tracked as separate metrics.
 
 ## Isolated Variants
 
@@ -49,3 +53,23 @@ time deltas, non-cache token deltas, generated-file inspection changes, and
 module-cache inspection changes. Treat correctness regressions as blockers;
 treat metric-only movement as review context unless generated-file or
 module-cache inspection regresses.
+
+## Production Stop-Loss
+
+Give production two focused hardening cycles before recommending a pivot to the
+CLI-oriented agent surface. Pivot after the second cycle if production loses
+correctness, directly inspects generated files, inspects the module cache, uses
+broad repo search in more than one routine scenario, or remains materially worse
+than CLI on core tool counts (`add-two` > 10, `update-existing` > 12,
+`bounded-range` > 8, or more than 2x CLI tools in at least three comparable
+scenarios). Do not add hidden evaluator-only instructions or CLI recipes to the
+production skill to avoid the pivot.
+
+As of the production hardening full-matrix eval, the stop-loss is triggered by
+the `update-existing` tool-count threshold and production using more than 2x CLI
+tools in three comparable scenarios. Production broad repo search remained in
+`bounded-range` and `invalid-input`, but `invalid-input` is a validation
+scenario and does not satisfy the more-than-one routine scenario trigger. Keep
+production as the SDK/developer integration surface, but prefer the CLI-oriented
+agent surface for routine local weight operations unless a later eval clears the
+stop-loss triggers without hidden evaluator-only instructions.

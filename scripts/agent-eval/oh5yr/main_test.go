@@ -114,74 +114,136 @@ func TestGeneratedFileInspectionIgnoresBroadListings(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		command string
-		output  string
-		want    bool
+		name            string
+		command         string
+		output          string
+		wantDirect      bool
+		wantBroadSearch bool
+		wantBroadGen    bool
 	}{
 		{
-			name:    "rg files listing",
-			command: "/bin/zsh -lc rg --files",
-			output:  "client/client.gen.go\ninternal/api/generated/server.gen.go\n",
-			want:    false,
+			name:            "rg files listing",
+			command:         "/bin/zsh -lc rg --files",
+			output:          "client/client.gen.go\ninternal/api/generated/server.gen.go\n",
+			wantDirect:      false,
+			wantBroadSearch: true,
+			wantBroadGen:    true,
 		},
 		{
-			name:    "direct rg files listing",
-			command: "rg --files",
-			output:  "client/client.gen.go\ninternal/api/generated/server.gen.go\n",
-			want:    false,
+			name:            "direct rg files listing",
+			command:         "rg --files",
+			output:          "client/client.gen.go\ninternal/api/generated/server.gen.go\n",
+			wantDirect:      false,
+			wantBroadSearch: true,
+			wantBroadGen:    true,
 		},
 		{
-			name:    "find listing",
-			command: "/bin/zsh -lc find . -type f",
-			output:  "./client/client.gen.go\n",
-			want:    false,
+			name:            "mixed targeted and root rg files listing",
+			command:         "rg --files .agents/skills/openhealth repo .",
+			output:          ".agents/skills/openhealth/SKILL.md\nclient/client.gen.go\n",
+			wantDirect:      false,
+			wantBroadSearch: true,
+			wantBroadGen:    true,
 		},
 		{
-			name:    "direct find listing",
-			command: "find . -type f",
-			output:  "./client/client.gen.go\n",
-			want:    false,
+			name:            "find listing",
+			command:         "/bin/zsh -lc find . -type f",
+			output:          "./client/client.gen.go\n",
+			wantDirect:      false,
+			wantBroadSearch: true,
+			wantBroadGen:    true,
 		},
 		{
-			name:    "direct read",
-			command: "/bin/zsh -lc sed -n '1,40p' client/client.gen.go",
-			output:  "package client\n",
-			want:    true,
+			name:            "targeted skill file listing",
+			command:         "rg --files .agents/skills/openhealth",
+			output:          ".agents/skills/openhealth/SKILL.md\n",
+			wantDirect:      false,
+			wantBroadSearch: false,
+			wantBroadGen:    false,
 		},
 		{
-			name:    "content search with generated output",
-			command: "/bin/zsh -lc rg 'CreateHealthWeight' .",
-			output:  "client/client.gen.go:func (c *Client) CreateHealthWeight(...)\n",
-			want:    true,
+			name:       "direct read",
+			command:    "/bin/zsh -lc sed -n '1,40p' client/client.gen.go",
+			output:     "package client\n",
+			wantDirect: true,
 		},
 		{
-			name:    "direct content search with generated output",
-			command: "rg 'CreateHealthWeight' .",
-			output:  "client/client.gen.go:func (c *Client) CreateHealthWeight(...)\n",
-			want:    true,
+			name:            "broad content search with generated output",
+			command:         "/bin/zsh -lc rg 'CreateHealthWeight' .",
+			output:          "client/client.gen.go:func (c *Client) CreateHealthWeight(...)\n",
+			wantDirect:      false,
+			wantBroadSearch: true,
+			wantBroadGen:    true,
 		},
 		{
-			name:    "direct grep with generated output",
-			command: "grep -R CreateHealthWeight .",
-			output:  "client/client.gen.go:func (c *Client) CreateHealthWeight(...)\n",
-			want:    true,
+			name:            "implicit broad content search with generated output",
+			command:         "/bin/zsh -lc rg -n 'CreateHealthWeight'",
+			output:          "client/client.gen.go:func (c *Client) CreateHealthWeight(...)\n",
+			wantDirect:      false,
+			wantBroadSearch: true,
+			wantBroadGen:    true,
 		},
 		{
-			name:    "non inspection command",
-			command: "/bin/zsh -lc go test ./...",
-			output:  "ok github.com/yazanabuashour/openhealth/client\n",
-			want:    false,
+			name:       "targeted content search with generated output",
+			command:    "rg 'CreateHealthWeight' client",
+			output:     "client/client.gen.go:func (c *Client) CreateHealthWeight(...)\n",
+			wantDirect: true,
+		},
+		{
+			name:            "direct grep with generated output",
+			command:         "grep -R CreateHealthWeight .",
+			output:          "client/client.gen.go:func (c *Client) CreateHealthWeight(...)\n",
+			wantDirect:      false,
+			wantBroadSearch: true,
+			wantBroadGen:    true,
+		},
+		{
+			name:       "non inspection command",
+			command:    "/bin/zsh -lc go test ./...",
+			output:     "ok github.com/yazanabuashour/openhealth/client\n",
+			wantDirect: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if got := inspectsGeneratedFileCommand(tt.command, tt.output); got != tt.want {
-				t.Fatalf("inspectsGeneratedFileCommand(%q, %q) = %v, want %v", tt.command, tt.output, got, tt.want)
+			if got := inspectsGeneratedFileCommand(tt.command, tt.output); got != tt.wantDirect {
+				t.Fatalf("inspectsGeneratedFileCommand(%q, %q) = %v, want %v", tt.command, tt.output, got, tt.wantDirect)
+			}
+			if got := isBroadRepoSearchCommand(tt.command); got != tt.wantBroadSearch {
+				t.Fatalf("isBroadRepoSearchCommand(%q) = %v, want %v", tt.command, got, tt.wantBroadSearch)
+			}
+			gotBroadGen := isBroadRepoSearchCommand(tt.command) && mentionsGeneratedPath(tt.output)
+			if gotBroadGen != tt.wantBroadGen {
+				t.Fatalf("broad generated path metric = %v, want %v", gotBroadGen, tt.wantBroadGen)
 			}
 		})
+	}
+}
+
+func TestSelectVariantsAndScenarios(t *testing.T) {
+	t.Parallel()
+
+	selectedVariants, err := selectVariants("production,cli")
+	if err != nil {
+		t.Fatalf("selectVariants: %v", err)
+	}
+	if got := []string{selectedVariants[0].ID, selectedVariants[1].ID}; strings.Join(got, ",") != "production,cli" {
+		t.Fatalf("selected variants = %v", got)
+	}
+	selectedScenarios, err := selectScenarios("add-two,bounded-range")
+	if err != nil {
+		t.Fatalf("selectScenarios: %v", err)
+	}
+	if got := []string{selectedScenarios[0].ID, selectedScenarios[1].ID}; strings.Join(got, ",") != "add-two,bounded-range" {
+		t.Fatalf("selected scenarios = %v", got)
+	}
+	if _, err := selectVariants("missing"); err == nil {
+		t.Fatal("selectVariants missing id error = nil")
+	}
+	if _, err := selectScenarios("missing"); err == nil {
+		t.Fatal("selectScenarios missing id error = nil")
 	}
 }
 
@@ -419,5 +481,108 @@ func TestMetricNotesUseReportDate(t *testing.T) {
 		if strings.Contains(note, "2026-04-17") {
 			t.Fatalf("note = %q, should not contain hard-coded date", note)
 		}
+	}
+}
+
+func TestProductionStopLossTriggersPivot(t *testing.T) {
+	t.Parallel()
+
+	summary := productionStopLoss([]runResult{
+		{
+			Variant:  "production",
+			Scenario: "add-two",
+			Passed:   true,
+			Verification: verificationResult{
+				DatabasePass:  true,
+				AssistantPass: true,
+			},
+			Metrics: metrics{
+				ToolCalls:              16,
+				GeneratedFileInspected: true,
+			},
+		},
+		{
+			Variant:  "production",
+			Scenario: "bounded-range",
+			Passed:   true,
+			Verification: verificationResult{
+				DatabasePass:  true,
+				AssistantPass: true,
+			},
+			Metrics: metrics{
+				ToolCalls:       5,
+				BroadRepoSearch: true,
+			},
+		},
+		{
+			Variant:  "production",
+			Scenario: "bounded-range-natural",
+			Passed:   true,
+			Verification: verificationResult{
+				DatabasePass:  true,
+				AssistantPass: true,
+			},
+			Metrics: metrics{
+				ToolCalls:       7,
+				BroadRepoSearch: true,
+			},
+		},
+	})
+	if summary == nil {
+		t.Fatal("productionStopLoss returned nil")
+	}
+	if !summary.Triggered {
+		t.Fatal("stop loss did not trigger")
+	}
+	if summary.Recommendation != "pivot_to_cli_for_agent_operations" {
+		t.Fatalf("recommendation = %q", summary.Recommendation)
+	}
+	joined := strings.Join(summary.Triggers, "\n")
+	for _, want := range []string{"direct generated-file inspection", "broad repo search", "above threshold"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("triggers = %q, want %q", joined, want)
+		}
+	}
+}
+
+func TestProductionStopLossIgnoresValidationBroadSearchForRoutineThreshold(t *testing.T) {
+	t.Parallel()
+
+	summary := productionStopLoss([]runResult{
+		{
+			Variant:  "production",
+			Scenario: "bounded-range",
+			Passed:   true,
+			Verification: verificationResult{
+				DatabasePass:  true,
+				AssistantPass: true,
+			},
+			Metrics: metrics{
+				ToolCalls:       5,
+				BroadRepoSearch: true,
+			},
+		},
+		{
+			Variant:  "production",
+			Scenario: "invalid-input",
+			Passed:   true,
+			Verification: verificationResult{
+				DatabasePass:  true,
+				AssistantPass: true,
+			},
+			Metrics: metrics{
+				ToolCalls:       1,
+				BroadRepoSearch: true,
+			},
+		},
+	})
+	if summary == nil {
+		t.Fatal("productionStopLoss returned nil")
+	}
+	if summary.Triggered {
+		t.Fatalf("stop loss triggered from validation broad search: %v", summary.Triggers)
+	}
+	if summary.Recommendation != "continue_production_hardening" {
+		t.Fatalf("recommendation = %q", summary.Recommendation)
 	}
 }

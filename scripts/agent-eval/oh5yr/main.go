@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 	"unicode"
@@ -50,6 +51,7 @@ type report struct {
 	CommandTemplate   []string                `json:"command_template"`
 	CLIStatus         string                  `json:"cli_status"`
 	MetricNotes       []string                `json:"metric_notes,omitempty"`
+	StopLoss          *stopLossSummary        `json:"stop_loss,omitempty"`
 	Results           []runResult             `json:"results"`
 	Comparison        *comparisonSummary      `json:"comparison,omitempty"`
 	RawLogsCommitted  bool                    `json:"raw_logs_committed"`
@@ -83,19 +85,25 @@ type runResult struct {
 }
 
 type metrics struct {
-	AssistantCalls           int            `json:"assistant_calls"`
-	ToolCalls                int            `json:"tool_calls"`
-	CommandExecutions        int            `json:"command_executions"`
-	FileInspectionCommands   int            `json:"file_inspection_commands"`
-	GeneratedFileInspected   bool           `json:"generated_file_inspected"`
-	ModuleCacheInspected     bool           `json:"module_cache_inspected"`
-	UsageExposed             bool           `json:"usage_exposed"`
-	InputTokens              *int           `json:"input_tokens,omitempty"`
-	CachedInputTokens        *int           `json:"cached_input_tokens,omitempty"`
-	NonCachedInputTokens     *int           `json:"non_cached_input_tokens,omitempty"`
-	OutputTokens             *int           `json:"output_tokens,omitempty"`
-	EventTypeCounts          map[string]int `json:"event_type_counts"`
-	CommandMetricLimitations string         `json:"command_metric_limitations"`
+	AssistantCalls                       int            `json:"assistant_calls"`
+	ToolCalls                            int            `json:"tool_calls"`
+	CommandExecutions                    int            `json:"command_executions"`
+	FileInspectionCommands               int            `json:"file_inspection_commands"`
+	GeneratedFileInspected               bool           `json:"generated_file_inspected"`
+	GeneratedPathFromBroadSearch         bool           `json:"generated_path_from_broad_search"`
+	BroadRepoSearch                      bool           `json:"broad_repo_search"`
+	ModuleCacheInspected                 bool           `json:"module_cache_inspected"`
+	GeneratedFileEvidence                []string       `json:"generated_file_evidence,omitempty"`
+	GeneratedPathFromBroadSearchEvidence []string       `json:"generated_path_from_broad_search_evidence,omitempty"`
+	BroadRepoSearchEvidence              []string       `json:"broad_repo_search_evidence,omitempty"`
+	ModuleCacheEvidence                  []string       `json:"module_cache_evidence,omitempty"`
+	UsageExposed                         bool           `json:"usage_exposed"`
+	InputTokens                          *int           `json:"input_tokens,omitempty"`
+	CachedInputTokens                    *int           `json:"cached_input_tokens,omitempty"`
+	NonCachedInputTokens                 *int           `json:"non_cached_input_tokens,omitempty"`
+	OutputTokens                         *int           `json:"output_tokens,omitempty"`
+	EventTypeCounts                      map[string]int `json:"event_type_counts"`
+	CommandMetricLimitations             string         `json:"command_metric_limitations"`
 }
 
 type verificationResult struct {
@@ -111,16 +119,25 @@ type comparisonSummary struct {
 	Entries        []comparisonEntry `json:"entries"`
 }
 
+type stopLossSummary struct {
+	Policy         string   `json:"policy"`
+	Triggered      bool     `json:"triggered"`
+	Recommendation string   `json:"recommendation"`
+	Triggers       []string `json:"triggers,omitempty"`
+}
+
 type comparisonEntry struct {
-	Variant                       string   `json:"variant"`
-	Scenario                      string   `json:"scenario"`
-	Result                        string   `json:"result"`
-	ToolCallsDelta                *int     `json:"tool_calls_delta,omitempty"`
-	AssistantCallsDelta           *int     `json:"assistant_calls_delta,omitempty"`
-	WallSecondsDelta              *float64 `json:"wall_seconds_delta,omitempty"`
-	NonCachedInputTokensDelta     *int     `json:"non_cached_input_tokens_delta,omitempty"`
-	GeneratedFileInspectionChange string   `json:"generated_file_inspection_change"`
-	ModuleCacheInspectionChange   string   `json:"module_cache_inspection_change"`
+	Variant                            string   `json:"variant"`
+	Scenario                           string   `json:"scenario"`
+	Result                             string   `json:"result"`
+	ToolCallsDelta                     *int     `json:"tool_calls_delta,omitempty"`
+	AssistantCallsDelta                *int     `json:"assistant_calls_delta,omitempty"`
+	WallSecondsDelta                   *float64 `json:"wall_seconds_delta,omitempty"`
+	NonCachedInputTokensDelta          *int     `json:"non_cached_input_tokens_delta,omitempty"`
+	GeneratedFileInspectionChange      string   `json:"generated_file_inspection_change"`
+	GeneratedPathFromBroadSearchChange string   `json:"generated_path_from_broad_search_change"`
+	BroadRepoSearchChange              string   `json:"broad_repo_search_change"`
+	ModuleCacheInspectionChange        string   `json:"module_cache_inspection_change"`
 }
 
 type weightState struct {
@@ -171,6 +188,8 @@ func runCommand(args []string) {
 	runRootFlag := fs.String("run-root", "", "directory for raw run artifacts outside the repo")
 	dateFlag := fs.String("date", time.Now().Format(time.DateOnly), "report date in YYYY-MM-DD form")
 	compareToFlag := fs.String("compare-to", "", "optional baseline JSON report path for comparison")
+	variantFilter := fs.String("variant", "", "optional comma-separated variant ids to run")
+	scenarioFilter := fs.String("scenario", "", "optional comma-separated scenario ids to run")
 	if err := fs.Parse(args); err != nil {
 		failf("parse flags: %v", err)
 	}
@@ -199,6 +218,14 @@ func runCommand(args []string) {
 	if isWithin(runRoot, repoRoot) {
 		failf("run root must be outside the repository: %s", runRoot)
 	}
+	selectedVariants, err := selectVariants(*variantFilter)
+	if err != nil {
+		failf("select variants: %v", err)
+	}
+	selectedScenarios, err := selectScenarios(*scenarioFilter)
+	if err != nil {
+		failf("select scenarios: %v", err)
+	}
 
 	marker := filepath.Join(runRoot, "history-marker")
 	if err := os.WriteFile(marker, []byte(time.Now().Format(time.RFC3339Nano)), 0o644); err != nil {
@@ -211,8 +238,8 @@ func runCommand(args []string) {
 
 	codexVersion := commandOutput("codex", "--version")
 	results := []runResult{}
-	for _, currentVariant := range variants() {
-		for _, currentScenario := range scenarios() {
+	for _, currentVariant := range selectedVariants {
+		for _, currentScenario := range selectedScenarios {
 			result, err := runOne(repoRoot, runRoot, currentVariant, currentScenario)
 			if err != nil {
 				result = runResult{
@@ -271,6 +298,7 @@ func runCommand(args []string) {
 		},
 		CLIStatus:         "runnable: cli variant uses go run ./cmd/openhealth weight add/list with a prewarmed per-scenario module cache",
 		MetricNotes:       metricNotes(*dateFlag, results),
+		StopLoss:          productionStopLoss(results),
 		Results:           results,
 		RawLogsCommitted:  false,
 		RawLogsNote:       "Raw codex exec event logs and stderr files were retained under <run-root> during execution and intentionally not committed.",
@@ -551,6 +579,61 @@ func scenarios() []scenario {
 	}
 }
 
+func selectVariants(filter string) ([]variant, error) {
+	all := variants()
+	if strings.TrimSpace(filter) == "" {
+		return all, nil
+	}
+	selected := []variant{}
+	for _, id := range splitFilterIDs(filter) {
+		found := false
+		for _, candidate := range all {
+			if candidate.ID == id {
+				selected = append(selected, candidate)
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("unknown variant %q", id)
+		}
+	}
+	return selected, nil
+}
+
+func selectScenarios(filter string) ([]scenario, error) {
+	all := scenarios()
+	if strings.TrimSpace(filter) == "" {
+		return all, nil
+	}
+	selected := []scenario{}
+	for _, id := range splitFilterIDs(filter) {
+		found := false
+		for _, candidate := range all {
+			if candidate.ID == id {
+				selected = append(selected, candidate)
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("unknown scenario %q", id)
+		}
+	}
+	return selected, nil
+}
+
+func splitFilterIDs(filter string) []string {
+	ids := []string{}
+	for _, raw := range strings.Split(filter, ",") {
+		id := strings.TrimSpace(raw)
+		if id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
 func scenarioByID(id string) (scenario, bool) {
 	for _, sc := range scenarios() {
 		if sc.ID == id {
@@ -771,11 +854,21 @@ func parseMetrics(path string) (parsedMetrics, error) {
 				if isFileInspectionCommand(event.Item.Command) {
 					out.metrics.FileInspectionCommands++
 				}
+				if isBroadRepoSearchCommand(event.Item.Command) {
+					out.metrics.BroadRepoSearch = true
+					addMetricEvidence(&out.metrics.BroadRepoSearchEvidence, event.Item.Command)
+					if mentionsGeneratedPath(event.Item.AggregatedOutput) {
+						out.metrics.GeneratedPathFromBroadSearch = true
+						addMetricEvidence(&out.metrics.GeneratedPathFromBroadSearchEvidence, event.Item.Command)
+					}
+				}
 				if inspectsGeneratedFileCommand(event.Item.Command, event.Item.AggregatedOutput) {
 					out.metrics.GeneratedFileInspected = true
+					addMetricEvidence(&out.metrics.GeneratedFileEvidence, event.Item.Command)
 				}
 				if inspectsModuleCache(event.Item.Command) {
 					out.metrics.ModuleCacheInspected = true
+					addMetricEvidence(&out.metrics.ModuleCacheEvidence, event.Item.Command)
 				}
 			}
 		}
@@ -1048,6 +1141,8 @@ func compareReports(baseline report, current report, baselineRef string) *compar
 		entry.WallSecondsDelta = floatDelta(baselineResult.WallSeconds, currentResult.WallSeconds)
 		entry.NonCachedInputTokensDelta = optionalIntDelta(baselineResult.Metrics.NonCachedInputTokens, currentResult.Metrics.NonCachedInputTokens)
 		entry.GeneratedFileInspectionChange = boolChange(baselineResult.Metrics.GeneratedFileInspected, currentResult.Metrics.GeneratedFileInspected)
+		entry.GeneratedPathFromBroadSearchChange = boolChange(baselineResult.Metrics.GeneratedPathFromBroadSearch, currentResult.Metrics.GeneratedPathFromBroadSearch)
+		entry.BroadRepoSearchChange = boolChange(baselineResult.Metrics.BroadRepoSearch, currentResult.Metrics.BroadRepoSearch)
 		entry.ModuleCacheInspectionChange = boolChange(baselineResult.Metrics.ModuleCacheInspected, currentResult.Metrics.ModuleCacheInspected)
 		entries = append(entries, entry)
 	}
@@ -1059,6 +1154,8 @@ func compareReports(baseline report, current report, baselineRef string) *compar
 
 func metricNotes(reportDate string, results []runResult) []string {
 	productionGenerated := []string{}
+	productionGeneratedFromBroad := []string{}
+	productionBroadSearch := []string{}
 	productionModuleCache := []string{}
 	for _, result := range results {
 		if result.Variant != "production" {
@@ -1067,6 +1164,12 @@ func metricNotes(reportDate string, results []runResult) []string {
 		if result.Metrics.GeneratedFileInspected {
 			productionGenerated = append(productionGenerated, result.Scenario)
 		}
+		if result.Metrics.GeneratedPathFromBroadSearch {
+			productionGeneratedFromBroad = append(productionGeneratedFromBroad, result.Scenario)
+		}
+		if result.Metrics.BroadRepoSearch {
+			productionBroadSearch = append(productionBroadSearch, result.Scenario)
+		}
 		if result.Metrics.ModuleCacheInspected {
 			productionModuleCache = append(productionModuleCache, result.Scenario)
 		}
@@ -1074,12 +1177,117 @@ func metricNotes(reportDate string, results []runResult) []string {
 
 	notes := []string{}
 	if len(productionGenerated) > 0 {
-		notes = append(notes, fmt.Sprintf("Production generated-file inspection remained in %s. In the inspected %s run logs, these flags came from broad repository discovery searches surfacing generated paths in command output, not from generated-client recipes being required for correctness.", strings.Join(productionGenerated, ", "), reportDate))
+		notes = append(notes, fmt.Sprintf("Production direct generated-file inspection remained in %s in the %s run.", strings.Join(productionGenerated, ", "), reportDate))
+	}
+	if len(productionGeneratedFromBroad) > 0 {
+		notes = append(notes, fmt.Sprintf("Production generated paths surfaced from broad repo searches in %s in the %s run; this is tracked separately from direct generated-file inspection.", strings.Join(productionGeneratedFromBroad, ", "), reportDate))
+	}
+	if len(productionBroadSearch) > 0 {
+		notes = append(notes, fmt.Sprintf("Production broad repo search remained in %s in the %s run.", strings.Join(productionBroadSearch, ", "), reportDate))
 	}
 	if len(productionModuleCache) > 0 {
-		notes = append(notes, fmt.Sprintf("Production module-cache inspection remained in %s. In the inspected %s run logs, this came from environment/module checks rather than browsing dependency source.", strings.Join(productionModuleCache, ", "), reportDate))
+		notes = append(notes, fmt.Sprintf("Production module-cache inspection remained in %s in the %s run.", strings.Join(productionModuleCache, ", "), reportDate))
 	}
 	return notes
+}
+
+func productionStopLoss(results []runResult) *stopLossSummary {
+	productionByScenario := map[string]runResult{}
+	cliByScenario := map[string]runResult{}
+	for _, result := range results {
+		switch result.Variant {
+		case "production":
+			productionByScenario[result.Scenario] = result
+		case "cli":
+			cliByScenario[result.Scenario] = result
+		}
+	}
+	if len(productionByScenario) == 0 {
+		return nil
+	}
+
+	triggers := []string{}
+	failed := []string{}
+	directGenerated := []string{}
+	moduleCache := []string{}
+	broadSearch := []string{}
+	for _, result := range productionByScenario {
+		if !result.Passed || !result.Verification.DatabasePass || !result.Verification.AssistantPass {
+			failed = append(failed, result.Scenario)
+		}
+		if result.Metrics.GeneratedFileInspected {
+			directGenerated = append(directGenerated, result.Scenario)
+		}
+		if result.Metrics.ModuleCacheInspected {
+			moduleCache = append(moduleCache, result.Scenario)
+		}
+		if result.Metrics.BroadRepoSearch && isRoutineWeightScenario(result.Scenario) {
+			broadSearch = append(broadSearch, result.Scenario)
+		}
+	}
+	if len(failed) > 0 {
+		triggers = append(triggers, fmt.Sprintf("production correctness below 100%% in %s", sortedJoin(failed)))
+	}
+	if len(directGenerated) > 0 {
+		triggers = append(triggers, fmt.Sprintf("direct generated-file inspection in %s", sortedJoin(directGenerated)))
+	}
+	if len(moduleCache) > 0 {
+		triggers = append(triggers, fmt.Sprintf("module-cache inspection in %s", sortedJoin(moduleCache)))
+	}
+	if len(broadSearch) > 1 {
+		triggers = append(triggers, fmt.Sprintf("broad repo search in more than one routine scenario: %s", sortedJoin(broadSearch)))
+	}
+
+	toolThresholds := map[string]int{
+		"add-two":         10,
+		"update-existing": 12,
+		"bounded-range":   8,
+	}
+	for scenario, threshold := range toolThresholds {
+		if result, ok := productionByScenario[scenario]; ok && result.Metrics.ToolCalls > threshold {
+			triggers = append(triggers, fmt.Sprintf("production %s used %d tools, above threshold %d", scenario, result.Metrics.ToolCalls, threshold))
+		}
+	}
+
+	moreThanDoubleCLI := []string{}
+	for scenario, production := range productionByScenario {
+		cli, ok := cliByScenario[scenario]
+		if !ok || cli.Metrics.ToolCalls == 0 {
+			continue
+		}
+		if production.Metrics.ToolCalls > 2*cli.Metrics.ToolCalls {
+			moreThanDoubleCLI = append(moreThanDoubleCLI, scenario)
+		}
+	}
+	if len(moreThanDoubleCLI) >= 3 {
+		triggers = append(triggers, fmt.Sprintf("production used more than 2x CLI tools in %s", sortedJoin(moreThanDoubleCLI)))
+	}
+
+	recommendation := "continue_production_hardening"
+	if len(triggers) > 0 {
+		recommendation = "pivot_to_cli_for_agent_operations"
+	}
+	return &stopLossSummary{
+		Policy:         "After two focused production hardening cycles, pivot if production loses correctness, directly inspects generated files, inspects the module cache, uses broad repo search in more than one routine scenario, exceeds core tool thresholds, or uses more than 2x CLI tools in at least three comparable scenarios.",
+		Triggered:      len(triggers) > 0,
+		Recommendation: recommendation,
+		Triggers:       triggers,
+	}
+}
+
+func isRoutineWeightScenario(id string) bool {
+	switch id {
+	case "add-two", "repeat-add", "update-existing", "bounded-range", "bounded-range-natural":
+		return true
+	default:
+		return false
+	}
+}
+
+func sortedJoin(values []string) string {
+	values = append([]string{}, values...)
+	sort.Strings(values)
+	return strings.Join(values, ", ")
 }
 
 func resultKey(variant string, scenario string) string {
@@ -1163,8 +1371,8 @@ func writeMarkdown(path string, value report) error {
 	fmt.Fprintf(&b, "\n")
 
 	fmt.Fprintf(&b, "## Results\n\n")
-	fmt.Fprintf(&b, "| Variant | Scenario | Result | DB | Assistant | Tools | Assistant Calls | Wall Seconds | Tokens | Generated Files | Module Cache |\n")
-	fmt.Fprintf(&b, "| --- | --- | --- | --- | --- | ---: | ---: | ---: | --- | --- | --- |\n")
+	fmt.Fprintf(&b, "| Variant | Scenario | Result | DB | Assistant | Tools | Assistant Calls | Wall Seconds | Tokens | Direct Generated Files | Broad Search | Generated From Broad | Module Cache |\n")
+	fmt.Fprintf(&b, "| --- | --- | --- | --- | --- | ---: | ---: | ---: | --- | --- | --- | --- | --- |\n")
 	for _, result := range value.Results {
 		tokenSummary := "not_exposed"
 		if result.Metrics.UsageExposed {
@@ -1172,7 +1380,7 @@ func writeMarkdown(path string, value report) error {
 		}
 		fmt.Fprintf(
 			&b,
-			"| `%s` | `%s` | %s | %s | %s | %d | %d | %.2f | %s | %s | %s |\n",
+			"| `%s` | `%s` | %s | %s | %s | %d | %d | %.2f | %s | %s | %s | %s | %s |\n",
 			result.Variant,
 			result.Scenario,
 			passText(result.Passed),
@@ -1183,6 +1391,8 @@ func writeMarkdown(path string, value report) error {
 			result.WallSeconds,
 			tokenSummary,
 			yesNo(result.Metrics.GeneratedFileInspected),
+			yesNo(result.Metrics.BroadRepoSearch),
+			yesNo(result.Metrics.GeneratedPathFromBroadSearch),
 			yesNo(result.Metrics.ModuleCacheInspected),
 		)
 	}
@@ -1190,12 +1400,12 @@ func writeMarkdown(path string, value report) error {
 	if value.Comparison != nil {
 		fmt.Fprintf(&b, "\n## Comparison\n\n")
 		fmt.Fprintf(&b, "Baseline: `%s`.\n\n", value.Comparison.BaselineReport)
-		fmt.Fprintf(&b, "| Variant | Scenario | Result | Tools Δ | Assistant Calls Δ | Wall Seconds Δ | Non-cache Tokens Δ | Generated Files | Module Cache |\n")
-		fmt.Fprintf(&b, "| --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- |\n")
+		fmt.Fprintf(&b, "| Variant | Scenario | Result | Tools Δ | Assistant Calls Δ | Wall Seconds Δ | Non-cache Tokens Δ | Direct Generated Files | Broad Search | Generated From Broad | Module Cache |\n")
+		fmt.Fprintf(&b, "| --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- |\n")
 		for _, entry := range value.Comparison.Entries {
 			fmt.Fprintf(
 				&b,
-				"| `%s` | `%s` | %s | %s | %s | %s | %s | %s | %s |\n",
+				"| `%s` | `%s` | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n",
 				entry.Variant,
 				entry.Scenario,
 				entry.Result,
@@ -1204,6 +1414,8 @@ func writeMarkdown(path string, value report) error {
 				formatFloatDelta(entry.WallSecondsDelta),
 				formatIntDelta(entry.NonCachedInputTokensDelta),
 				entry.GeneratedFileInspectionChange,
+				entry.BroadRepoSearchChange,
+				entry.GeneratedPathFromBroadSearchChange,
 				entry.ModuleCacheInspectionChange,
 			)
 		}
@@ -1213,6 +1425,24 @@ func writeMarkdown(path string, value report) error {
 		fmt.Fprintf(&b, "\n## Metric Notes\n\n")
 		for _, note := range value.MetricNotes {
 			fmt.Fprintf(&b, "- %s\n", note)
+		}
+	}
+
+	if value.StopLoss != nil {
+		fmt.Fprintf(&b, "\n## Production Stop-Loss\n\n")
+		fmt.Fprintf(&b, "- Triggered: `%s`\n", yesNo(value.StopLoss.Triggered))
+		fmt.Fprintf(&b, "- Recommendation: `%s`\n", value.StopLoss.Recommendation)
+		if len(value.StopLoss.Triggers) > 0 {
+			for _, trigger := range value.StopLoss.Triggers {
+				fmt.Fprintf(&b, "- Trigger: %s\n", trigger)
+			}
+		}
+	}
+
+	if hasMetricEvidence(value.Results) {
+		fmt.Fprintf(&b, "\n## Metric Evidence\n\n")
+		for _, result := range value.Results {
+			writeMetricEvidence(&b, result)
 		}
 	}
 
@@ -1228,6 +1458,40 @@ func writeMarkdown(path string, value report) error {
 	fmt.Fprintf(&b, "%s.\n", value.AppServerFallback)
 
 	return os.WriteFile(path, []byte(b.String()), 0o644)
+}
+
+func hasMetricEvidence(results []runResult) bool {
+	for _, result := range results {
+		if len(result.Metrics.GeneratedFileEvidence) > 0 ||
+			len(result.Metrics.GeneratedPathFromBroadSearchEvidence) > 0 ||
+			len(result.Metrics.BroadRepoSearchEvidence) > 0 ||
+			len(result.Metrics.ModuleCacheEvidence) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func writeMetricEvidence(b *strings.Builder, result runResult) {
+	if len(result.Metrics.GeneratedFileEvidence) == 0 &&
+		len(result.Metrics.GeneratedPathFromBroadSearchEvidence) == 0 &&
+		len(result.Metrics.BroadRepoSearchEvidence) == 0 &&
+		len(result.Metrics.ModuleCacheEvidence) == 0 {
+		return
+	}
+	prefix := fmt.Sprintf("- `%s/%s`", result.Variant, result.Scenario)
+	if len(result.Metrics.GeneratedFileEvidence) > 0 {
+		fmt.Fprintf(b, "%s direct generated-file: `%s`.\n", prefix, strings.Join(result.Metrics.GeneratedFileEvidence, "`; `"))
+	}
+	if len(result.Metrics.BroadRepoSearchEvidence) > 0 {
+		fmt.Fprintf(b, "%s broad repo search: `%s`.\n", prefix, strings.Join(result.Metrics.BroadRepoSearchEvidence, "`; `"))
+	}
+	if len(result.Metrics.GeneratedPathFromBroadSearchEvidence) > 0 {
+		fmt.Fprintf(b, "%s generated path from broad search: `%s`.\n", prefix, strings.Join(result.Metrics.GeneratedPathFromBroadSearchEvidence, "`; `"))
+	}
+	if len(result.Metrics.ModuleCacheEvidence) > 0 {
+		fmt.Fprintf(b, "%s module cache: `%s`.\n", prefix, strings.Join(result.Metrics.ModuleCacheEvidence, "`; `"))
+	}
 }
 
 func repoRoot() (string, error) {
@@ -1467,7 +1731,7 @@ func isFileInspectionCommand(command string) bool {
 }
 
 func inspectsGeneratedFileCommand(command string, output string) bool {
-	if !isFileInspectionCommand(command) || isBroadFileListingCommand(command) {
+	if !isFileInspectionCommand(command) || isBroadRepoSearchCommand(command) {
 		return false
 	}
 	if mentionsGeneratedPath(command) {
@@ -1476,10 +1740,153 @@ func inspectsGeneratedFileCommand(command string, output string) bool {
 	return isContentSearchCommand(command) && mentionsGeneratedPath(output)
 }
 
-func isBroadFileListingCommand(command string) bool {
-	normalized := normalizedCommandText(command)
-	return (commandHasExecutable(command, "rg") && strings.Contains(normalized, " --files ")) ||
-		commandHasExecutable(command, "find", "ls")
+func isBroadRepoSearchCommand(command string) bool {
+	fields := commandFields(command)
+	normalized := " " + strings.Join(fields, " ") + " "
+	switch {
+	case commandHasExecutable(command, "rg"):
+		return rgBroadRepoSearch(fields, normalized)
+	case commandHasExecutable(command, "grep"):
+		return grepBroadRepoSearch(fields)
+	case commandHasExecutable(command, "find"):
+		return hasRepoRootTarget(fields)
+	default:
+		return false
+	}
+}
+
+func rgBroadRepoSearch(fields []string, normalized string) bool {
+	args := commandArgsAfterExecutable(fields, "rg")
+	filesMode := strings.Contains(normalized, " --files ")
+	targets := rgPathTargets(args, filesMode)
+	return len(targets) == 0 || hasRepoRootTarget(targets) || onlyRepoRootTargets(targets)
+}
+
+func rgPathTargets(args []string, filesMode bool) []string {
+	targets := []string{}
+	patternSeen := filesMode
+	for i := 0; i < len(args); i++ {
+		field := args[i]
+		if field == "" {
+			continue
+		}
+		if field == "--" {
+			for _, rest := range args[i+1:] {
+				if filesMode || patternSeen {
+					targets = append(targets, rest)
+					continue
+				}
+				patternSeen = true
+			}
+			break
+		}
+		if strings.HasPrefix(field, "--") {
+			if longOptionTakesValue(field) && !strings.Contains(field, "=") {
+				i++
+			}
+			continue
+		}
+		if strings.HasPrefix(field, "-") && field != "-" {
+			if shortOptionTakesValue(field) && len(field) == 2 {
+				i++
+			}
+			continue
+		}
+		if filesMode || patternSeen {
+			targets = append(targets, field)
+			continue
+		}
+		patternSeen = true
+	}
+	return targets
+}
+
+func longOptionTakesValue(field string) bool {
+	switch field {
+	case "--glob", "--iglob", "--type", "--type-not", "--type-add", "--regexp", "--file", "--max-count", "--after-context", "--before-context", "--context", "--colors", "--engine", "--sort", "--sortr", "--path-separator":
+		return true
+	default:
+		return false
+	}
+}
+
+func shortOptionTakesValue(field string) bool {
+	switch field {
+	case "-g", "-e", "-f", "-t", "-T", "-m", "-A", "-B", "-C", "-E", "-M":
+		return true
+	default:
+		return false
+	}
+}
+
+func commandArgsAfterExecutable(fields []string, names ...string) []string {
+	nameSet := map[string]struct{}{}
+	for _, name := range names {
+		nameSet[name] = struct{}{}
+	}
+	for i, field := range fields {
+		if _, ok := nameSet[field]; ok {
+			return fields[i+1:]
+		}
+		if _, ok := nameSet[filepath.Base(field)]; ok {
+			return fields[i+1:]
+		}
+	}
+	return fields
+}
+
+func grepBroadRepoSearch(fields []string) bool {
+	if !hasRepoRootTarget(fields) {
+		return false
+	}
+	for _, field := range fields {
+		if field == "-r" || field == "-R" || strings.Contains(field, "r") && strings.HasPrefix(field, "-") {
+			return true
+		}
+	}
+	return false
+}
+
+func commandPathTargets(fields []string) []string {
+	targets := []string{}
+	for _, field := range fields {
+		if field == "" || strings.HasPrefix(field, "-") {
+			continue
+		}
+		switch filepath.Base(field) {
+		case "rg", "grep", "find", "awk", "zsh", "bash", "sh":
+			continue
+		}
+		switch field {
+		case "lc":
+			continue
+		}
+		if field == "." || field == "./" || strings.HasPrefix(field, "./") || strings.HasPrefix(field, "../") || strings.Contains(field, "/") {
+			targets = append(targets, field)
+		}
+	}
+	return targets
+}
+
+func onlyRepoRootTargets(targets []string) bool {
+	if len(targets) == 0 {
+		return false
+	}
+	for _, target := range targets {
+		if target != "." && target != "./" && target != "./." {
+			return false
+		}
+	}
+	return true
+}
+
+func hasRepoRootTarget(fields []string) bool {
+	for _, field := range fields {
+		if field == "." || field == "./" || field == "./." {
+			return true
+		}
+	}
+	return false
 }
 
 func isContentSearchCommand(command string) bool {
@@ -1495,8 +1902,31 @@ func mentionsGeneratedPath(text string) bool {
 func inspectsModuleCache(command string) bool {
 	lower := strings.ToLower(command)
 	return strings.Contains(lower, "gomodcache") ||
-		strings.Contains(lower, "pkg/mod") ||
-		strings.Contains(lower, "go env")
+		strings.Contains(lower, "pkg/mod")
+}
+
+func addMetricEvidence(evidence *[]string, command string) {
+	const maxEvidence = 5
+	sanitized := sanitizeMetricEvidence(command)
+	for _, existing := range *evidence {
+		if existing == sanitized {
+			return
+		}
+	}
+	if len(*evidence) >= maxEvidence {
+		return
+	}
+	*evidence = append(*evidence, sanitized)
+}
+
+func sanitizeMetricEvidence(command string) string {
+	fields := strings.Fields(command)
+	for i, field := range fields {
+		if strings.Contains(field, "openhealth-oh-5yr-") {
+			fields[i] = "<run-root>"
+		}
+	}
+	return strings.Join(fields, " ")
 }
 
 func commandHasExecutable(command string, names ...string) bool {

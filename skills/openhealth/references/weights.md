@@ -11,6 +11,10 @@ defer api.Close()
 ctx := context.Background()
 ```
 
+`client.OpenLocal(client.LocalConfig{})` honors the configured local
+environment, including `OPENHEALTH_DATABASE_PATH`. Do not search for the
+database path before using these snippets; run the SDK helper first.
+
 ## Add Or Reapply Weights
 
 Use `UpsertWeight` for natural-language data-entry requests. It returns

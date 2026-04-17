@@ -16,7 +16,9 @@ generated OpenAPI methods.
 - Install from the current development line until a release tag exists:
   `go get github.com/yazanabuashour/openhealth@main`.
 - Import `github.com/yazanabuashour/openhealth/client`.
-- Open local data with `client.OpenLocal(client.LocalConfig{})`.
+- Open local data with `client.OpenLocal(client.LocalConfig{})`. It honors the
+  configured local environment, including `OPENHEALTH_DATABASE_PATH`, so do not
+  search for the database path unless `OpenLocal` fails.
 - For routine weight tasks, start with this skill and
   [references/weights.md](references/weights.md). Use `UpsertWeight`,
   `RecordWeight`, `ListWeights`, and `LatestWeight`; inspect `client/weight.go`
@@ -30,7 +32,25 @@ large dependency directories for routine add/list/latest weight tasks. Use
 targeted repo searches only when the SDK facade does not cover the user's ask.
 For routine weight tasks, avoid repo-wide file listings or content searches like
 `rg --files .` or `rg -n ... -S .`; search this skill, `references/weights.md`,
-and `client/weight.go` directly when additional context is needed.
+and `client/weight.go` directly when additional context is needed. Do not append
+`.` to an otherwise targeted search, and do not search for `go.mod` or `go.sum`;
+the eval starts in the repository root.
+
+## Routine Weight Fast Path
+
+For weight add, reapply, correction, latest, history, or bounded-range requests:
+
+1. Read [references/weights.md](references/weights.md).
+2. Copy the matching SDK helper snippet into a short temporary Go program.
+3. Run it from the repository with the inherited environment.
+4. Answer only from the program output and the requested user range.
+
+Do not enumerate the repository, inspect generated files, inspect the Go module
+cache, or query SQLite directly unless the SDK helper run fails.
+
+For invalid input or ambiguous short-date requests, answer from the validation
+rules in this skill. Do not search the repository or run code before rejecting
+non-positive values, unsupported units, or dates that lack a year.
 
 ## Add Weight Entries
 

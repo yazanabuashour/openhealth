@@ -17,8 +17,10 @@ generated OpenAPI methods.
   `go get github.com/yazanabuashour/openhealth@main`.
 - Import `github.com/yazanabuashour/openhealth/client`.
 - Open local data with `client.OpenLocal(client.LocalConfig{})`.
-- Use `UpsertWeight`, `RecordWeight`, `ListWeights`, and `LatestWeight` for
-  weight tasks.
+- For routine weight tasks, start with this skill and
+  [references/weights.md](references/weights.md). Use `UpsertWeight`,
+  `RecordWeight`, `ListWeights`, and `LatestWeight`; inspect `client/weight.go`
+  only when the snippets do not answer the task.
 - Use `client.LocalConfig{DatabasePath: "..."}` or
   `client.LocalConfig{DataDir: "..."}` only when the user names a specific
   database or you are using a temp test database.
@@ -26,6 +28,9 @@ generated OpenAPI methods.
 Do not inspect `client.gen.go`, generated server code, the Go module cache, or
 large dependency directories for routine add/list/latest weight tasks. Use
 targeted repo searches only when the SDK facade does not cover the user's ask.
+For routine weight tasks, avoid repo-wide file listings or content searches like
+`rg --files .` or `rg -n ... -S .`; search this skill, `references/weights.md`,
+and `client/weight.go` directly when additional context is needed.
 
 ## Add Weight Entries
 

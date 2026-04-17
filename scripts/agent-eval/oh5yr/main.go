@@ -49,7 +49,9 @@ type report struct {
 	HistoryIsolation  historyIsolationSummary `json:"history_isolation"`
 	CommandTemplate   []string                `json:"command_template"`
 	CLIStatus         string                  `json:"cli_status"`
+	MetricNotes       []string                `json:"metric_notes,omitempty"`
 	Results           []runResult             `json:"results"`
+	Comparison        *comparisonSummary      `json:"comparison,omitempty"`
 	RawLogsCommitted  bool                    `json:"raw_logs_committed"`
 	RawLogsNote       string                  `json:"raw_logs_note"`
 	TokenUsageCaveat  string                  `json:"token_usage_caveat"`
@@ -104,6 +106,23 @@ type verificationResult struct {
 	Weights       []weightState `json:"weights"`
 }
 
+type comparisonSummary struct {
+	BaselineReport string            `json:"baseline_report"`
+	Entries        []comparisonEntry `json:"entries"`
+}
+
+type comparisonEntry struct {
+	Variant                       string   `json:"variant"`
+	Scenario                      string   `json:"scenario"`
+	Result                        string   `json:"result"`
+	ToolCallsDelta                *int     `json:"tool_calls_delta,omitempty"`
+	AssistantCallsDelta           *int     `json:"assistant_calls_delta,omitempty"`
+	WallSecondsDelta              *float64 `json:"wall_seconds_delta,omitempty"`
+	NonCachedInputTokensDelta     *int     `json:"non_cached_input_tokens_delta,omitempty"`
+	GeneratedFileInspectionChange string   `json:"generated_file_inspection_change"`
+	ModuleCacheInspectionChange   string   `json:"module_cache_inspection_change"`
+}
+
 type weightState struct {
 	Date  string  `json:"date"`
 	Value float64 `json:"value"`
@@ -151,6 +170,7 @@ func runCommand(args []string) {
 	fs := flag.NewFlagSet("run", flag.ExitOnError)
 	runRootFlag := fs.String("run-root", "", "directory for raw run artifacts outside the repo")
 	dateFlag := fs.String("date", time.Now().Format(time.DateOnly), "report date in YYYY-MM-DD form")
+	compareToFlag := fs.String("compare-to", "", "optional baseline JSON report path for comparison")
 	if err := fs.Parse(args); err != nil {
 		failf("parse flags: %v", err)
 	}
@@ -219,6 +239,13 @@ func runCommand(args []string) {
 		limitation = "A session-file count changed while evals ran; this may be from another Codex process, because the harness uses --ephemeral and a throwaway cwd."
 	}
 
+	outDir := filepath.Join(repoRoot, "docs", "agent-eval-results")
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		failf("create result directory: %v", err)
+	}
+	jsonPath := filepath.Join(outDir, fmt.Sprintf("%s-%s.json", issueID, *dateFlag))
+	mdPath := filepath.Join(outDir, fmt.Sprintf("%s-%s.md", issueID, *dateFlag))
+
 	outReport := report{
 		Issue:           issueID,
 		Date:            *dateFlag,
@@ -239,23 +266,24 @@ func runCommand(args []string) {
 		CommandTemplate: []string{
 			"OPENHEALTH_DATABASE_PATH=<run-root>/<variant>/<scenario>/openhealth.db",
 			"GOCACHE=<run-root>/<variant>/<scenario>/gocache",
-			"GOMODCACHE=<run-root>/<variant>/<scenario>/gomodcache",
+			"GOMODCACHE=<run-root>/<variant>/<scenario>/gomodcache (prewarmed with go mod download before agent execution)",
 			"codex exec --json --ephemeral --full-auto --skip-git-repo-check --add-dir <run-root>/<variant>/<scenario> -C <run-root>/<variant>/<scenario>/repo -m gpt-5.4-mini -c model_reasoning_effort=\"medium\" -c shell_environment_policy.inherit=all <natural user prompt>",
 		},
-		CLIStatus:         "runnable: cli variant uses go run ./cmd/openhealth weight add/list",
+		CLIStatus:         "runnable: cli variant uses go run ./cmd/openhealth weight add/list with a prewarmed per-scenario module cache",
+		MetricNotes:       metricNotes(*dateFlag, results),
 		Results:           results,
 		RawLogsCommitted:  false,
 		RawLogsNote:       "Raw codex exec event logs and stderr files were retained under <run-root> during execution and intentionally not committed.",
 		TokenUsageCaveat:  "Token metrics come from codex exec turn.completed usage events when exposed; unavailable usage must be recorded as not_exposed.",
 		AppServerFallback: "not used: codex exec --json exposed enough event detail for this run",
 	}
-
-	outDir := filepath.Join(repoRoot, "docs", "agent-eval-results")
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
-		failf("create result directory: %v", err)
+	baseline, baselineRef, err := baselineReport(repoRoot, outDir, jsonPath, *compareToFlag)
+	if err != nil {
+		failf("read baseline report: %v", err)
 	}
-	jsonPath := filepath.Join(outDir, fmt.Sprintf("%s-%s.json", issueID, *dateFlag))
-	mdPath := filepath.Join(outDir, fmt.Sprintf("%s-%s.md", issueID, *dateFlag))
+	if baseline != nil {
+		outReport.Comparison = compareReports(*baseline, outReport, baselineRef)
+	}
 	if err := writeJSON(jsonPath, outReport); err != nil {
 		failf("write JSON report: %v", err)
 	}
@@ -339,6 +367,9 @@ func runOne(repoRoot string, runRoot string, currentVariant variant, currentScen
 	}
 	if err := installVariant(repoRoot, runRepo, currentVariant); err != nil {
 		return runResult{}, fmt.Errorf("install variant: %w", err)
+	}
+	if err := warmGoModules(runRepo, runDir, dbPath); err != nil {
+		return runResult{}, fmt.Errorf("warm go modules: %w", err)
 	}
 	if err := seedScenario(dbPath, currentScenario); err != nil {
 		return runResult{}, fmt.Errorf("seed scenario: %w", err)
@@ -431,6 +462,17 @@ func evalEnv(runDir string, dbPath string) []string {
 	return env
 }
 
+func warmGoModules(runRepo string, runDir string, dbPath string) error {
+	cmd := exec.Command("go", "mod", "download")
+	cmd.Dir = runRepo
+	cmd.Env = evalEnv(runDir, dbPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
 type evalPaths struct {
 	GoCache    string
 	GoModCache string
@@ -492,6 +534,11 @@ func scenarios() []scenario {
 			Prompt: "Please show every local OpenHealth weight history entry dated 03/29/2026 or 03/30/2026 only, newest first. Use the configured local data path. Include each entry dated 03/30/2026 and 03/29/2026 if present. In the final answer, mention only entries in that requested range; do not mention excluded dates at all.",
 		},
 		{
+			ID:     "bounded-range-natural",
+			Title:  "List a naturally phrased bounded date range",
+			Prompt: "Can you show my OpenHealth weights for Mar 29 and Mar 30, 2026, newest first? Use the configured local data path.",
+		},
+		{
 			ID:     "ambiguous-short-date",
 			Title:  "Clarify an ambiguous short date without writing",
 			Prompt: "Please add this local OpenHealth weight: 03/29 152.2 lbs. There is no year context in this conversation or my request.",
@@ -533,7 +580,7 @@ func seedScenario(dbPath string, sc scenario) error {
 		return upsertWeights(ctx, api, []weightState{
 			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
 		})
-	case "bounded-range":
+	case "bounded-range", "bounded-range-natural":
 		return upsertWeights(ctx, api, []weightState{
 			{Date: "2026-03-28", Value: 153.0, Unit: "lb"},
 			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
@@ -595,15 +642,14 @@ func verifyScenario(dbPath string, sc scenario, finalMessage string) (verificati
 		result.DatabasePass = weightsEqual(states, expected)
 		result.AssistantPass = true
 		result.Details = fmt.Sprintf("expected one updated row; observed %s%s", describeWeights(states), listErrorDetail)
-	case "bounded-range":
+	case "bounded-range", "bounded-range-natural":
 		expectedDB := []weightState{
 			{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
 			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
 			{Date: "2026-03-28", Value: 153.0, Unit: "lb"},
 		}
 		result.DatabasePass = weightsEqual(states, expectedDB)
-		result.AssistantPass = mentionsDatesInOrder(finalMessage, "2026-03-30", "2026-03-29") &&
-			!mentionsDate(finalMessage, "2026-03-28")
+		result.AssistantPass = boundedRangeAssistantPass(finalMessage)
 		result.Details = fmt.Sprintf("expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed %s%s", describeWeights(states), listErrorDetail)
 	case "ambiguous-short-date":
 		result.DatabasePass = len(states) == 0
@@ -920,6 +966,182 @@ func writeJSON(path string, value any) error {
 	return os.WriteFile(path, data.Bytes(), 0o644)
 }
 
+func baselineReport(repoRoot string, outDir string, targetPath string, explicitPath string) (*report, string, error) {
+	if explicitPath != "" {
+		path := explicitPath
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(repoRoot, path)
+		}
+		value, err := readReport(path)
+		if err != nil {
+			return nil, "", err
+		}
+		return value, repoRelativePath(repoRoot, path), nil
+	}
+
+	if fileExists(targetPath) {
+		value, err := readReport(targetPath)
+		if err != nil {
+			return nil, "", err
+		}
+		return value, repoRelativePath(repoRoot, targetPath), nil
+	}
+
+	matches, err := filepath.Glob(filepath.Join(outDir, issueID+"-*.json"))
+	if err != nil {
+		return nil, "", err
+	}
+	var latest string
+	for _, match := range matches {
+		if match == targetPath {
+			continue
+		}
+		if latest == "" || match > latest {
+			latest = match
+		}
+	}
+	if latest == "" {
+		return nil, "", nil
+	}
+	value, err := readReport(latest)
+	if err != nil {
+		return nil, "", err
+	}
+	return value, repoRelativePath(repoRoot, latest), nil
+}
+
+func readReport(path string) (*report, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+	var value report
+	if err := json.NewDecoder(file).Decode(&value); err != nil {
+		return nil, err
+	}
+	return &value, nil
+}
+
+func compareReports(baseline report, current report, baselineRef string) *comparisonSummary {
+	baselineByKey := map[string]runResult{}
+	for _, result := range baseline.Results {
+		baselineByKey[resultKey(result.Variant, result.Scenario)] = result
+	}
+	entries := make([]comparisonEntry, 0, len(current.Results))
+	for _, currentResult := range current.Results {
+		baselineResult, ok := baselineByKey[resultKey(currentResult.Variant, currentResult.Scenario)]
+		entry := comparisonEntry{
+			Variant:  currentResult.Variant,
+			Scenario: currentResult.Scenario,
+		}
+		if !ok {
+			entry.Result = "new"
+			entries = append(entries, entry)
+			continue
+		}
+		entry.Result = resultDelta(baselineResult.Passed, currentResult.Passed)
+		entry.ToolCallsDelta = intDelta(baselineResult.Metrics.ToolCalls, currentResult.Metrics.ToolCalls)
+		entry.AssistantCallsDelta = intDelta(baselineResult.Metrics.AssistantCalls, currentResult.Metrics.AssistantCalls)
+		entry.WallSecondsDelta = floatDelta(baselineResult.WallSeconds, currentResult.WallSeconds)
+		entry.NonCachedInputTokensDelta = optionalIntDelta(baselineResult.Metrics.NonCachedInputTokens, currentResult.Metrics.NonCachedInputTokens)
+		entry.GeneratedFileInspectionChange = boolChange(baselineResult.Metrics.GeneratedFileInspected, currentResult.Metrics.GeneratedFileInspected)
+		entry.ModuleCacheInspectionChange = boolChange(baselineResult.Metrics.ModuleCacheInspected, currentResult.Metrics.ModuleCacheInspected)
+		entries = append(entries, entry)
+	}
+	return &comparisonSummary{
+		BaselineReport: baselineRef,
+		Entries:        entries,
+	}
+}
+
+func metricNotes(reportDate string, results []runResult) []string {
+	productionGenerated := []string{}
+	productionModuleCache := []string{}
+	for _, result := range results {
+		if result.Variant != "production" {
+			continue
+		}
+		if result.Metrics.GeneratedFileInspected {
+			productionGenerated = append(productionGenerated, result.Scenario)
+		}
+		if result.Metrics.ModuleCacheInspected {
+			productionModuleCache = append(productionModuleCache, result.Scenario)
+		}
+	}
+
+	notes := []string{}
+	if len(productionGenerated) > 0 {
+		notes = append(notes, fmt.Sprintf("Production generated-file inspection remained in %s. In the inspected %s run logs, these flags came from broad repository discovery searches surfacing generated paths in command output, not from generated-client recipes being required for correctness.", strings.Join(productionGenerated, ", "), reportDate))
+	}
+	if len(productionModuleCache) > 0 {
+		notes = append(notes, fmt.Sprintf("Production module-cache inspection remained in %s. In the inspected %s run logs, this came from environment/module checks rather than browsing dependency source.", strings.Join(productionModuleCache, ", "), reportDate))
+	}
+	return notes
+}
+
+func resultKey(variant string, scenario string) string {
+	return variant + "/" + scenario
+}
+
+func resultDelta(was bool, now bool) string {
+	switch {
+	case was && now:
+		return "same_pass"
+	case !was && !now:
+		return "same_fail"
+	case was && !now:
+		return "regressed"
+	default:
+		return "fixed"
+	}
+}
+
+func intDelta(was int, now int) *int {
+	delta := now - was
+	return &delta
+}
+
+func optionalIntDelta(was *int, now *int) *int {
+	if was == nil || now == nil {
+		return nil
+	}
+	return intDelta(*was, *now)
+}
+
+func floatDelta(was float64, now float64) *float64 {
+	delta := roundSeconds(now - was)
+	return &delta
+}
+
+func boolChange(was bool, now bool) string {
+	switch {
+	case was == now && now:
+		return "same_yes"
+	case was == now && !now:
+		return "same_no"
+	case was && !now:
+		return "improved_to_no"
+	default:
+		return "regressed_to_yes"
+	}
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func repoRelativePath(repoRoot string, path string) string {
+	rel, err := filepath.Rel(repoRoot, path)
+	if err != nil {
+		return filepath.ToSlash(path)
+	}
+	return filepath.ToSlash(rel)
+}
+
 func writeMarkdown(path string, value report) error {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# oh-5yr Agent Eval Results\n\n")
@@ -963,6 +1185,35 @@ func writeMarkdown(path string, value report) error {
 			yesNo(result.Metrics.GeneratedFileInspected),
 			yesNo(result.Metrics.ModuleCacheInspected),
 		)
+	}
+
+	if value.Comparison != nil {
+		fmt.Fprintf(&b, "\n## Comparison\n\n")
+		fmt.Fprintf(&b, "Baseline: `%s`.\n\n", value.Comparison.BaselineReport)
+		fmt.Fprintf(&b, "| Variant | Scenario | Result | Tools Δ | Assistant Calls Δ | Wall Seconds Δ | Non-cache Tokens Δ | Generated Files | Module Cache |\n")
+		fmt.Fprintf(&b, "| --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- |\n")
+		for _, entry := range value.Comparison.Entries {
+			fmt.Fprintf(
+				&b,
+				"| `%s` | `%s` | %s | %s | %s | %s | %s | %s | %s |\n",
+				entry.Variant,
+				entry.Scenario,
+				entry.Result,
+				formatIntDelta(entry.ToolCallsDelta),
+				formatIntDelta(entry.AssistantCallsDelta),
+				formatFloatDelta(entry.WallSecondsDelta),
+				formatIntDelta(entry.NonCachedInputTokensDelta),
+				entry.GeneratedFileInspectionChange,
+				entry.ModuleCacheInspectionChange,
+			)
+		}
+	}
+
+	if len(value.MetricNotes) > 0 {
+		fmt.Fprintf(&b, "\n## Metric Notes\n\n")
+		for _, note := range value.MetricNotes {
+			fmt.Fprintf(&b, "- %s\n", note)
+		}
 	}
 
 	fmt.Fprintf(&b, "\n## Scenario Notes\n\n")
@@ -1100,6 +1351,58 @@ func mentionsDate(message string, date string) bool {
 	return dateMentionIndex(message, date) >= 0
 }
 
+func boundedRangeAssistantPass(message string) bool {
+	previous := -1
+	for _, date := range []string{"2026-03-30", "2026-03-29"} {
+		index := includedDateResultLineIndex(message, date)
+		if index < 0 || index <= previous {
+			return false
+		}
+		previous = index
+	}
+	return !mentionsIncludedDate(message, "2026-03-28")
+}
+
+func mentionsIncludedDate(message string, date string) bool {
+	return includedDateResultLineIndex(message, date) >= 0
+}
+
+func includedDateResultLineIndex(message string, date string) int {
+	offset := 0
+	for _, line := range strings.SplitAfter(message, "\n") {
+		dateIndex := dateMentionIndex(line, date)
+		if dateIndex < 0 {
+			offset += len(line)
+			continue
+		}
+		if lineMentionsExclusion(line) {
+			offset += len(line)
+			continue
+		}
+		if lineLooksLikeResult(line) {
+			return offset + dateIndex
+		}
+		offset += len(line)
+	}
+	return -1
+}
+
+func lineMentionsExclusion(line string) bool {
+	lower := strings.ToLower(line)
+	return containsAny(lower, []string{"no entries", "not included", "not include", "excluded", "outside", "do not include"})
+}
+
+func lineLooksLikeResult(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	if strings.HasPrefix(trimmed, "-") || strings.HasPrefix(trimmed, "*") {
+		return true
+	}
+	if len(trimmed) >= 2 && unicode.IsDigit(rune(trimmed[0])) && (trimmed[1] == '.' || trimmed[1] == ')') {
+		return true
+	}
+	return strings.Contains(strings.ToLower(trimmed), " lb")
+}
+
 func mentionsDatesInOrder(message string, dates ...string) bool {
 	previous := -1
 	for _, date := range dates {
@@ -1148,6 +1451,8 @@ func promptSummary(sc scenario) string {
 		return "correct 2026-03-29 from 152.2 lb to 151.6 lb"
 	case "bounded-range":
 		return "list only 2026-03-29 through 2026-03-30 from preseeded rows"
+	case "bounded-range-natural":
+		return "naturally ask for 2026-03-29 and 2026-03-30 from preseeded rows"
 	case "ambiguous-short-date":
 		return "ask for year before writing 03/29 152.2 lb"
 	case "invalid-input":
@@ -1240,6 +1545,20 @@ func yesNo(value bool) string {
 		return "yes"
 	}
 	return "no"
+}
+
+func formatIntDelta(value *int) string {
+	if value == nil {
+		return "n/a"
+	}
+	return fmt.Sprintf("%+d", *value)
+}
+
+func formatFloatDelta(value *float64) string {
+	if value == nil {
+		return "n/a"
+	}
+	return fmt.Sprintf("%+.2f", *value)
 }
 
 func deref(value *int) int {

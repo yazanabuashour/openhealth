@@ -37,5 +37,15 @@ combine generated-client, SDK, and CLI recipes in the same production skill.
 - Add the same date and unit with a different value and assert the existing entry
   is updated through the idempotent path.
 - List a bounded date range.
+- List the same bounded date range with natural date wording.
 - Reject or clarify ambiguous short dates when the year cannot be inferred.
 - Reject invalid unit and invalid value inputs.
+
+## Iteration Reports
+
+When a previous reduced JSON report is available, include a comparison section
+that calls out pass/fail deltas, tool-call deltas, assistant-call deltas, wall
+time deltas, non-cache token deltas, generated-file inspection changes, and
+module-cache inspection changes. Treat correctness regressions as blockers;
+treat metric-only movement as review context unless generated-file or
+module-cache inspection regresses.

@@ -16,10 +16,16 @@ root with `go run ./cmd/openhealth`.
   explicit year context. Ask for the year instead of writing.
 - Do not convert unsupported units. The CLI accepts `lb` only.
 - Do not write non-positive, missing, or otherwise invalid values.
+- Treat direct SQLite access as a read-only fallback. Do not manually insert,
+  update, delete, or soft-delete rows in SQLite for write or correction tasks.
+  If the CLI cannot run because Go modules, runtime setup, or network access is
+  unavailable, report that blocker instead of mutating the database directly.
 
 ## Add Weight Entries
 
-Use `weight add` with an ISO date, positive value, and `lb` unit.
+Use `weight add` with an ISO date, positive value, and `lb` unit. The command
+is idempotent for a date: if a same-day weight already exists, use `weight add`
+with the corrected value and the command will update the existing row safely.
 
 ```bash
 go run ./cmd/openhealth weight add --date 2026-03-29 --value 152.2 --unit lb

@@ -3,20 +3,24 @@
 
 ## OpenHealth User Data Requests
 
-For direct local OpenHealth weight or blood-pressure requests, act as a product
-data agent, not a repo maintainer. Do not run `bd prime`, inspect `.agents`,
-source/generated files, the Go module cache, or SQLite, or search the repo
-before the first runner call.
+For direct local OpenHealth weight, blood-pressure, medication, or lab requests,
+act as a product data agent, not a repo maintainer. Do not run `bd prime`,
+inspect `.agents`, source/generated files, the Go module cache, or SQLite, or
+search the repo before the first runner call.
 
 Reject final-answer-only, with exactly one assistant answer and no tools or DB
 check, for ambiguous short dates with no year, year-first slash dates like
-`2026/03/31`, non-positive values, or unsupported units. Do not first announce
-skill use or process. `03/29/2026` may become `2026-03-29`.
+`2026/03/31`, non-positive values, unsupported units, unsupported lab analyte
+slugs, unsupported medication status, empty optional text fields, or medication
+end dates before start dates. Do not first announce skill use or process.
+`03/29/2026` may become `2026-03-29`.
 
-For valid tasks, pipe JSON to `go run ./cmd/openhealth-agentops weight` or
-`go run ./cmd/openhealth-agentops blood-pressure`. Use one call per domain for
-mixed requests and answer from JSON only; `entries` are newest-first. Use history
-with `limit:2` for "two most recent"; latest returns one row.
+For valid tasks, pipe JSON to `go run ./cmd/openhealth-agentops weight`,
+`go run ./cmd/openhealth-agentops blood-pressure`,
+`go run ./cmd/openhealth-agentops medications`, or
+`go run ./cmd/openhealth-agentops labs`. Use one call per domain for mixed
+requests and answer from JSON only; `entries` are newest-first. Use history with
+`limit:2` for "two most recent"; latest returns one row.
 
 Every request JSON must include `action`. Exact one-line shapes:
 `{"action":"upsert_weights","weights":[{"date":"2026-03-29","value":152.2,"unit":"lb"}]}`;
@@ -27,7 +31,19 @@ Every request JSON must include `action`. Exact one-line shapes:
 `{"action":"correct_blood_pressure","readings":[{"date":"2026-03-29","systolic":121,"diastolic":77,"pulse":63}]}`;
 `{"action":"list_blood_pressure","list_mode":"latest"}`;
 `{"action":"list_blood_pressure","list_mode":"history","limit":2}`;
-`{"action":"list_blood_pressure","list_mode":"range","from_date":"2026-03-29","to_date":"2026-03-30"}`.
+`{"action":"list_blood_pressure","list_mode":"range","from_date":"2026-03-29","to_date":"2026-03-30"}`;
+`{"action":"record_medications","medications":[{"name":"Levothyroxine","dosage_text":"25 mcg","start_date":"2026-01-01"}]}`;
+`{"action":"correct_medication","target":{"name":"Levothyroxine","start_date":"2026-01-01"},"medication":{"name":"Levothyroxine","dosage_text":"50 mcg","start_date":"2026-01-01","end_date":"2026-04-01"}}`;
+`{"action":"delete_medication","target":{"name":"Levothyroxine","start_date":"2026-01-01"}}`;
+`{"action":"list_medications","status":"active"}`;
+`{"action":"list_medications","status":"all"}`;
+`{"action":"record_labs","collections":[{"date":"2026-03-29","panels":[{"panel_name":"Metabolic","results":[{"test_name":"Glucose","canonical_slug":"glucose","value_text":"89","value_numeric":89,"units":"mg/dL","range_text":"70-99"}]}]}]}`;
+`{"action":"correct_labs","target":{"date":"2026-03-29"},"collection":{"date":"2026-03-29","panels":[{"panel_name":"Thyroid","results":[{"test_name":"TSH","canonical_slug":"tsh","value_text":"3.1","value_numeric":3.1,"units":"uIU/mL"}]}]}}`;
+`{"action":"delete_labs","target":{"date":"2026-03-29"}}`;
+`{"action":"list_labs","list_mode":"latest"}`;
+`{"action":"list_labs","list_mode":"history","limit":2}`;
+`{"action":"list_labs","list_mode":"range","from_date":"2026-03-29","to_date":"2026-03-30"}`;
+`{"action":"list_labs","list_mode":"latest","analyte_slug":"glucose"}`.
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker

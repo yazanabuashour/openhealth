@@ -162,6 +162,8 @@ type verificationResult struct {
 	Details        string               `json:"details"`
 	Weights        []weightState        `json:"weights,omitempty"`
 	BloodPressures []bloodPressureState `json:"blood_pressures,omitempty"`
+	Medications    []medicationState    `json:"medications,omitempty"`
+	Labs           []labCollectionState `json:"labs,omitempty"`
 }
 
 type comparisonSummary struct {
@@ -227,6 +229,26 @@ type bloodPressureState struct {
 	Systolic  int    `json:"systolic"`
 	Diastolic int    `json:"diastolic"`
 	Pulse     *int   `json:"pulse,omitempty"`
+}
+
+type medicationState struct {
+	Name       string  `json:"name"`
+	DosageText *string `json:"dosage_text,omitempty"`
+	StartDate  string  `json:"start_date"`
+	EndDate    *string `json:"end_date,omitempty"`
+}
+
+type labCollectionState struct {
+	Date    string           `json:"date"`
+	Results []labResultState `json:"results"`
+}
+
+type labResultState struct {
+	TestName      string   `json:"test_name"`
+	CanonicalSlug *string  `json:"canonical_slug,omitempty"`
+	ValueText     string   `json:"value_text"`
+	ValueNumeric  *float64 `json:"value_numeric,omitempty"`
+	Units         *string  `json:"units,omitempty"`
 }
 
 type codexEvent struct {
@@ -536,6 +558,9 @@ func evalJobsFor(selectedVariants []variant, selectedScenarios []scenario) []eva
 	jobs := make([]evalJob, 0, len(selectedVariants)*len(selectedScenarios))
 	for _, currentVariant := range selectedVariants {
 		for _, currentScenario := range selectedScenarios {
+			if currentVariant.ID == "cli" && !hasCLIBaselineScenario(currentScenario.ID) {
+				continue
+			}
 			jobs = append(jobs, evalJob{
 				Index:    len(jobs),
 				Variant:  currentVariant,
@@ -1251,6 +1276,66 @@ func scenarios() []scenario {
 			Prompt: "Please add these local OpenHealth entries: weight 03/31/2026 -5 stone and blood pressure 03/31/2026 0/-5 pulse 0.",
 		},
 		{
+			ID:     "medication-add-list",
+			Title:  "Record medications and list active courses",
+			Prompt: "Use the configured local OpenHealth data path. Record these medications: Levothyroxine 25 mcg starting 01/01/2026 and Vitamin D starting 02/01/2026 ending 03/01/2026. Then list my active medications only.",
+		},
+		{
+			ID:     "medication-correct",
+			Title:  "Correct an existing medication course",
+			Prompt: "Use the configured local OpenHealth data path. Correct my Levothyroxine medication that started 01/01/2026 so the dosage is 50 mcg. Tell me what is stored now.",
+		},
+		{
+			ID:     "medication-delete",
+			Title:  "Delete an existing medication course",
+			Prompt: "Use the configured local OpenHealth data path. Delete the Vitamin D medication course that started 02/01/2026. Then list all medications.",
+		},
+		{
+			ID:     "medication-invalid-date",
+			Title:  "Reject an invalid medication date without writing",
+			Prompt: "Please add this local OpenHealth medication exactly as written: Levothyroxine 25 mcg starting 2026/01/01. Do not normalize or rewrite the date if OpenHealth requires another date format.",
+		},
+		{
+			ID:     "medication-end-before-start",
+			Title:  "Reject a medication end date before start date",
+			Prompt: "Please add this local OpenHealth medication: Levothyroxine 25 mcg starting 01/02/2026 and ending 01/01/2026.",
+		},
+		{
+			ID:     "lab-record-list",
+			Title:  "Record labs and list latest collection",
+			Prompt: "Use the configured local OpenHealth data path. Record a lab collection for 03/29/2026 with a Metabolic panel containing Glucose 89 mg/dL, canonical analyte glucose, range 70-99. Then show my latest lab collection.",
+		},
+		{
+			ID:     "lab-range",
+			Title:  "List a bounded lab date range",
+			Prompt: "Use the configured local OpenHealth data path. Show my OpenHealth lab collections for Mar 29 and Mar 30, 2026 only, newest first. Do not mention entries outside that requested range.",
+		},
+		{
+			ID:     "lab-latest-analyte",
+			Title:  "List latest lab result for a canonical analyte",
+			Prompt: "Use the configured local OpenHealth data path. What is my latest glucose lab result? Mention only the latest matching collection/result.",
+		},
+		{
+			ID:     "lab-correct",
+			Title:  "Correct an existing lab collection",
+			Prompt: "Use the configured local OpenHealth data path. Correct my lab collection dated 03/29/2026 so it has a Thyroid panel with TSH 3.1 uIU/mL, canonical analyte tsh. Tell me what is stored now.",
+		},
+		{
+			ID:     "lab-delete",
+			Title:  "Delete an existing lab collection",
+			Prompt: "Use the configured local OpenHealth data path. Delete my lab collection dated 03/29/2026. Then list lab collections.",
+		},
+		{
+			ID:     "lab-invalid-slug",
+			Title:  "Reject an unsupported lab analyte slug without writing",
+			Prompt: "Please add this local OpenHealth lab for 03/29/2026: UnknownTest 1 mg/dL with canonical analyte unsupported. Do not write it if the analyte is unsupported.",
+		},
+		{
+			ID:     "mixed-medication-lab",
+			Title:  "Record medication and lab data, then report latest domain entries",
+			Prompt: "Use the configured local OpenHealth data path. Record Levothyroxine 25 mcg starting 01/01/2026 and a 03/29/2026 glucose lab result of 89 mg/dL. Then tell me the active medication and latest lab result.",
+		},
+		{
 			ID:    "mt-weight-clarify-then-add",
 			Title: "Clarify missing year, then add weight in a resumed turn",
 			Turns: []scenarioTurn{
@@ -1436,6 +1521,17 @@ func seedScenario(dbPath string, sc scenario) error {
 			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
 			{Date: "2026-03-29", Systolic: 120, Diastolic: 76},
 		})
+	case "medication-correct", "medication-delete":
+		return recordMedications(ctx, api, []medicationState{
+			{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01"},
+			{Name: "Vitamin D", StartDate: "2026-02-01", EndDate: stringPointer("2026-03-01")},
+		})
+	case "lab-range", "lab-latest-analyte", "lab-correct", "lab-delete":
+		return recordLabs(ctx, api, []labCollectionState{
+			{Date: "2026-03-28", Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "91", ValueNumeric: floatPointer(91), Units: stringPointer("mg/dL")}}},
+			{Date: "2026-03-29", Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}},
+			{Date: "2026-03-30", Results: []labResultState{{TestName: "TSH", CanonicalSlug: stringPointer("tsh"), ValueText: "3.4", ValueNumeric: floatPointer(3.4), Units: stringPointer("uIU/mL")}}},
+		})
 	default:
 		return nil
 	}
@@ -1476,6 +1572,46 @@ func recordBloodPressures(ctx context.Context, api *client.LocalClient, readings
 	return nil
 }
 
+func recordMedications(ctx context.Context, api *client.LocalClient, medications []medicationState) error {
+	for _, medication := range medications {
+		if _, err := api.CreateMedicationCourse(ctx, client.MedicationCourseInput{
+			Name:       medication.Name,
+			DosageText: medication.DosageText,
+			StartDate:  medication.StartDate,
+			EndDate:    medication.EndDate,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func recordLabs(ctx context.Context, api *client.LocalClient, collections []labCollectionState) error {
+	for _, collection := range collections {
+		collectedAt, err := parseDate(collection.Date)
+		if err != nil {
+			return err
+		}
+		results := make([]client.LabResultInput, 0, len(collection.Results))
+		for _, result := range collection.Results {
+			results = append(results, client.LabResultInput{
+				TestName:      result.TestName,
+				CanonicalSlug: clientAnalyteSlug(result.CanonicalSlug),
+				ValueText:     result.ValueText,
+				ValueNumeric:  result.ValueNumeric,
+				Units:         result.Units,
+			})
+		}
+		if _, err := api.CreateLabCollection(ctx, client.LabCollectionInput{
+			CollectedAt: collectedAt,
+			Panels:      []client.LabPanelInput{{PanelName: "Panel", Results: results}},
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func verifyScenario(dbPath string, sc scenario, finalMessage string) (verificationResult, error) {
 	return verifyScenarioTurn(dbPath, sc, len(scenarioTurns(sc)), finalMessage)
 }
@@ -1486,6 +1622,12 @@ func verifyScenarioTurn(dbPath string, sc scenario, turnIndex int, finalMessage 
 	}
 	if isBloodPressureScenario(sc.ID) {
 		return verifyBloodPressureScenario(dbPath, sc, finalMessage)
+	}
+	if isMedicationScenario(sc.ID) {
+		return verifyMedicationScenario(dbPath, sc, finalMessage)
+	}
+	if isLabScenario(sc.ID) {
+		return verifyLabScenario(dbPath, sc, finalMessage)
 	}
 
 	weights, err := listWeights(dbPath)
@@ -1577,11 +1719,23 @@ func verifyMixedOrMultiTurnScenario(dbPath string, sc scenario, turnIndex int, f
 	if err != nil {
 		return verificationResult{}, fmt.Errorf("list blood pressures: %w", err)
 	}
+	medications, err := listMedications(dbPath)
+	if err != nil {
+		return verificationResult{}, fmt.Errorf("list medications: %w", err)
+	}
+	labs, err := listLabs(dbPath)
+	if err != nil {
+		return verificationResult{}, fmt.Errorf("list labs: %w", err)
+	}
 	weightStates := weightStates(weights)
 	bloodPressureStates := bloodPressureStates(bloodPressures)
+	medicationStates := medicationStates(medications)
+	labStates := labCollectionStates(labs)
 	result := verificationResult{
 		Weights:        weightStates,
 		BloodPressures: bloodPressureStates,
+		Medications:    medicationStates,
+		Labs:           labStates,
 	}
 
 	switch sc.ID {
@@ -1609,6 +1763,12 @@ func verifyMixedOrMultiTurnScenario(dbPath string, sc scenario, turnIndex int, f
 		result.DatabasePass = len(weightStates) == 0 && len(bloodPressureStates) == 0
 		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"invalid", "positive", "unsupported", "cannot", "can't", "reject", "stone", "systolic", "diastolic"})
 		result.Details = fmt.Sprintf("expected no mixed-domain writes and a direct invalid input rejection; observed weights %s and blood pressures %s", describeWeights(weightStates), describeBloodPressures(bloodPressureStates))
+	case "mixed-medication-lab":
+		expectedMedications := []medicationState{{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01"}}
+		expectedLabs := []labCollectionState{{Date: "2026-03-29", Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}}}
+		result.DatabasePass = medicationsEqual(medicationStates, expectedMedications) && labsEqual(labStates, expectedLabs) && len(weightStates) == 0 && len(bloodPressureStates) == 0
+		result.AssistantPass = containsAll(finalMessage, []string{"Levothyroxine", "25 mcg", "Glucose", "89"})
+		result.Details = fmt.Sprintf("expected one medication and one glucose lab; observed medications %s and labs %s", describeMedications(medicationStates), describeLabs(labStates))
 	case "mt-weight-clarify-then-add":
 		if turnIndex == 1 {
 			result.DatabasePass = len(weightStates) == 0 && len(bloodPressureStates) == 0
@@ -1756,6 +1916,111 @@ func verifyBloodPressureScenario(dbPath string, sc scenario, finalMessage string
 	return result, nil
 }
 
+func verifyMedicationScenario(dbPath string, sc scenario, finalMessage string) (verificationResult, error) {
+	medications, err := listMedications(dbPath)
+	if err != nil {
+		return verificationResult{}, fmt.Errorf("list medications: %w", err)
+	}
+	states := medicationStates(medications)
+	result := verificationResult{Medications: states}
+
+	switch sc.ID {
+	case "medication-add-list":
+		expected := []medicationState{
+			{Name: "Vitamin D", StartDate: "2026-02-01", EndDate: stringPointer("2026-03-01")},
+			{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01"},
+		}
+		result.DatabasePass = medicationsEqual(states, expected)
+		result.AssistantPass = containsAll(finalMessage, []string{"Levothyroxine", "25 mcg"}) && !strings.Contains(strings.ToLower(finalMessage), "vitamin d")
+		result.Details = fmt.Sprintf("expected two stored medications and active output limited to Levothyroxine; observed %s", describeMedications(states))
+	case "medication-correct":
+		expected := []medicationState{
+			{Name: "Vitamin D", StartDate: "2026-02-01", EndDate: stringPointer("2026-03-01")},
+			{Name: "Levothyroxine", DosageText: stringPointer("50 mcg"), StartDate: "2026-01-01"},
+		}
+		result.DatabasePass = medicationsEqual(states, expected)
+		result.AssistantPass = containsAll(finalMessage, []string{"Levothyroxine", "50 mcg"})
+		result.Details = fmt.Sprintf("expected Levothyroxine dosage correction; observed %s", describeMedications(states))
+	case "medication-delete":
+		expected := []medicationState{{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01"}}
+		result.DatabasePass = medicationsEqual(states, expected)
+		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"deleted", "removed", "no vitamin d"}) && containsAll(finalMessage, []string{"Levothyroxine"})
+		result.Details = fmt.Sprintf("expected Vitamin D deleted and Levothyroxine retained; observed %s", describeMedications(states))
+	case "medication-invalid-date":
+		result.DatabasePass = len(states) == 0
+		result.AssistantPass = nonISODateRejectAssistantPass(finalMessage)
+		result.Details = fmt.Sprintf("expected no write and strict medication date rejection; observed %s", describeMedications(states))
+	case "medication-end-before-start":
+		result.DatabasePass = len(states) == 0
+		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"end", "start", "before", "invalid", "cannot", "can't", "reject"})
+		result.Details = fmt.Sprintf("expected no write and end-before-start rejection; observed %s", describeMedications(states))
+	default:
+		return verificationResult{}, fmt.Errorf("unknown medication scenario %q", sc.ID)
+	}
+	result.Passed = result.DatabasePass && result.AssistantPass
+	return result, nil
+}
+
+func verifyLabScenario(dbPath string, sc scenario, finalMessage string) (verificationResult, error) {
+	labs, err := listLabs(dbPath)
+	if err != nil {
+		return verificationResult{}, fmt.Errorf("list labs: %w", err)
+	}
+	states := labCollectionStates(labs)
+	result := verificationResult{Labs: states}
+
+	switch sc.ID {
+	case "lab-record-list":
+		expected := []labCollectionState{{Date: "2026-03-29", Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}}}
+		result.DatabasePass = labsEqual(states, expected)
+		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "Glucose", "89"})
+		result.Details = fmt.Sprintf("expected one glucose lab collection; observed %s", describeLabs(states))
+	case "lab-range":
+		expected := []labCollectionState{
+			{Date: "2026-03-30", Results: []labResultState{{TestName: "TSH", CanonicalSlug: stringPointer("tsh"), ValueText: "3.4", ValueNumeric: floatPointer(3.4), Units: stringPointer("uIU/mL")}}},
+			{Date: "2026-03-29", Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}},
+			{Date: "2026-03-28", Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "91", ValueNumeric: floatPointer(91), Units: stringPointer("mg/dL")}}},
+		}
+		result.DatabasePass = labsEqual(states, expected)
+		result.AssistantPass = mentionsDatesInOrder(finalMessage, "2026-03-30", "2026-03-29") && !mentionsIncludedDate(finalMessage, "2026-03-28")
+		result.Details = fmt.Sprintf("expected unchanged lab seed rows and output limited to 2026-03-29..2026-03-30; observed %s", describeLabs(states))
+	case "lab-latest-analyte":
+		expected := []labCollectionState{
+			{Date: "2026-03-30", Results: []labResultState{{TestName: "TSH", CanonicalSlug: stringPointer("tsh"), ValueText: "3.4", ValueNumeric: floatPointer(3.4), Units: stringPointer("uIU/mL")}}},
+			{Date: "2026-03-29", Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}},
+			{Date: "2026-03-28", Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "91", ValueNumeric: floatPointer(91), Units: stringPointer("mg/dL")}}},
+		}
+		result.DatabasePass = labsEqual(states, expected)
+		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "Glucose", "89"}) && !mentionsIncludedDate(finalMessage, "2026-03-28")
+		result.Details = fmt.Sprintf("expected unchanged lab seed rows and latest glucose answer; observed %s", describeLabs(states))
+	case "lab-correct":
+		expected := []labCollectionState{
+			{Date: "2026-03-30", Results: []labResultState{{TestName: "TSH", CanonicalSlug: stringPointer("tsh"), ValueText: "3.4", ValueNumeric: floatPointer(3.4), Units: stringPointer("uIU/mL")}}},
+			{Date: "2026-03-29", Results: []labResultState{{TestName: "TSH", CanonicalSlug: stringPointer("tsh"), ValueText: "3.1", ValueNumeric: floatPointer(3.1), Units: stringPointer("uIU/mL")}}},
+			{Date: "2026-03-28", Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "91", ValueNumeric: floatPointer(91), Units: stringPointer("mg/dL")}}},
+		}
+		result.DatabasePass = labsEqual(states, expected)
+		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "TSH", "3.1"})
+		result.Details = fmt.Sprintf("expected 2026-03-29 lab correction; observed %s", describeLabs(states))
+	case "lab-delete":
+		expected := []labCollectionState{
+			{Date: "2026-03-30", Results: []labResultState{{TestName: "TSH", CanonicalSlug: stringPointer("tsh"), ValueText: "3.4", ValueNumeric: floatPointer(3.4), Units: stringPointer("uIU/mL")}}},
+			{Date: "2026-03-28", Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "91", ValueNumeric: floatPointer(91), Units: stringPointer("mg/dL")}}},
+		}
+		result.DatabasePass = labsEqual(states, expected)
+		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"deleted", "removed", "no lab"}) && !mentionsIncludedDate(finalMessage, "2026-03-29")
+		result.Details = fmt.Sprintf("expected 2026-03-29 lab deleted; observed %s", describeLabs(states))
+	case "lab-invalid-slug":
+		result.DatabasePass = len(states) == 0
+		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"unsupported", "analyte", "invalid", "cannot", "can't", "reject"})
+		result.Details = fmt.Sprintf("expected no write and unsupported analyte rejection; observed %s", describeLabs(states))
+	default:
+		return verificationResult{}, fmt.Errorf("unknown lab scenario %q", sc.ID)
+	}
+	result.Passed = result.DatabasePass && result.AssistantPass
+	return result, nil
+}
+
 func listWeights(dbPath string) ([]client.WeightEntry, error) {
 	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: dbPath})
 	if err != nil {
@@ -1776,6 +2041,28 @@ func listBloodPressures(dbPath string) ([]client.BloodPressureEntry, error) {
 		_ = api.Close()
 	}()
 	return api.ListBloodPressure(context.Background(), client.BloodPressureListOptions{Limit: 100})
+}
+
+func listMedications(dbPath string) ([]client.MedicationCourse, error) {
+	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: dbPath})
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = api.Close()
+	}()
+	return api.ListMedicationCourses(context.Background(), client.MedicationListOptions{Status: client.MedicationStatusAll})
+}
+
+func listLabs(dbPath string) ([]client.LabCollection, error) {
+	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: dbPath})
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = api.Close()
+	}()
+	return api.ListLabCollections(context.Background())
 }
 
 func listRawWeights(dbPath string) ([]weightState, error) {
@@ -1833,6 +2120,46 @@ func bloodPressureStates(readings []client.BloodPressureEntry) []bloodPressureSt
 			Diastolic: reading.Diastolic,
 			Pulse:     reading.Pulse,
 		})
+	}
+	return states
+}
+
+func medicationStates(medications []client.MedicationCourse) []medicationState {
+	states := make([]medicationState, 0, len(medications))
+	for _, medication := range medications {
+		states = append(states, medicationState{
+			Name:       medication.Name,
+			DosageText: medication.DosageText,
+			StartDate:  medication.StartDate,
+			EndDate:    medication.EndDate,
+		})
+	}
+	return states
+}
+
+func labCollectionStates(collections []client.LabCollection) []labCollectionState {
+	states := make([]labCollectionState, 0, len(collections))
+	for _, collection := range collections {
+		state := labCollectionState{
+			Date: collection.CollectedAt.Format(time.DateOnly),
+		}
+		for _, panel := range collection.Panels {
+			for _, result := range panel.Results {
+				var slug *string
+				if result.CanonicalSlug != nil {
+					value := string(*result.CanonicalSlug)
+					slug = &value
+				}
+				state.Results = append(state.Results, labResultState{
+					TestName:      result.TestName,
+					CanonicalSlug: slug,
+					ValueText:     result.ValueText,
+					ValueNumeric:  result.ValueNumeric,
+					Units:         result.Units,
+				})
+			}
+		}
+		states = append(states, state)
 	}
 	return states
 }
@@ -2054,11 +2381,11 @@ func installVariantAgentsFile(runRepo string, currentVariant variant) error {
 	case "production":
 		content = `# OpenHealth Eval Instructions
 
-For direct local OpenHealth weight or blood-pressure requests, act as a product data agent, not a repo maintainer. Do not inspect .agents, source/generated files, go.mod, the Go module cache, or SQLite, or search the repo before the first runner call.
+For direct local OpenHealth weight, blood-pressure, medication, or lab requests, act as a product data agent, not a repo maintainer. Do not inspect .agents, source/generated files, the Go module cache, or SQLite, or search the repo before the first runner call.
 
-Reject final-answer-only, with exactly one assistant answer and no tools or DB check, for ambiguous short dates with no year, year-first slash dates like 2026/03/31, non-positive values, or unsupported units. Do not first announce skill use or process. 03/29/2026 may become 2026-03-29.
+Reject final-answer-only, with exactly one assistant answer and no tools or DB check, for ambiguous short dates with no year, year-first slash dates like 2026/03/31, non-positive values, unsupported units, unsupported lab analyte slugs, unsupported medication status, empty optional text fields, or medication end dates before start dates. Do not first announce skill use or process. 03/29/2026 may become 2026-03-29.
 
-For valid tasks, pipe JSON to go run ./cmd/openhealth-agentops weight or go run ./cmd/openhealth-agentops blood-pressure. Use one call per domain for mixed requests and answer from JSON only; entries are newest-first. Use history with limit:2 for "two most recent"; latest returns one row.
+For valid tasks, pipe JSON to go run ./cmd/openhealth-agentops weight, go run ./cmd/openhealth-agentops blood-pressure, go run ./cmd/openhealth-agentops medications, or go run ./cmd/openhealth-agentops labs. Use one call per domain for mixed requests and answer from JSON only; entries are newest-first. Use history with limit:2 for "two most recent"; latest returns one row.
 
 Every request JSON must include action. Exact one-line shapes:
 {"action":"upsert_weights","weights":[{"date":"2026-03-29","value":152.2,"unit":"lb"}]}
@@ -2070,6 +2397,18 @@ Every request JSON must include action. Exact one-line shapes:
 {"action":"list_blood_pressure","list_mode":"latest"}
 {"action":"list_blood_pressure","list_mode":"history","limit":2}
 {"action":"list_blood_pressure","list_mode":"range","from_date":"2026-03-29","to_date":"2026-03-30"}
+{"action":"record_medications","medications":[{"name":"Levothyroxine","dosage_text":"25 mcg","start_date":"2026-01-01"}]}
+{"action":"correct_medication","target":{"name":"Levothyroxine","start_date":"2026-01-01"},"medication":{"name":"Levothyroxine","dosage_text":"50 mcg","start_date":"2026-01-01","end_date":"2026-04-01"}}
+{"action":"delete_medication","target":{"name":"Levothyroxine","start_date":"2026-01-01"}}
+{"action":"list_medications","status":"active"}
+{"action":"list_medications","status":"all"}
+{"action":"record_labs","collections":[{"date":"2026-03-29","panels":[{"panel_name":"Metabolic","results":[{"test_name":"Glucose","canonical_slug":"glucose","value_text":"89","value_numeric":89,"units":"mg/dL","range_text":"70-99"}]}]}]}
+{"action":"correct_labs","target":{"date":"2026-03-29"},"collection":{"date":"2026-03-29","panels":[{"panel_name":"Thyroid","results":[{"test_name":"TSH","canonical_slug":"tsh","value_text":"3.1","value_numeric":3.1,"units":"uIU/mL"}]}]}}
+{"action":"delete_labs","target":{"date":"2026-03-29"}}
+{"action":"list_labs","list_mode":"latest"}
+{"action":"list_labs","list_mode":"history","limit":2}
+{"action":"list_labs","list_mode":"range","from_date":"2026-03-29","to_date":"2026-03-30"}
+{"action":"list_labs","list_mode":"latest","analyte_slug":"glucose"}
 `
 	case "cli":
 		content = `# OpenHealth CLI Eval Instructions
@@ -2420,6 +2759,7 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 	validationFinalAnswerOnly := true
 	validationFinalAnswerFailures := []string{}
 	totalCandidateTools := 0
+	totalComparableCandidateTools := 0
 	totalCLITools := 0
 	totalCandidateNonCached := 0
 	totalCLINonCached := 0
@@ -2430,6 +2770,7 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 	scenariosAtOrBelowCLI := 0
 	routineExceedsCLIByMoreThanOne := []string{}
 	missingCLI := []string{}
+	comparableScenarios := 0
 
 	candidateScenarioIDs := []string{}
 	for _, scenario := range scenarioIDs() {
@@ -2439,7 +2780,8 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 		}
 		candidateScenarioIDs = append(candidateScenarioIDs, scenario)
 		cli, hasCLI := cliByScenario[scenario]
-		if !hasCLI {
+		requiresCLI := hasCLIBaselineScenario(scenario)
+		if !hasCLI && requiresCLI {
 			missingCLI = append(missingCLI, scenario)
 		}
 		if !candidate.Passed {
@@ -2472,6 +2814,8 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 			CandidateTools: candidate.Metrics.ToolCalls,
 		}
 		if hasCLI {
+			comparableScenarios++
+			totalComparableCandidateTools += candidate.Metrics.ToolCalls
 			totalCLITools += cli.Metrics.ToolCalls
 			row.CLIPass = cli.Passed
 			row.CLITools = cli.Metrics.ToolCalls
@@ -2499,8 +2843,11 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 		}
 		entries = append(entries, row)
 	}
-	requiredAtOrBelowCLI := requiredScenariosAtOrBelowCLI(len(candidateScenarioIDs))
-	requiredTokenWins := strictMajority(tokenMajorityScenarios)
+	requiredAtOrBelowCLI := requiredScenariosAtOrBelowCLI(comparableScenarios)
+	requiredTokenWins := 0
+	if tokenMajorityScenarios > 0 {
+		requiredTokenWins = strictMajority(tokenMajorityScenarios)
+	}
 
 	criteria := []codeFirstCriterion{
 		{
@@ -2540,13 +2887,13 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 		},
 		{
 			Name:    "total_tools_less_than_or_equal_cli",
-			Passed:  len(missingCLI) == 0 && totalCandidateTools <= totalCLITools,
-			Details: fmt.Sprintf("%s tools %d vs cli tools %d", candidateVariant, totalCandidateTools, totalCLITools),
+			Passed:  len(missingCLI) == 0 && totalComparableCandidateTools <= totalCLITools,
+			Details: fmt.Sprintf("%s comparable tools %d vs cli tools %d; production-only tools %d", candidateVariant, totalComparableCandidateTools, totalCLITools, totalCandidateTools-totalComparableCandidateTools),
 		},
 		{
 			Name:    "minimum_scenarios_at_or_below_cli",
 			Passed:  scenariosAtOrBelowCLI >= requiredAtOrBelowCLI,
-			Details: fmt.Sprintf("%d scenarios at or below CLI tools; required %d of %d", scenariosAtOrBelowCLI, requiredAtOrBelowCLI, len(candidateScenarioIDs)),
+			Details: fmt.Sprintf("%d comparable scenarios at or below CLI tools; required %d of %d", scenariosAtOrBelowCLI, requiredAtOrBelowCLI, comparableScenarios),
 		},
 		{
 			Name:    "no_routine_scenario_exceeds_cli_by_more_than_one_tool",
@@ -2625,7 +2972,8 @@ func nonCachedTokens(result runResult) (int, bool) {
 func isFinalAnswerOnlyValidationScenario(id string) bool {
 	switch id {
 	case "ambiguous-short-date", "invalid-input", "non-iso-date-reject",
-		"bp-invalid-input", "bp-non-iso-date-reject", "mixed-invalid-direct-reject":
+		"bp-invalid-input", "bp-non-iso-date-reject", "mixed-invalid-direct-reject",
+		"medication-invalid-date", "medication-end-before-start", "lab-invalid-slug":
 		return true
 	default:
 		return false
@@ -2666,11 +3014,18 @@ func isRoutineScenario(id string) bool {
 	case "add-two", "repeat-add", "update-existing", "bounded-range", "bounded-range-natural", "latest-only", "history-limit-two",
 		"bp-add-two", "bp-latest-only", "bp-history-limit-two", "bp-bounded-range", "bp-bounded-range-natural",
 		"bp-correct-existing", "bp-correct-missing-reject", "bp-correct-ambiguous-reject",
-		"mixed-add-latest", "mixed-bounded-range", "mt-bp-latest-then-correct", "mt-mixed-latest-then-correct":
+		"mixed-add-latest", "mixed-bounded-range", "mt-bp-latest-then-correct", "mt-mixed-latest-then-correct",
+		"medication-add-list", "medication-correct", "medication-delete",
+		"lab-record-list", "lab-range", "lab-latest-analyte", "lab-correct", "lab-delete",
+		"mixed-medication-lab":
 		return true
 	default:
 		return false
 	}
+}
+
+func hasCLIBaselineScenario(id string) bool {
+	return !isMedicationScenario(id) && !isLabScenario(id) && id != "mixed-medication-lab"
 }
 
 func isMixedScenario(id string) bool {
@@ -2679,6 +3034,14 @@ func isMixedScenario(id string) bool {
 
 func isBloodPressureScenario(id string) bool {
 	return strings.HasPrefix(id, "bp-")
+}
+
+func isMedicationScenario(id string) bool {
+	return strings.HasPrefix(id, "medication-")
+}
+
+func isLabScenario(id string) bool {
+	return strings.HasPrefix(id, "lab-")
 }
 
 func sortedJoin(values []string) string {
@@ -3065,11 +3428,41 @@ func intPointer(value int) *int {
 	return &value
 }
 
+func stringPointer(value string) *string {
+	return &value
+}
+
+func floatPointer(value float64) *float64 {
+	return &value
+}
+
+func clientAnalyteSlug(value *string) *client.AnalyteSlug {
+	if value == nil {
+		return nil
+	}
+	slug := client.AnalyteSlug(*value)
+	return &slug
+}
+
 func equalIntPointer(left *int, right *int) bool {
 	if left == nil || right == nil {
 		return left == right
 	}
 	return *left == *right
+}
+
+func equalStringPointer(left *string, right *string) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
+}
+
+func equalFloatPointer(left *float64, right *float64) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return math.Abs(*left-*right) < 0.001
 }
 
 func weightsEqual(got []weightState, want []weightState) bool {
@@ -3099,6 +3492,42 @@ func bloodPressuresEqual(got []bloodPressureState, want []bloodPressureState) bo
 	return true
 }
 
+func medicationsEqual(got []medicationState, want []medicationState) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i].Name != want[i].Name ||
+			got[i].StartDate != want[i].StartDate ||
+			!equalStringPointer(got[i].DosageText, want[i].DosageText) ||
+			!equalStringPointer(got[i].EndDate, want[i].EndDate) {
+			return false
+		}
+	}
+	return true
+}
+
+func labsEqual(got []labCollectionState, want []labCollectionState) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i].Date != want[i].Date || len(got[i].Results) != len(want[i].Results) {
+			return false
+		}
+		for j := range got[i].Results {
+			if got[i].Results[j].TestName != want[i].Results[j].TestName ||
+				!equalStringPointer(got[i].Results[j].CanonicalSlug, want[i].Results[j].CanonicalSlug) ||
+				got[i].Results[j].ValueText != want[i].Results[j].ValueText ||
+				!equalFloatPointer(got[i].Results[j].ValueNumeric, want[i].Results[j].ValueNumeric) ||
+				!equalStringPointer(got[i].Results[j].Units, want[i].Results[j].Units) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func describeWeights(weights []weightState) string {
 	if len(weights) == 0 {
 		return "[]"
@@ -3121,6 +3550,40 @@ func describeBloodPressures(readings []bloodPressureState) string {
 			pulse = fmt.Sprintf(" pulse %d", *reading.Pulse)
 		}
 		parts = append(parts, fmt.Sprintf("%s %d/%d%s", reading.Date, reading.Systolic, reading.Diastolic, pulse))
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+func describeMedications(medications []medicationState) string {
+	if len(medications) == 0 {
+		return "[]"
+	}
+	parts := make([]string, 0, len(medications))
+	for _, medication := range medications {
+		dosage := ""
+		if medication.DosageText != nil {
+			dosage = " " + *medication.DosageText
+		}
+		end := ""
+		if medication.EndDate != nil {
+			end = " to " + *medication.EndDate
+		}
+		parts = append(parts, fmt.Sprintf("%s%s from %s%s", medication.Name, dosage, medication.StartDate, end))
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+func describeLabs(collections []labCollectionState) string {
+	if len(collections) == 0 {
+		return "[]"
+	}
+	parts := make([]string, 0, len(collections))
+	for _, collection := range collections {
+		results := make([]string, 0, len(collection.Results))
+		for _, result := range collection.Results {
+			results = append(results, fmt.Sprintf("%s %s", result.TestName, result.ValueText))
+		}
+		parts = append(parts, fmt.Sprintf("%s (%s)", collection.Date, strings.Join(results, ", ")))
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
 }
@@ -3348,6 +3811,10 @@ func lineLooksLikeResult(line string) bool {
 	}
 	lower := strings.ToLower(trimmed)
 	return strings.Contains(lower, " lb") ||
+		strings.Contains(lower, "glucose") ||
+		strings.Contains(lower, "tsh") ||
+		strings.Contains(lower, "mg/dl") ||
+		strings.Contains(lower, "uiu/ml") ||
 		(strings.Contains(lower, `"date"`) &&
 			strings.Contains(lower, `"value"`) &&
 			(strings.Contains(lower, `"unit":"lb"`) || strings.Contains(lower, `"unit": "lb"`)))
@@ -3439,6 +3906,30 @@ func promptSummary(sc scenario) string {
 		return "list only 2026-03-29 through 2026-03-30 for both domains"
 	case "mixed-invalid-direct-reject":
 		return "reject invalid mixed weight and blood-pressure values without tools"
+	case "medication-add-list":
+		return "record two medications, then list active medications"
+	case "medication-correct":
+		return "correct Levothyroxine dosage from 25 mcg to 50 mcg"
+	case "medication-delete":
+		return "delete Vitamin D and list all medications"
+	case "medication-invalid-date":
+		return "reject medication date 2026/01/01 without tools"
+	case "medication-end-before-start":
+		return "reject medication end date before start date without tools"
+	case "lab-record-list":
+		return "record one glucose lab collection and list latest labs"
+	case "lab-range":
+		return "list only 2026-03-29 through 2026-03-30 lab collections"
+	case "lab-latest-analyte":
+		return "list only the latest glucose lab result"
+	case "lab-correct":
+		return "correct 2026-03-29 lab collection to TSH"
+	case "lab-delete":
+		return "delete 2026-03-29 lab collection"
+	case "lab-invalid-slug":
+		return "reject unsupported lab analyte without tools"
+	case "mixed-medication-lab":
+		return "record one medication and one lab result, then report both"
 	case "mt-weight-clarify-then-add":
 		return "ask for missing year, then add 2026-03-29 152.2 lb in a resumed turn"
 	case "mt-bp-latest-then-correct":
@@ -3613,7 +4104,12 @@ func onlyAgentSkillTargets(targets []string) bool {
 	}
 	for _, target := range targets {
 		cleaned := filepath.ToSlash(strings.Trim(target, `"'`))
-		if !strings.HasPrefix(cleaned, ".agents/skills/") && !strings.HasPrefix(cleaned, "skills/openhealth/") && cleaned != "references/weights.md" {
+		if !strings.HasPrefix(cleaned, ".agents/skills/") &&
+			!strings.HasPrefix(cleaned, "skills/openhealth/") &&
+			cleaned != "references/weights.md" &&
+			cleaned != "references/blood-pressure.md" &&
+			cleaned != "references/medications.md" &&
+			cleaned != "references/labs.md" {
 			return false
 		}
 	}
@@ -3684,7 +4180,7 @@ func segmentUsesOpenHealthCLI(segment string) bool {
 		}
 		if (field == "openhealth" || strings.HasSuffix(field, "/openhealth")) && i+1 < len(fields) {
 			switch fields[i+1] {
-			case "weight", "blood-pressure", "migrate", "serve":
+			case "weight", "blood-pressure", "medications", "labs", "migrate", "serve":
 				return true
 			}
 		}

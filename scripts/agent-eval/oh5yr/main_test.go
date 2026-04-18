@@ -159,6 +159,34 @@ func TestVariantsIncludeCLI(t *testing.T) {
 	}
 }
 
+func TestInstallVariantAgentsFileIncludesProductionOnlyDomains(t *testing.T) {
+	t.Parallel()
+
+	runRepo := t.TempDir()
+	if err := installVariantAgentsFile(runRepo, variant{ID: "production"}); err != nil {
+		t.Fatalf("installVariantAgentsFile: %v", err)
+	}
+	content, err := os.ReadFile(filepath.Join(runRepo, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	text := string(content)
+	for _, want := range []string{
+		"medication, or lab requests",
+		"go run ./cmd/openhealth-agentops medications",
+		"go run ./cmd/openhealth-agentops labs",
+		"record_medications",
+		"list_medications",
+		"record_labs",
+		"list_labs",
+		"unsupported lab analyte slugs",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("production AGENTS missing %q in %s", want, text)
+		}
+	}
+}
+
 func TestSanitizeMetricEvidenceRedactsCustomRunRoots(t *testing.T) {
 	t.Parallel()
 
@@ -310,6 +338,24 @@ func TestRunEvalJobsPreservesOrderAndHarnessErrors(t *testing.T) {
 	}
 	if failed.PromptSummary == "" {
 		t.Fatalf("failed result prompt summary is empty: %#v", failed)
+	}
+}
+
+func TestEvalJobsSkipsCLIBaselineForProductionOnlyScenarios(t *testing.T) {
+	t.Parallel()
+
+	jobs := evalJobsFor([]variant{
+		{ID: "production", Title: "Production"},
+		{ID: "cli", Title: "CLI"},
+	}, []scenario{
+		{ID: "medication-add-list", Title: "Medication", Prompt: "prompt"},
+	})
+
+	if len(jobs) != 1 {
+		t.Fatalf("jobs = %#v, want only production job", jobs)
+	}
+	if jobs[0].Variant.ID != "production" || jobs[0].Scenario.ID != "medication-add-list" {
+		t.Fatalf("job = %#v, want production medication-add-list", jobs[0])
 	}
 }
 
@@ -1763,6 +1809,27 @@ func TestCodeFirstSummaryFailsWhenNonCachedTokenMajorityLoses(t *testing.T) {
 	criterion := criterionByName(summary.Criteria, "non_cached_token_majority")
 	if criterion.Passed || !strings.Contains(criterion.Details, "required") {
 		t.Fatalf("token majority criterion = %#v, want failure", criterion)
+	}
+}
+
+func TestCodeFirstSummaryAllowsProductionOnlyScenarioWithoutCLI(t *testing.T) {
+	t.Parallel()
+
+	summary := codeFirstSummaryFor([]runResult{{
+		Variant:  "production",
+		Scenario: "medication-add-list",
+		Passed:   true,
+		Metrics:  testMetrics(1, 50),
+	}}, "production")
+	if summary == nil {
+		t.Fatal("codeFirstSummaryFor returned nil")
+	}
+	if !summary.BeatsCLI {
+		t.Fatalf("beats_cli = false, criteria = %#v", summary.Criteria)
+	}
+	criterion := criterionByName(summary.Criteria, "non_cached_token_majority")
+	if !criterion.Passed || !strings.Contains(criterion.Details, "required 0 of 0") {
+		t.Fatalf("token majority criterion = %#v, want production-only pass", criterion)
 	}
 }
 

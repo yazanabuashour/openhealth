@@ -55,14 +55,26 @@ func TestProductionSkillUsesAgentOpsForRoutineUserData(t *testing.T) {
 	for _, want := range []string{
 		"agentops.RunWeightTask",
 		"agentops.RunBloodPressureTask",
+		"agentops.RunMedicationTask",
+		"agentops.RunLabTask",
 		"go run ./cmd/openhealth-agentops weight",
 		"go run ./cmd/openhealth-agentops blood-pressure",
+		"go run ./cmd/openhealth-agentops medications",
+		"go run ./cmd/openhealth-agentops labs",
 		"upsert_weights",
 		"record_blood_pressure",
 		"list_blood_pressure",
+		"record_medications",
+		"correct_medication",
+		"list_medications",
+		"record_labs",
+		"correct_labs",
+		"list_labs",
 		"Do not run repo-wide file discovery or broad searches",
 		"references/weights.md",
 		"references/blood-pressure.md",
+		"references/medications.md",
+		"references/labs.md",
 		"reject directly without running code",
 		"AgentOps `entries` are already newest-first",
 		"2026/03/31",
@@ -103,6 +115,51 @@ func TestBloodPressureReferenceDocumentsCorrection(t *testing.T) {
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("blood pressure reference missing %q", want)
+		}
+	}
+}
+
+func TestMedicationAndLabReferencesDocumentCorrectionAndDeletion(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		path string
+		want []string
+	}{
+		{
+			path: filepath.Join("references", "medications.md"),
+			want: []string{
+				"record_medications",
+				"correct_medication",
+				"delete_medication",
+				"already_exists",
+				"target must match exactly one medication",
+				"rejection_reason",
+			},
+		},
+		{
+			path: filepath.Join("references", "labs.md"),
+			want: []string{
+				"record_labs",
+				"correct_labs",
+				"delete_labs",
+				"already_exists",
+				"target must match exactly one lab collection",
+				"analyte_slug",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		content, err := os.ReadFile(tt.path)
+		if err != nil {
+			t.Fatalf("read %s: %v", tt.path, err)
+		}
+		text := string(content)
+		for _, want := range tt.want {
+			if !strings.Contains(text, want) {
+				t.Fatalf("%s missing %q", tt.path, want)
+			}
 		}
 	}
 }

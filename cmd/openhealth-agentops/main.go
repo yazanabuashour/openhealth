@@ -33,6 +33,10 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) err
 		return runWeight(args[1:], stdin, stdout)
 	case "blood-pressure":
 		return runBloodPressure(args[1:], stdin, stdout)
+	case "medications":
+		return runMedications(args[1:], stdin, stdout)
+	case "labs":
+		return runLabs(args[1:], stdin, stdout)
 	default:
 		_ = writeUsage(stderr)
 		return fmt.Errorf("unknown AgentOps domain %q", args[0])
@@ -69,6 +73,42 @@ func runBloodPressure(args []string, stdin io.Reader, stdout io.Writer) error {
 	}
 
 	result, err := agentops.RunBloodPressureTask(context.Background(), config, request)
+	if err != nil {
+		return err
+	}
+	return encodeResult(stdout, result)
+}
+
+func runMedications(args []string, stdin io.Reader, stdout io.Writer) error {
+	config, err := parseLocalConfig("medications", args)
+	if err != nil {
+		return err
+	}
+
+	var request agentops.MedicationTaskRequest
+	if err := decodeRequest(stdin, &request); err != nil {
+		return err
+	}
+
+	result, err := agentops.RunMedicationTask(context.Background(), config, request)
+	if err != nil {
+		return err
+	}
+	return encodeResult(stdout, result)
+}
+
+func runLabs(args []string, stdin io.Reader, stdout io.Writer) error {
+	config, err := parseLocalConfig("labs", args)
+	if err != nil {
+		return err
+	}
+
+	var request agentops.LabTaskRequest
+	if err := decodeRequest(stdin, &request); err != nil {
+		return err
+	}
+
+	result, err := agentops.RunLabTask(context.Background(), config, request)
 	if err != nil {
 		return err
 	}
@@ -115,6 +155,8 @@ func writeUsage(w io.Writer) error {
 	_, err := fmt.Fprint(w, `Usage:
   openhealth-agentops weight [-db path] < request.json
   openhealth-agentops blood-pressure [-db path] < request.json
+  openhealth-agentops medications [-db path] < request.json
+  openhealth-agentops labs [-db path] < request.json
 `)
 	return err
 }

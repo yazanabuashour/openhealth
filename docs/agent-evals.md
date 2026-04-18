@@ -21,12 +21,16 @@ The `oh-5yr` harness covers routine local user-data tasks:
 - blood-pressure record/correction, latest/history/range listing, and invalid
   input rejection
 - mixed weight and blood-pressure requests in one user task
+- production-only medication record/correction/delete/list and invalid input
+  rejection
+- production-only lab record/correction/delete/latest/history/range/analyte
+  listing and invalid input rejection
 - true multi-turn requests that require clarification or conversational context
 
-Labs and medications are intentionally outside the active agent-facing eval
-surface for oh-23a. They exist in lower-level OpenHealth APIs, but AgentOps
-request shapes, safety rules, correction semantics, and eval coverage should be
-defined separately before exposing them as supported agent domains.
+Medication and lab scenarios are production-only until a human-facing CLI
+baseline exists for those domains. They still gate production correctness and
+hygiene, including no broad repo search, generated-file inspection,
+module-cache inspection, direct SQLite access, or CLI usage.
 
 Every scenario uses a fresh ephemeral agent session, an isolated copied repo, a
 fresh local database path, and reduced JSON/Markdown artifacts. Raw event logs
@@ -87,8 +91,11 @@ Production AgentOps beats CLI only when:
 - rule-covered invalid-input scenarios are final-answer-only: no tools, no
   command executions, and at most one assistant answer
 - production total tools are less than or equal to CLI total tools
+- production total tools are less than or equal to CLI total tools across
+  scenarios supported by both variants
 - production ties or beats CLI tools in at least 80% of comparable scenarios
-- no routine production scenario exceeds CLI by more than one tool
+- no routine production scenario with CLI coverage exceeds CLI by more than one
+  tool
 - production has lower non-cached input tokens than CLI in a strict majority of
   comparable scenarios with exposed usage
 - production total non-cached input tokens are less than or equal to CLI total

@@ -72,6 +72,62 @@ func TestRunBloodPressureJSONRoundTrip(t *testing.T) {
 	})
 }
 
+func TestRunMedicationsJSONRoundTrip(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
+
+	record := `{"action":"record_medications","medications":[{"name":"Levothyroxine","dosage_text":"25 mcg","start_date":"2026-01-01"},{"name":"Vitamin D","start_date":"2026-02-01","end_date":"2026-03-01"}]}`
+	var recordStdout bytes.Buffer
+	if err := run([]string{"medications", "--db", databasePath}, strings.NewReader(record), &recordStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run medications record: %v", err)
+	}
+	var recordResult agentops.MedicationTaskResult
+	decodeJSON(t, recordStdout.Bytes(), &recordResult)
+	if len(recordResult.Writes) != 2 {
+		t.Fatalf("writes = %d, want 2", len(recordResult.Writes))
+	}
+	assertMedicationEntries(t, recordResult.Entries, []agentops.MedicationEntry{
+		{Name: "Vitamin D", StartDate: "2026-02-01", EndDate: stringPointer("2026-03-01")},
+		{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01"},
+	})
+
+	list := `{"action":"list_medications","status":"all"}`
+	var listStdout bytes.Buffer
+	if err := run([]string{"medications", "--db", databasePath}, strings.NewReader(list), &listStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run medications list: %v", err)
+	}
+	var listResult agentops.MedicationTaskResult
+	decodeJSON(t, listStdout.Bytes(), &listResult)
+	assertMedicationEntries(t, listResult.Entries, []agentops.MedicationEntry{
+		{Name: "Vitamin D", StartDate: "2026-02-01", EndDate: stringPointer("2026-03-01")},
+		{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01"},
+	})
+}
+
+func TestRunLabsJSONRoundTrip(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
+
+	record := `{"action":"record_labs","collections":[{"date":"2026-03-29","panels":[{"panel_name":"Metabolic","results":[{"test_name":"Glucose","canonical_slug":"glucose","value_text":"89","value_numeric":89,"units":"mg/dL","range_text":"70-99"}]}]},{"date":"2026-03-30","panels":[{"panel_name":"Thyroid","results":[{"test_name":"TSH","canonical_slug":"tsh","value_text":"3.1","units":"uIU/mL"}]}]}]}`
+	var recordStdout bytes.Buffer
+	if err := run([]string{"labs", "--db", databasePath}, strings.NewReader(record), &recordStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run labs record: %v", err)
+	}
+	var recordResult agentops.LabTaskResult
+	decodeJSON(t, recordStdout.Bytes(), &recordResult)
+	if len(recordResult.Writes) != 2 {
+		t.Fatalf("writes = %d, want 2", len(recordResult.Writes))
+	}
+	assertLabEntryDates(t, recordResult.Entries, []string{"2026-03-30", "2026-03-29"})
+
+	list := `{"action":"list_labs","list_mode":"latest","analyte_slug":"glucose"}`
+	var listStdout bytes.Buffer
+	if err := run([]string{"labs", "--db", databasePath}, strings.NewReader(list), &listStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run labs list: %v", err)
+	}
+	var listResult agentops.LabTaskResult
+	decodeJSON(t, listStdout.Bytes(), &listResult)
+	assertLabEntryDates(t, listResult.Entries, []string{"2026-03-29"})
+}
+
 func TestRunValidationRejectionDoesNotCreateDatabase(t *testing.T) {
 	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
 	request := `{"action":"upsert_weights","weights":[{"date":"2026-03-31","value":-5,"unit":"stone"}]}`
@@ -98,8 +154,8 @@ func TestRunRejectsBadJSONAndUnknownDomain(t *testing.T) {
 	if err := run(nil, strings.NewReader("{}"), &stdout, ioDiscard{}); err == nil || !strings.Contains(err.Error(), "missing AgentOps domain") {
 		t.Fatalf("missing domain error = %v, want missing AgentOps domain", err)
 	}
-	if err := run([]string{"labs"}, strings.NewReader("{}"), &stdout, ioDiscard{}); err == nil || !strings.Contains(err.Error(), `unknown AgentOps domain "labs"`) {
-		t.Fatalf("unknown domain error = %v, want unknown labs domain", err)
+	if err := run([]string{"unknown"}, strings.NewReader("{}"), &stdout, ioDiscard{}); err == nil || !strings.Contains(err.Error(), `unknown AgentOps domain "unknown"`) {
+		t.Fatalf("unknown domain error = %v, want unknown domain", err)
 	}
 }
 
@@ -184,4 +240,46 @@ func equalIntPointers(a *int, b *int) bool {
 	default:
 		return *a == *b
 	}
+}
+
+func assertMedicationEntries(t *testing.T, got []agentops.MedicationEntry, want []agentops.MedicationEntry) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("entries = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i].Name != want[i].Name ||
+			got[i].StartDate != want[i].StartDate ||
+			!equalStringPointers(got[i].DosageText, want[i].DosageText) ||
+			!equalStringPointers(got[i].EndDate, want[i].EndDate) {
+			t.Fatalf("entries = %#v, want %#v", got, want)
+		}
+	}
+}
+
+func assertLabEntryDates(t *testing.T, got []agentops.LabCollectionEntry, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("entries = %#v, want dates %#v", got, want)
+	}
+	for i := range want {
+		if got[i].Date != want[i] {
+			t.Fatalf("entries = %#v, want dates %#v", got, want)
+		}
+	}
+}
+
+func equalStringPointers(a *string, b *string) bool {
+	switch {
+	case a == nil && b == nil:
+		return true
+	case a == nil || b == nil:
+		return false
+	default:
+		return *a == *b
+	}
+}
+
+func stringPointer(value string) *string {
+	return &value
 }

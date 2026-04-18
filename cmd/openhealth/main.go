@@ -2,539 +2,161 @@ package main
 
 import (
 	"context"
-	"database/sql"
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
-	"path/filepath"
-	"strings"
-	"time"
 
+	"github.com/yazanabuashour/openhealth/agentops"
 	"github.com/yazanabuashour/openhealth/client"
-	"github.com/yazanabuashour/openhealth/internal/app"
-	"github.com/yazanabuashour/openhealth/internal/health"
-	"github.com/yazanabuashour/openhealth/internal/httpapi"
-	"github.com/yazanabuashour/openhealth/internal/storage/sqlite"
 )
 
 func main() {
-	if err := run(os.Args[1:], os.Stdout, os.Stderr); err != nil {
+	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(args []string, stdout io.Writer, stderr io.Writer) error {
+func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 	if len(args) == 0 {
-		return writeUsage(stdout)
+		_ = writeUsage(stderr)
+		return errors.New("missing AgentOps domain")
 	}
 
 	switch args[0] {
 	case "help", "-h", "--help":
 		return writeUsage(stdout)
-	case "migrate":
-		return runMigrate(args[1:], stdout)
-	case "serve":
-		return runServe(args[1:], stdout)
 	case "weight":
-		return runWeight(args[1:], stdout)
+		return runWeight(args[1:], stdin, stdout)
 	case "blood-pressure":
-		return runBloodPressure(args[1:], stdout)
+		return runBloodPressure(args[1:], stdin, stdout)
+	case "medications":
+		return runMedications(args[1:], stdin, stdout)
+	case "labs":
+		return runLabs(args[1:], stdin, stdout)
 	default:
-		if err := writeUsage(stderr); err != nil {
-			return err
-		}
-		return fmt.Errorf("unknown command %q", args[0])
+		_ = writeUsage(stderr)
+		return fmt.Errorf("unknown AgentOps domain %q", args[0])
 	}
 }
 
-func runMigrate(args []string, stdout io.Writer) error {
-	fs := flag.NewFlagSet("migrate", flag.ContinueOnError)
+func runWeight(args []string, stdin io.Reader, stdout io.Writer) error {
+	config, err := parseLocalConfig("weight", args)
+	if err != nil {
+		return err
+	}
+
+	var request agentops.WeightTaskRequest
+	if err := decodeRequest(stdin, &request); err != nil {
+		return err
+	}
+
+	result, err := agentops.RunWeightTask(context.Background(), config, request)
+	if err != nil {
+		return err
+	}
+	return encodeResult(stdout, result)
+}
+
+func runBloodPressure(args []string, stdin io.Reader, stdout io.Writer) error {
+	config, err := parseLocalConfig("blood-pressure", args)
+	if err != nil {
+		return err
+	}
+
+	var request agentops.BloodPressureTaskRequest
+	if err := decodeRequest(stdin, &request); err != nil {
+		return err
+	}
+
+	result, err := agentops.RunBloodPressureTask(context.Background(), config, request)
+	if err != nil {
+		return err
+	}
+	return encodeResult(stdout, result)
+}
+
+func runMedications(args []string, stdin io.Reader, stdout io.Writer) error {
+	config, err := parseLocalConfig("medications", args)
+	if err != nil {
+		return err
+	}
+
+	var request agentops.MedicationTaskRequest
+	if err := decodeRequest(stdin, &request); err != nil {
+		return err
+	}
+
+	result, err := agentops.RunMedicationTask(context.Background(), config, request)
+	if err != nil {
+		return err
+	}
+	return encodeResult(stdout, result)
+}
+
+func runLabs(args []string, stdin io.Reader, stdout io.Writer) error {
+	config, err := parseLocalConfig("labs", args)
+	if err != nil {
+		return err
+	}
+
+	var request agentops.LabTaskRequest
+	if err := decodeRequest(stdin, &request); err != nil {
+		return err
+	}
+
+	result, err := agentops.RunLabTask(context.Background(), config, request)
+	if err != nil {
+		return err
+	}
+	return encodeResult(stdout, result)
+}
+
+func parseLocalConfig(name string, args []string) (client.LocalConfig, error) {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
 	databasePath := fs.String("db", "", "SQLite database path")
 	if err := fs.Parse(args); err != nil {
-		return err
+		return client.LocalConfig{}, err
 	}
 	if fs.NArg() != 0 {
-		return fmt.Errorf("migrate does not accept positional arguments")
-	}
-	if *databasePath == "" {
-		resolvedPath, err := resolveDefaultDatabasePath()
-		if err != nil {
-			return err
-		}
-		*databasePath = resolvedPath
+		return client.LocalConfig{}, fmt.Errorf("%s does not accept positional arguments", name)
 	}
 
-	db, err := openDatabase(*databasePath)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = db.Close()
-	}()
-
-	if err := sqlite.ApplyMigrations(context.Background(), db); err != nil {
-		return err
-	}
-
-	_, err = fmt.Fprintf(stdout, "migrations applied to %s\n", *databasePath)
-	return err
+	return client.LocalConfig{DatabasePath: *databasePath}, nil
 }
 
-func runServe(args []string, stdout io.Writer) error {
-	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-
-	addr := fs.String("listen", envOrDefault("OPENHEALTH_LISTEN_ADDR", ":8080"), "HTTP listen address")
-	databasePath := fs.String("db", "", "SQLite database path")
-	if err := fs.Parse(args); err != nil {
-		return err
+func decodeRequest[T any](stdin io.Reader, request *T) error {
+	decoder := json.NewDecoder(stdin)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(request); err != nil {
+		return fmt.Errorf("decode request JSON: %w", err)
 	}
-	if fs.NArg() != 0 {
-		return fmt.Errorf("serve does not accept positional arguments")
-	}
-	if *databasePath == "" {
-		resolvedPath, err := resolveDefaultDatabasePath()
-		if err != nil {
-			return err
+	var extra json.RawMessage
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return errors.New("decode request JSON: multiple JSON values are not supported")
 		}
-		*databasePath = resolvedPath
-	}
-
-	db, err := openDatabase(*databasePath)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = db.Close()
-	}()
-
-	if err := sqlite.EnsureCurrent(context.Background(), db); err != nil {
-		return err
-	}
-
-	repo := sqlite.NewRepository(db)
-	service := health.NewService(repo)
-	server := &http.Server{
-		Addr:              *addr,
-		Handler:           httpapi.NewHandler(service),
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-
-	if _, err := fmt.Fprintf(stdout, "%s\nserving %s using %s\n", app.Banner(), *addr, *databasePath); err != nil {
-		return err
-	}
-
-	return server.ListenAndServe()
-}
-
-func runWeight(args []string, stdout io.Writer) error {
-	if len(args) == 0 {
-		return writeWeightUsage(stdout)
-	}
-	switch args[0] {
-	case "help", "-h", "--help":
-		return writeWeightUsage(stdout)
-	case "add":
-		return runWeightAdd(args[1:], stdout)
-	case "list":
-		return runWeightList(args[1:], stdout)
-	default:
-		return fmt.Errorf("unknown weight command %q", args[0])
-	}
-}
-
-func runBloodPressure(args []string, stdout io.Writer) error {
-	if len(args) == 0 {
-		return writeBloodPressureUsage(stdout)
-	}
-	switch args[0] {
-	case "help", "-h", "--help":
-		return writeBloodPressureUsage(stdout)
-	case "add":
-		return runBloodPressureAdd(args[1:], stdout)
-	case "correct":
-		return runBloodPressureCorrect(args[1:], stdout)
-	case "list":
-		return runBloodPressureList(args[1:], stdout)
-	default:
-		return fmt.Errorf("unknown blood-pressure command %q", args[0])
-	}
-}
-
-func runWeightAdd(args []string, stdout io.Writer) error {
-	fs := flag.NewFlagSet("weight add", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-
-	databasePath := fs.String("db", "", "SQLite database path")
-	dateValue := fs.String("date", "", "Recorded date in YYYY-MM-DD form")
-	value := fs.Float64("value", 0, "Weight value")
-	unit := fs.String("unit", string(client.WeightUnitLb), "Weight unit")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if fs.NArg() != 0 {
-		return fmt.Errorf("weight add does not accept positional arguments")
-	}
-
-	recordedAt, err := parseCLIDateOnly(*dateValue)
-	if err != nil {
-		return err
-	}
-	if *value <= 0 {
-		return fmt.Errorf("value must be greater than 0")
-	}
-	if *unit != string(client.WeightUnitLb) {
-		return fmt.Errorf("unit must be lb")
-	}
-
-	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: *databasePath})
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = api.Close()
-	}()
-
-	result, err := api.UpsertWeight(context.Background(), client.WeightRecordInput{
-		RecordedAt: recordedAt,
-		Value:      *value,
-		Unit:       client.WeightUnit(*unit),
-	})
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(stdout, "%s %.1f %s %s\n", result.Entry.RecordedAt.Format(time.DateOnly), result.Entry.Value, result.Entry.Unit, result.Status)
-	return err
-}
-
-func runWeightList(args []string, stdout io.Writer) error {
-	fs := flag.NewFlagSet("weight list", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-
-	databasePath := fs.String("db", "", "SQLite database path")
-	fromValue := fs.String("from", "", "Start date in YYYY-MM-DD form")
-	toValue := fs.String("to", "", "End date in YYYY-MM-DD form")
-	limit := fs.Int("limit", 0, "Maximum number of rows")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if fs.NArg() != 0 {
-		return fmt.Errorf("weight list does not accept positional arguments")
-	}
-	if *limit < 0 {
-		return fmt.Errorf("limit must be greater than 0")
-	}
-
-	var from *time.Time
-	if *fromValue != "" {
-		parsed, err := parseCLIDateOnly(*fromValue)
-		if err != nil {
-			return err
-		}
-		from = &parsed
-	}
-	var to *time.Time
-	if *toValue != "" {
-		parsed, err := parseCLIDateOnly(*toValue)
-		if err != nil {
-			return err
-		}
-		endOfDay := parsed.Add(24*time.Hour - time.Nanosecond)
-		to = &endOfDay
-	}
-
-	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: *databasePath})
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = api.Close()
-	}()
-
-	weights, err := api.ListWeights(context.Background(), client.WeightListOptions{
-		From:  from,
-		To:    to,
-		Limit: *limit,
-	})
-	if err != nil {
-		return err
-	}
-	for _, weight := range weights {
-		if _, err := fmt.Fprintf(stdout, "%s %.1f %s\n", weight.RecordedAt.Format(time.DateOnly), weight.Value, weight.Unit); err != nil {
-			return err
-		}
+		return fmt.Errorf("decode request JSON: %w", err)
 	}
 	return nil
 }
 
-func runBloodPressureAdd(args []string, stdout io.Writer) error {
-	input, err := parseBloodPressureWriteArgs("add", args)
-	if err != nil {
-		return err
-	}
-
-	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: input.databasePath})
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = api.Close()
-	}()
-
-	result, err := api.RecordBloodPressure(context.Background(), client.BloodPressureRecordInput{
-		RecordedAt: input.recordedAt,
-		Systolic:   input.systolic,
-		Diastolic:  input.diastolic,
-		Pulse:      input.pulse,
-	})
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(stdout, "%s %d/%d%s created\n", result.RecordedAt.Format(time.DateOnly), result.Systolic, result.Diastolic, formatPulse(result.Pulse))
-	return err
-}
-
-func runBloodPressureCorrect(args []string, stdout io.Writer) error {
-	input, err := parseBloodPressureWriteArgs("correct", args)
-	if err != nil {
-		return err
-	}
-
-	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: input.databasePath})
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = api.Close()
-	}()
-
-	to := input.recordedAt.Add(24*time.Hour - time.Nanosecond)
-	existing, err := api.ListBloodPressure(context.Background(), client.BloodPressureListOptions{
-		From:  &input.recordedAt,
-		To:    &to,
-		Limit: 2,
-	})
-	if err != nil {
-		return err
-	}
-	switch len(existing) {
-	case 0:
-		return fmt.Errorf("no existing blood-pressure reading for %s", input.recordedAt.Format(time.DateOnly))
-	case 1:
-	default:
-		return fmt.Errorf("multiple blood-pressure readings for %s; correction is ambiguous", input.recordedAt.Format(time.DateOnly))
-	}
-
-	result, err := api.ReplaceBloodPressure(context.Background(), existing[0].ID, client.BloodPressureRecordInput{
-		RecordedAt: existing[0].RecordedAt,
-		Systolic:   input.systolic,
-		Diastolic:  input.diastolic,
-		Pulse:      input.pulse,
-	})
-	if err != nil {
-		return err
-	}
-	_, err = fmt.Fprintf(stdout, "%s %d/%d%s updated\n", result.RecordedAt.Format(time.DateOnly), result.Systolic, result.Diastolic, formatPulse(result.Pulse))
-	return err
-}
-
-type bloodPressureWriteInput struct {
-	databasePath string
-	recordedAt   time.Time
-	systolic     int
-	diastolic    int
-	pulse        *int
-}
-
-func parseBloodPressureWriteArgs(command string, args []string) (bloodPressureWriteInput, error) {
-	fs := flag.NewFlagSet("blood-pressure "+command, flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-
-	databasePath := fs.String("db", "", "SQLite database path")
-	dateValue := fs.String("date", "", "Recorded date in YYYY-MM-DD form")
-	systolic := fs.Int("systolic", 0, "Systolic blood pressure")
-	diastolic := fs.Int("diastolic", 0, "Diastolic blood pressure")
-	pulse := fs.Int("pulse", 0, "Pulse")
-	if err := fs.Parse(args); err != nil {
-		return bloodPressureWriteInput{}, err
-	}
-	if fs.NArg() != 0 {
-		return bloodPressureWriteInput{}, fmt.Errorf("blood-pressure %s does not accept positional arguments", command)
-	}
-
-	recordedAt, err := parseCLIDateOnly(*dateValue)
-	if err != nil {
-		return bloodPressureWriteInput{}, err
-	}
-	if *systolic <= 0 {
-		return bloodPressureWriteInput{}, fmt.Errorf("systolic must be greater than 0")
-	}
-	if *diastolic <= 0 {
-		return bloodPressureWriteInput{}, fmt.Errorf("diastolic must be greater than 0")
-	}
-	var pulseValue *int
-	if pulseProvided(args) {
-		if *pulse <= 0 {
-			return bloodPressureWriteInput{}, fmt.Errorf("pulse must be greater than 0")
-		}
-		pulseValue = pulse
-	}
-
-	return bloodPressureWriteInput{
-		databasePath: *databasePath,
-		recordedAt:   recordedAt,
-		systolic:     *systolic,
-		diastolic:    *diastolic,
-		pulse:        pulseValue,
-	}, nil
-}
-
-func runBloodPressureList(args []string, stdout io.Writer) error {
-	fs := flag.NewFlagSet("blood-pressure list", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-
-	databasePath := fs.String("db", "", "SQLite database path")
-	fromValue := fs.String("from", "", "Start date in YYYY-MM-DD form")
-	toValue := fs.String("to", "", "End date in YYYY-MM-DD form")
-	limit := fs.Int("limit", 0, "Maximum number of rows")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if fs.NArg() != 0 {
-		return fmt.Errorf("blood-pressure list does not accept positional arguments")
-	}
-	if *limit < 0 {
-		return fmt.Errorf("limit must be greater than 0")
-	}
-
-	var from *time.Time
-	if *fromValue != "" {
-		parsed, err := parseCLIDateOnly(*fromValue)
-		if err != nil {
-			return err
-		}
-		from = &parsed
-	}
-	var to *time.Time
-	if *toValue != "" {
-		parsed, err := parseCLIDateOnly(*toValue)
-		if err != nil {
-			return err
-		}
-		endOfDay := parsed.Add(24*time.Hour - time.Nanosecond)
-		to = &endOfDay
-	}
-
-	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: *databasePath})
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = api.Close()
-	}()
-
-	readings, err := api.ListBloodPressure(context.Background(), client.BloodPressureListOptions{
-		From:  from,
-		To:    to,
-		Limit: *limit,
-	})
-	if err != nil {
-		return err
-	}
-	for _, reading := range readings {
-		if _, err := fmt.Fprintf(stdout, "%s %d/%d%s\n", reading.RecordedAt.Format(time.DateOnly), reading.Systolic, reading.Diastolic, formatPulse(reading.Pulse)); err != nil {
-			return err
-		}
-	}
-	return nil
+func encodeResult[T any](stdout io.Writer, result T) error {
+	encoder := json.NewEncoder(stdout)
+	return encoder.Encode(result)
 }
 
 func writeUsage(w io.Writer) error {
-	_, err := fmt.Fprintf(
-		w,
-		"%s\n\nUsage:\n  openhealth migrate [-db path]\n  openhealth serve [-listen addr] [-db path]\n  openhealth weight add --date YYYY-MM-DD --value N [--unit lb] [-db path]\n  openhealth weight list [-db path] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--limit N]\n  openhealth blood-pressure add --date YYYY-MM-DD --systolic N --diastolic N [--pulse N] [-db path]\n  openhealth blood-pressure correct --date YYYY-MM-DD --systolic N --diastolic N [--pulse N] [-db path]\n  openhealth blood-pressure list [-db path] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--limit N]\n",
-		app.Banner(),
-	)
+	_, err := fmt.Fprint(w, `Usage:
+  openhealth weight [-db path] < request.json
+  openhealth blood-pressure [-db path] < request.json
+  openhealth medications [-db path] < request.json
+  openhealth labs [-db path] < request.json
+`)
 	return err
-}
-
-func writeWeightUsage(w io.Writer) error {
-	_, err := fmt.Fprintf(
-		w,
-		"%s\n\nUsage:\n  openhealth weight add --date YYYY-MM-DD --value N [--unit lb] [-db path]\n  openhealth weight list [-db path] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--limit N]\n",
-		app.Banner(),
-	)
-	return err
-}
-
-func writeBloodPressureUsage(w io.Writer) error {
-	_, err := fmt.Fprintf(
-		w,
-		"%s\n\nUsage:\n  openhealth blood-pressure add --date YYYY-MM-DD --systolic N --diastolic N [--pulse N] [-db path]\n  openhealth blood-pressure correct --date YYYY-MM-DD --systolic N --diastolic N [--pulse N] [-db path]\n  openhealth blood-pressure list [-db path] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--limit N]\n",
-		app.Banner(),
-	)
-	return err
-}
-
-func pulseProvided(args []string) bool {
-	for _, arg := range args {
-		if arg == "--pulse" || arg == "-pulse" ||
-			strings.HasPrefix(arg, "--pulse=") || strings.HasPrefix(arg, "-pulse=") {
-			return true
-		}
-	}
-	return false
-}
-
-func formatPulse(pulse *int) string {
-	if pulse == nil {
-		return ""
-	}
-	return fmt.Sprintf(" pulse %d", *pulse)
-}
-
-func envOrDefault(key string, fallback string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return fallback
-}
-
-func resolveDefaultDatabasePath() (string, error) {
-	paths, err := client.ResolveLocalPaths(client.LocalConfig{})
-	if err != nil {
-		return "", err
-	}
-	return paths.DatabasePath, nil
-}
-
-func openDatabase(path string) (*sql.DB, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, err
-	}
-	return sqlite.Open(path)
-}
-
-func parseCLIDateOnly(value string) (time.Time, error) {
-	if len(value) != len(time.DateOnly) || value[4] != '-' || value[7] != '-' {
-		return time.Time{}, fmt.Errorf("date must be YYYY-MM-DD")
-	}
-	for i, ch := range value {
-		if i == 4 || i == 7 {
-			continue
-		}
-		if ch < '0' || ch > '9' {
-			return time.Time{}, fmt.Errorf("date must be YYYY-MM-DD")
-		}
-	}
-	parsed, err := time.Parse(time.DateOnly, value)
-	if err != nil {
-		return time.Time{}, fmt.Errorf("date must be YYYY-MM-DD")
-	}
-	return time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 0, 0, 0, 0, time.UTC), nil
 }

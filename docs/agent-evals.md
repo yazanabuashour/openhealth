@@ -7,7 +7,7 @@ an instruction is needed, put it in the production skill first.
 ## Active Surface
 
 - `production`: the installed `skills/openhealth/SKILL.md` AgentOps skill plus
-  an installed `openhealth-agentops` binary on `PATH`.
+  an installed `openhealth` binary on `PATH`.
 
 The generated client and local SDK remain supported runtime/developer APIs, but
 they are not active agent-facing eval variants.
@@ -28,7 +28,7 @@ The `oh-5yr` harness covers routine local user-data tasks:
 
 All scenarios are production-only. They gate correctness and hygiene, including
 no broad repo search, generated-file inspection, module-cache inspection, direct
-SQLite access, or legacy `cmd/openhealth` CLI usage.
+SQLite access, or retired human CLI usage.
 
 Every scenario uses a fresh ephemeral agent session, an isolated copied repo, a
 fresh local database path, and reduced JSON/Markdown artifacts. Raw event logs
@@ -41,7 +41,7 @@ The production skill is copied byte-for-byte to
 `.agents/skills/openhealth/SKILL.md`. The harness does not generate an
 OpenHealth-specific eval `AGENTS.md` or paste skill content into `AGENTS.md`.
 
-Before each production job, the harness builds `openhealth-agentops` into the
+Before each production job, the harness builds `openhealth` into the
 job's private `bin/` directory and prepends that directory to `PATH`. This
 simulates the client-agent install path without requiring the agent to use
 `go run`.
@@ -80,11 +80,13 @@ Reports include:
 - generated paths surfaced from broad search
 - broad repo search
 - Go module-cache inspection
-- legacy OpenHealth CLI usage
+- retired human OpenHealth CLI usage
 - direct SQLite access
 
-Legacy CLI usage is counted only for executed `cmd/openhealth` invocations, not
-for searches or documentation reads that merely contain CLI command strings.
+Retired human CLI usage is counted only for executed old command shapes such as
+`openhealth weight add`, `openhealth weight list`, or `go run ./cmd/openhealth`.
+Searches or documentation reads that merely contain CLI command strings are not
+counted.
 
 ## Production Gate
 
@@ -92,7 +94,7 @@ Production AgentOps is release-ready only when:
 
 - production passes every selected scenario
 - production has no direct generated-file inspection, module-cache inspection,
-  direct SQLite access, or legacy CLI usage
+  direct SQLite access, or retired human CLI usage
 - production has no routine broad repo search
 - rule-covered invalid-input scenarios are final-answer-only: no tools, no
   command executions, and at most one assistant answer

@@ -1,0 +1,4899 @@
+{
+  "issue": "oh-5yr",
+  "date": "2026-04-18",
+  "model": "gpt-5.4-mini",
+  "reasoning_effort": "medium",
+  "harness": "codex exec --json --full-auto from throwaway run directories; single-turn scenarios use --ephemeral, multi-turn scenarios resume a persisted eval session with explicit writable eval roots",
+  "parallelism": 4,
+  "cache_mode": "shared",
+  "cache_prewarm_seconds": 18.05,
+  "harness_elapsed_seconds": 131.63,
+  "phase_totals": {
+    "copy_repo_seconds": 0.71,
+    "build_agent_app_seconds": 36.19,
+    "seed_db_seconds": 0.03,
+    "agent_run_seconds": 408.63,
+    "verify_seconds": 0.09,
+    "total_seconds": 480.31
+  },
+  "effective_parallel_speedup": 3.1,
+  "parallel_efficiency": 0.78,
+  "codex_version": "codex-cli 0.121.0",
+  "history_isolation": {
+    "status": "passed",
+    "ephemeral_flag_required": true,
+    "run_directory_outside_repo": true,
+    "new_session_files_after_run": 3,
+    "single_turn_ephemeral_runs": 35,
+    "multi_turn_persisted_sessions": 3,
+    "multi_turn_persisted_turns": 6,
+    "openhealth_workspace_used": false,
+    "desktop_app_used": false,
+    "verification_method": "Single-turn scenarios use codex exec --ephemeral from \u003crun-root\u003e/.../repo. Multi-turn scenarios create one persisted Codex exec session per variant/scenario and resume it for later turns; all raw logs stay under \u003crun-root\u003e."
+  },
+  "command_template": [
+    "OPENHEALTH_DATABASE_PATH=\u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/repo/openhealth.db",
+    "PATH=\u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/bin:$PATH",
+    "GOCACHE=\u003crun-root\u003e/shared-cache/gocache when --cache-mode shared; otherwise \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/gocache",
+    "GOMODCACHE=\u003crun-root\u003e/shared-cache/gomodcache when --cache-mode shared; otherwise \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/gomodcache",
+    "single turn: codex exec --json --ephemeral --full-auto --skip-git-repo-check --add-dir \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e --add-dir \u003crun-root\u003e/shared-cache when --cache-mode shared -C \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/repo -m gpt-5.4-mini -c model_reasoning_effort=\"medium\" -c shell_environment_policy.inherit=all \u003cnatural user prompt\u003e",
+    "multi turn: first turn uses codex exec without --ephemeral; later turns use codex exec -C \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/repo --add-dir \u003cwritable-eval-roots\u003e resume \u003cthread-id\u003e --json with per-turn logs"
+  ],
+  "stop_loss": {
+    "policy": "Production AgentOps must pass every scenario without direct generated-file inspection, module-cache inspection, direct SQLite access, retired human OpenHealth CLI usage, broad repo search in more than one routine scenario, or excessive core tool counts.",
+    "triggered": false,
+    "recommendation": "ship_agentops_production"
+  },
+  "results": [
+    {
+      "variant": "production",
+      "scenario": "add-two",
+      "scenario_title": "Add two weights and verify newest-first output",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 9.69,
+      "phase_timings": {
+        "copy_repo_seconds": 0.04,
+        "build_agent_app_seconds": 1.74,
+        "seed_db_seconds": 0.01,
+        "agent_run_seconds": 9.69,
+        "total_seconds": 12.33
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 71147,
+        "cached_input_tokens": 65152,
+        "non_cached_input_tokens": 5995,
+        "output_tokens": 706,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 9.69,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71147,
+            "cached_input_tokens": 65152,
+            "non_cached_input_tokens": 5995,
+            "output_tokens": 706,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+            "weights": [
+              {
+                "date": "2026-03-30",
+                "value": 151.6,
+                "unit": "lb"
+              },
+              {
+                "date": "2026-03-29",
+                "value": 152.2,
+                "unit": "lb"
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/add-two/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "add 2026-03-29 152.2 lb and 2026-03-30 151.6 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/add-two/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "repeat-add",
+      "scenario_title": "Repeat the same add request without creating duplicates",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 10.5,
+      "phase_timings": {
+        "copy_repo_seconds": 0.04,
+        "build_agent_app_seconds": 1.77,
+        "agent_run_seconds": 10.5,
+        "total_seconds": 14.39
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 71213,
+        "cached_input_tokens": 65152,
+        "non_cached_input_tokens": 6061,
+        "output_tokens": 647,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 10.5,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71213,
+            "cached_input_tokens": 65152,
+            "non_cached_input_tokens": 6061,
+            "output_tokens": 647,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected exactly two newest-first rows; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb]",
+            "weights": [
+              {
+                "date": "2026-03-30",
+                "value": 151.6,
+                "unit": "lb"
+              },
+              {
+                "date": "2026-03-29",
+                "value": 152.2,
+                "unit": "lb"
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/repeat-add/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reapply the same two weights against preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/repeat-add/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "update-existing",
+      "scenario_title": "Correct an existing same-date weight value",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 9.86,
+      "phase_timings": {
+        "copy_repo_seconds": 0.04,
+        "build_agent_app_seconds": 1.75,
+        "seed_db_seconds": 0.01,
+        "agent_run_seconds": 9.86,
+        "verify_seconds": 0.01,
+        "total_seconds": 12.51
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 71032,
+        "cached_input_tokens": 62080,
+        "non_cached_input_tokens": 8952,
+        "output_tokens": 595,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected one updated row; observed [2026-03-29 151.6 lb]",
+        "weights": [
+          {
+            "date": "2026-03-29",
+            "value": 151.6,
+            "unit": "lb"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 9.86,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71032,
+            "cached_input_tokens": 62080,
+            "non_cached_input_tokens": 8952,
+            "output_tokens": 595,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected one updated row; observed [2026-03-29 151.6 lb]",
+            "weights": [
+              {
+                "date": "2026-03-29",
+                "value": 151.6,
+                "unit": "lb"
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/update-existing/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "correct 2026-03-29 from 152.2 lb to 151.6 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/update-existing/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bounded-range",
+      "scenario_title": "List a bounded date range newest-first",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 8.65,
+      "phase_timings": {
+        "copy_repo_seconds": 0.04,
+        "build_agent_app_seconds": 1.76,
+        "agent_run_seconds": 8.65,
+        "total_seconds": 11.78
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 71062,
+        "cached_input_tokens": 65152,
+        "non_cached_input_tokens": 5910,
+        "output_tokens": 456,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
+            "unit": "lb"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 8.65,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71062,
+            "cached_input_tokens": 65152,
+            "non_cached_input_tokens": 5910,
+            "output_tokens": 456,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+            "weights": [
+              {
+                "date": "2026-03-30",
+                "value": 151.6,
+                "unit": "lb"
+              },
+              {
+                "date": "2026-03-29",
+                "value": 152.2,
+                "unit": "lb"
+              },
+              {
+                "date": "2026-03-28",
+                "value": 153,
+                "unit": "lb"
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/bounded-range/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "list only 2026-03-29 through 2026-03-30 from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bounded-range/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bounded-range-natural",
+      "scenario_title": "List a naturally phrased bounded date range",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 9.12,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.89,
+        "agent_run_seconds": 9.12,
+        "total_seconds": 10.95
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 70930,
+        "cached_input_tokens": 65152,
+        "non_cached_input_tokens": 5778,
+        "output_tokens": 464,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
+            "unit": "lb"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 9.12,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 70930,
+            "cached_input_tokens": 65152,
+            "non_cached_input_tokens": 5778,
+            "output_tokens": 464,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+            "weights": [
+              {
+                "date": "2026-03-30",
+                "value": 151.6,
+                "unit": "lb"
+              },
+              {
+                "date": "2026-03-29",
+                "value": 152.2,
+                "unit": "lb"
+              },
+              {
+                "date": "2026-03-28",
+                "value": 153,
+                "unit": "lb"
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/bounded-range-natural/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "naturally ask for 2026-03-29 and 2026-03-30 from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bounded-range-natural/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "latest-only",
+      "scenario_title": "List only the latest weight entry",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 8.32,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.93,
+        "agent_run_seconds": 8.32,
+        "total_seconds": 9.9
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 70843,
+        "cached_input_tokens": 64640,
+        "non_cached_input_tokens": 6203,
+        "output_tokens": 431,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected unchanged seed rows and assistant output limited to latest row 2026-03-30; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
+            "unit": "lb"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 8.32,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 70843,
+            "cached_input_tokens": 64640,
+            "non_cached_input_tokens": 6203,
+            "output_tokens": 431,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected unchanged seed rows and assistant output limited to latest row 2026-03-30; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb]",
+            "weights": [
+              {
+                "date": "2026-03-30",
+                "value": 151.6,
+                "unit": "lb"
+              },
+              {
+                "date": "2026-03-29",
+                "value": 152.2,
+                "unit": "lb"
+              },
+              {
+                "date": "2026-03-28",
+                "value": 153,
+                "unit": "lb"
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/latest-only/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "list only the latest row from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/latest-only/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "history-limit-two",
+      "scenario_title": "List the two most recent weight entries",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 9.37,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "build_agent_app_seconds": 0.94,
+        "agent_run_seconds": 9.37,
+        "total_seconds": 10.99
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 70868,
+        "cached_input_tokens": 64640,
+        "non_cached_input_tokens": 6228,
+        "output_tokens": 406,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected unchanged seed rows and assistant output limited to 2026-03-30 and 2026-03-29 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb, 2026-03-27 154.1 lb]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-27",
+            "value": 154.1,
+            "unit": "lb"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 9.37,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 70868,
+            "cached_input_tokens": 64640,
+            "non_cached_input_tokens": 6228,
+            "output_tokens": 406,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected unchanged seed rows and assistant output limited to 2026-03-30 and 2026-03-29 newest-first; observed [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb, 2026-03-27 154.1 lb]",
+            "weights": [
+              {
+                "date": "2026-03-30",
+                "value": 151.6,
+                "unit": "lb"
+              },
+              {
+                "date": "2026-03-29",
+                "value": 152.2,
+                "unit": "lb"
+              },
+              {
+                "date": "2026-03-28",
+                "value": 153,
+                "unit": "lb"
+              },
+              {
+                "date": "2026-03-27",
+                "value": 154.1,
+                "unit": "lb"
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/history-limit-two/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "list only the two most recent rows from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/history-limit-two/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "ambiguous-short-date",
+      "scenario_title": "Clarify an ambiguous short date without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 8.52,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.78,
+        "agent_run_seconds": 8.52,
+        "total_seconds": 10.75
+      },
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 46322,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 5618,
+        "output_tokens": 320,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no write and a year clarification; observed []"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 8.52,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 2,
+            "tool_calls": 1,
+            "command_executions": 1,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 46322,
+            "cached_input_tokens": 40704,
+            "non_cached_input_tokens": 5618,
+            "output_tokens": 320,
+            "event_type_counts": {
+              "item.completed": 3,
+              "item.started": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no write and a year clarification; observed []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/ambiguous-short-date/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "ask for year before writing 03/29 152.2 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/ambiguous-short-date/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "invalid-input",
+      "scenario_title": "Reject invalid unit and value without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 9.6,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "build_agent_app_seconds": 0.86,
+        "agent_run_seconds": 9.6,
+        "total_seconds": 11.29
+      },
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 46272,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 5568,
+        "output_tokens": 282,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no write and an invalid input rejection; observed []"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 9.6,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 2,
+            "tool_calls": 1,
+            "command_executions": 1,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 46272,
+            "cached_input_tokens": 40704,
+            "non_cached_input_tokens": 5568,
+            "output_tokens": 282,
+            "event_type_counts": {
+              "item.completed": 3,
+              "item.started": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no write and an invalid input rejection; observed []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/invalid-input/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reject -5 stone for 2026-03-31",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/invalid-input/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "non-iso-date-reject",
+      "scenario_title": "Reject non-ISO full date without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 7.88,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.84,
+        "agent_run_seconds": 7.88,
+        "total_seconds": 9.73
+      },
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 46305,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 5601,
+        "output_tokens": 267,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no write and a strict YYYY-MM-DD date rejection; observed []"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 7.88,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 2,
+            "tool_calls": 1,
+            "command_executions": 1,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 46305,
+            "cached_input_tokens": 40704,
+            "non_cached_input_tokens": 5601,
+            "output_tokens": 267,
+            "event_type_counts": {
+              "item.completed": 3,
+              "item.started": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no write and a strict YYYY-MM-DD date rejection; observed []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/non-iso-date-reject/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reject non-ISO date 2026/03/31",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/non-iso-date-reject/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bp-add-two",
+      "scenario_title": "Record two blood-pressure readings and verify newest-first output",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 13.5,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.84,
+        "agent_run_seconds": 13.5,
+        "total_seconds": 15
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 71612,
+        "cached_input_tokens": 66176,
+        "non_cached_input_tokens": 5436,
+        "output_tokens": 1138,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected exactly two newest-first blood-pressure rows; observed [2026-03-30 118/76, 2026-03-29 122/78 pulse 64]",
+        "blood_pressures": [
+          {
+            "date": "2026-03-30",
+            "systolic": 118,
+            "diastolic": 76
+          },
+          {
+            "date": "2026-03-29",
+            "systolic": 122,
+            "diastolic": 78,
+            "pulse": 64
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 13.5,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71612,
+            "cached_input_tokens": 66176,
+            "non_cached_input_tokens": 5436,
+            "output_tokens": 1138,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected exactly two newest-first blood-pressure rows; observed [2026-03-30 118/76, 2026-03-29 122/78 pulse 64]",
+            "blood_pressures": [
+              {
+                "date": "2026-03-30",
+                "systolic": 118,
+                "diastolic": 76
+              },
+              {
+                "date": "2026-03-29",
+                "systolic": 122,
+                "diastolic": 78,
+                "pulse": 64
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-add-two/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "record 2026-03-29 122/78 pulse 64 and 2026-03-30 118/76",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-add-two/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bp-latest-only",
+      "scenario_title": "List only the latest blood-pressure reading",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 8.31,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "build_agent_app_seconds": 0.77,
+        "agent_run_seconds": 8.31,
+        "total_seconds": 9.7
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 71049,
+        "cached_input_tokens": 65152,
+        "non_cached_input_tokens": 5897,
+        "output_tokens": 453,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected unchanged seed rows and assistant output limited to latest blood-pressure row 2026-03-30; observed [2026-03-30 118/76, 2026-03-29 122/78 pulse 64, 2026-03-28 124/80]",
+        "blood_pressures": [
+          {
+            "date": "2026-03-30",
+            "systolic": 118,
+            "diastolic": 76
+          },
+          {
+            "date": "2026-03-29",
+            "systolic": 122,
+            "diastolic": 78,
+            "pulse": 64
+          },
+          {
+            "date": "2026-03-28",
+            "systolic": 124,
+            "diastolic": 80
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 8.31,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71049,
+            "cached_input_tokens": 65152,
+            "non_cached_input_tokens": 5897,
+            "output_tokens": 453,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected unchanged seed rows and assistant output limited to latest blood-pressure row 2026-03-30; observed [2026-03-30 118/76, 2026-03-29 122/78 pulse 64, 2026-03-28 124/80]",
+            "blood_pressures": [
+              {
+                "date": "2026-03-30",
+                "systolic": 118,
+                "diastolic": 76
+              },
+              {
+                "date": "2026-03-29",
+                "systolic": 122,
+                "diastolic": 78,
+                "pulse": 64
+              },
+              {
+                "date": "2026-03-28",
+                "systolic": 124,
+                "diastolic": 80
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-latest-only/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "list only the latest blood-pressure row from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-latest-only/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bp-history-limit-two",
+      "scenario_title": "List the two most recent blood-pressure readings",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 8.54,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "build_agent_app_seconds": 0.78,
+        "agent_run_seconds": 8.54,
+        "total_seconds": 10.13
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 70997,
+        "cached_input_tokens": 65152,
+        "non_cached_input_tokens": 5845,
+        "output_tokens": 496,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected unchanged seed rows and assistant output limited to 2026-03-30 and 2026-03-29 newest-first; observed [2026-03-30 118/76, 2026-03-29 122/78 pulse 64, 2026-03-28 124/80, 2026-03-27 126/82]",
+        "blood_pressures": [
+          {
+            "date": "2026-03-30",
+            "systolic": 118,
+            "diastolic": 76
+          },
+          {
+            "date": "2026-03-29",
+            "systolic": 122,
+            "diastolic": 78,
+            "pulse": 64
+          },
+          {
+            "date": "2026-03-28",
+            "systolic": 124,
+            "diastolic": 80
+          },
+          {
+            "date": "2026-03-27",
+            "systolic": 126,
+            "diastolic": 82
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 8.54,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 70997,
+            "cached_input_tokens": 65152,
+            "non_cached_input_tokens": 5845,
+            "output_tokens": 496,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected unchanged seed rows and assistant output limited to 2026-03-30 and 2026-03-29 newest-first; observed [2026-03-30 118/76, 2026-03-29 122/78 pulse 64, 2026-03-28 124/80, 2026-03-27 126/82]",
+            "blood_pressures": [
+              {
+                "date": "2026-03-30",
+                "systolic": 118,
+                "diastolic": 76
+              },
+              {
+                "date": "2026-03-29",
+                "systolic": 122,
+                "diastolic": 78,
+                "pulse": 64
+              },
+              {
+                "date": "2026-03-28",
+                "systolic": 124,
+                "diastolic": 80
+              },
+              {
+                "date": "2026-03-27",
+                "systolic": 126,
+                "diastolic": 82
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-history-limit-two/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "list only the two most recent blood-pressure rows from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-history-limit-two/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bp-bounded-range",
+      "scenario_title": "List a bounded blood-pressure date range newest-first",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 10.21,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.78,
+        "agent_run_seconds": 10.21,
+        "total_seconds": 11.69
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 71181,
+        "cached_input_tokens": 65152,
+        "non_cached_input_tokens": 6029,
+        "output_tokens": 541,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 118/76, 2026-03-29 122/78 pulse 64, 2026-03-28 124/80]",
+        "blood_pressures": [
+          {
+            "date": "2026-03-30",
+            "systolic": 118,
+            "diastolic": 76
+          },
+          {
+            "date": "2026-03-29",
+            "systolic": 122,
+            "diastolic": 78,
+            "pulse": 64
+          },
+          {
+            "date": "2026-03-28",
+            "systolic": 124,
+            "diastolic": 80
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 10.21,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71181,
+            "cached_input_tokens": 65152,
+            "non_cached_input_tokens": 6029,
+            "output_tokens": 541,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 118/76, 2026-03-29 122/78 pulse 64, 2026-03-28 124/80]",
+            "blood_pressures": [
+              {
+                "date": "2026-03-30",
+                "systolic": 118,
+                "diastolic": 76
+              },
+              {
+                "date": "2026-03-29",
+                "systolic": 122,
+                "diastolic": 78,
+                "pulse": 64
+              },
+              {
+                "date": "2026-03-28",
+                "systolic": 124,
+                "diastolic": 80
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-bounded-range/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "list only 2026-03-29 through 2026-03-30 blood-pressure rows from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-bounded-range/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bp-bounded-range-natural",
+      "scenario_title": "List a naturally phrased bounded blood-pressure date range",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 8.59,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "build_agent_app_seconds": 0.78,
+        "agent_run_seconds": 8.59,
+        "total_seconds": 10.12
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 70903,
+        "cached_input_tokens": 65152,
+        "non_cached_input_tokens": 5751,
+        "output_tokens": 455,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 118/76, 2026-03-29 122/78 pulse 64, 2026-03-28 124/80]",
+        "blood_pressures": [
+          {
+            "date": "2026-03-30",
+            "systolic": 118,
+            "diastolic": 76
+          },
+          {
+            "date": "2026-03-29",
+            "systolic": 122,
+            "diastolic": 78,
+            "pulse": 64
+          },
+          {
+            "date": "2026-03-28",
+            "systolic": 124,
+            "diastolic": 80
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 8.59,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 70903,
+            "cached_input_tokens": 65152,
+            "non_cached_input_tokens": 5751,
+            "output_tokens": 455,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed [2026-03-30 118/76, 2026-03-29 122/78 pulse 64, 2026-03-28 124/80]",
+            "blood_pressures": [
+              {
+                "date": "2026-03-30",
+                "systolic": 118,
+                "diastolic": 76
+              },
+              {
+                "date": "2026-03-29",
+                "systolic": 122,
+                "diastolic": 78,
+                "pulse": 64
+              },
+              {
+                "date": "2026-03-28",
+                "systolic": 124,
+                "diastolic": 80
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-bounded-range-natural/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "naturally ask for 2026-03-29 and 2026-03-30 blood-pressure rows from preseeded rows",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-bounded-range-natural/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bp-invalid-input",
+      "scenario_title": "Reject invalid blood-pressure values without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 6.23,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "build_agent_app_seconds": 0.76,
+        "agent_run_seconds": 6.23,
+        "total_seconds": 7.94
+      },
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 46331,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 5627,
+        "output_tokens": 355,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no write and an invalid blood-pressure rejection; observed []"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 6.23,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 2,
+            "tool_calls": 1,
+            "command_executions": 1,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 46331,
+            "cached_input_tokens": 40704,
+            "non_cached_input_tokens": 5627,
+            "output_tokens": 355,
+            "event_type_counts": {
+              "item.completed": 3,
+              "item.started": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no write and an invalid blood-pressure rejection; observed []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-invalid-input/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reject invalid 0/-5 pulse 0 blood-pressure reading",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-invalid-input/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bp-non-iso-date-reject",
+      "scenario_title": "Reject non-ISO blood-pressure date without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 9.72,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.77,
+        "agent_run_seconds": 9.72,
+        "total_seconds": 11.08
+      },
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 46465,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 5761,
+        "output_tokens": 432,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no write and a strict YYYY-MM-DD date rejection; observed []"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 9.72,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 2,
+            "tool_calls": 1,
+            "command_executions": 1,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 46465,
+            "cached_input_tokens": 40704,
+            "non_cached_input_tokens": 5761,
+            "output_tokens": 432,
+            "event_type_counts": {
+              "item.completed": 3,
+              "item.started": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no write and a strict YYYY-MM-DD date rejection; observed []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-non-iso-date-reject/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reject non-ISO blood-pressure date 2026/03/31",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-non-iso-date-reject/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bp-correct-existing",
+      "scenario_title": "Correct an existing same-date blood-pressure reading",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 11.34,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.96,
+        "agent_run_seconds": 11.34,
+        "total_seconds": 12.95
+      },
+      "metrics": {
+        "assistant_calls": 4,
+        "tool_calls": 3,
+        "command_executions": 3,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 96168,
+        "cached_input_tokens": 89600,
+        "non_cached_input_tokens": 6568,
+        "output_tokens": 752,
+        "event_type_counts": {
+          "item.completed": 7,
+          "item.started": 3,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected corrected 2026-03-29 blood-pressure row with no duplicate; observed [2026-03-29 121/77 pulse 63]",
+        "blood_pressures": [
+          {
+            "date": "2026-03-29",
+            "systolic": 121,
+            "diastolic": 77,
+            "pulse": 63
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 11.34,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 4,
+            "tool_calls": 3,
+            "command_executions": 3,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 96168,
+            "cached_input_tokens": 89600,
+            "non_cached_input_tokens": 6568,
+            "output_tokens": 752,
+            "event_type_counts": {
+              "item.completed": 7,
+              "item.started": 3,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected corrected 2026-03-29 blood-pressure row with no duplicate; observed [2026-03-29 121/77 pulse 63]",
+            "blood_pressures": [
+              {
+                "date": "2026-03-29",
+                "systolic": 121,
+                "diastolic": 77,
+                "pulse": 63
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-correct-existing/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "correct 2026-03-29 blood pressure from 122/78 pulse 64 to 121/77 pulse 63",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-correct-existing/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bp-correct-missing-reject",
+      "scenario_title": "Reject a blood-pressure correction for a missing date",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 9.74,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "build_agent_app_seconds": 0.92,
+        "agent_run_seconds": 9.74,
+        "total_seconds": 11.7
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 71153,
+        "cached_input_tokens": 65152,
+        "non_cached_input_tokens": 6001,
+        "output_tokens": 641,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected unchanged seed row and missing-date correction rejection; observed [2026-03-29 122/78 pulse 64]",
+        "blood_pressures": [
+          {
+            "date": "2026-03-29",
+            "systolic": 122,
+            "diastolic": 78,
+            "pulse": 64
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 9.74,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71153,
+            "cached_input_tokens": 65152,
+            "non_cached_input_tokens": 6001,
+            "output_tokens": 641,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected unchanged seed row and missing-date correction rejection; observed [2026-03-29 122/78 pulse 64]",
+            "blood_pressures": [
+              {
+                "date": "2026-03-29",
+                "systolic": 122,
+                "diastolic": 78,
+                "pulse": 64
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-correct-missing-reject/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reject correction for missing 2026-03-31 blood-pressure reading without creating one",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-correct-missing-reject/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bp-correct-ambiguous-reject",
+      "scenario_title": "Reject an ambiguous same-date blood-pressure correction",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 10.53,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "build_agent_app_seconds": 0.89,
+        "agent_run_seconds": 10.53,
+        "total_seconds": 12.12
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 71266,
+        "cached_input_tokens": 65152,
+        "non_cached_input_tokens": 6114,
+        "output_tokens": 634,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected unchanged duplicate same-date rows and ambiguous correction rejection; observed [2026-03-29 120/76, 2026-03-29 122/78 pulse 64]",
+        "blood_pressures": [
+          {
+            "date": "2026-03-29",
+            "systolic": 120,
+            "diastolic": 76
+          },
+          {
+            "date": "2026-03-29",
+            "systolic": 122,
+            "diastolic": 78,
+            "pulse": 64
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 10.53,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71266,
+            "cached_input_tokens": 65152,
+            "non_cached_input_tokens": 6114,
+            "output_tokens": 634,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected unchanged duplicate same-date rows and ambiguous correction rejection; observed [2026-03-29 120/76, 2026-03-29 122/78 pulse 64]",
+            "blood_pressures": [
+              {
+                "date": "2026-03-29",
+                "systolic": 120,
+                "diastolic": 76
+              },
+              {
+                "date": "2026-03-29",
+                "systolic": 122,
+                "diastolic": 78,
+                "pulse": 64
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-correct-ambiguous-reject/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reject ambiguous correction when multiple 2026-03-29 blood-pressure rows exist",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-correct-ambiguous-reject/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "mixed-add-latest",
+      "scenario_title": "Record weight and blood-pressure readings, then report latest for both",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 13.21,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "build_agent_app_seconds": 0.8,
+        "agent_run_seconds": 13.21,
+        "total_seconds": 14.88
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 4,
+        "command_executions": 4,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 121726,
+        "cached_input_tokens": 114560,
+        "non_cached_input_tokens": 7166,
+        "output_tokens": 870,
+        "event_type_counts": {
+          "item.completed": 7,
+          "item.started": 4,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected latest weight and blood-pressure rows for 2026-03-31; observed weights [2026-03-31 150.8 lb] and blood pressures [2026-03-31 119/77 pulse 62]",
+        "weights": [
+          {
+            "date": "2026-03-31",
+            "value": 150.8,
+            "unit": "lb"
+          }
+        ],
+        "blood_pressures": [
+          {
+            "date": "2026-03-31",
+            "systolic": 119,
+            "diastolic": 77,
+            "pulse": 62
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 13.21,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 4,
+            "command_executions": 4,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 121726,
+            "cached_input_tokens": 114560,
+            "non_cached_input_tokens": 7166,
+            "output_tokens": 870,
+            "event_type_counts": {
+              "item.completed": 7,
+              "item.started": 4,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected latest weight and blood-pressure rows for 2026-03-31; observed weights [2026-03-31 150.8 lb] and blood pressures [2026-03-31 119/77 pulse 62]",
+            "weights": [
+              {
+                "date": "2026-03-31",
+                "value": 150.8,
+                "unit": "lb"
+              }
+            ],
+            "blood_pressures": [
+              {
+                "date": "2026-03-31",
+                "systolic": 119,
+                "diastolic": 77,
+                "pulse": 62
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/mixed-add-latest/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "record one weight and one blood-pressure reading, then report latest for both",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/mixed-add-latest/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "mixed-bounded-range",
+      "scenario_title": "List bounded weight and blood-pressure ranges newest-first",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 10.19,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.76,
+        "agent_run_seconds": 10.19,
+        "verify_seconds": 0.01,
+        "total_seconds": 11.74
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 3,
+        "command_executions": 3,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 71222,
+        "cached_input_tokens": 65152,
+        "non_cached_input_tokens": 6070,
+        "output_tokens": 658,
+        "event_type_counts": {
+          "item.completed": 6,
+          "item.started": 3,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected unchanged mixed seed rows and output limited to 2026-03-29..2026-03-30; observed weights [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb] and blood pressures [2026-03-30 118/76, 2026-03-29 122/78 pulse 64, 2026-03-28 124/80]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151.6,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-28",
+            "value": 153,
+            "unit": "lb"
+          }
+        ],
+        "blood_pressures": [
+          {
+            "date": "2026-03-30",
+            "systolic": 118,
+            "diastolic": 76
+          },
+          {
+            "date": "2026-03-29",
+            "systolic": 122,
+            "diastolic": 78,
+            "pulse": 64
+          },
+          {
+            "date": "2026-03-28",
+            "systolic": 124,
+            "diastolic": 80
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 10.19,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 3,
+            "command_executions": 3,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71222,
+            "cached_input_tokens": 65152,
+            "non_cached_input_tokens": 6070,
+            "output_tokens": 658,
+            "event_type_counts": {
+              "item.completed": 6,
+              "item.started": 3,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected unchanged mixed seed rows and output limited to 2026-03-29..2026-03-30; observed weights [2026-03-30 151.6 lb, 2026-03-29 152.2 lb, 2026-03-28 153.0 lb] and blood pressures [2026-03-30 118/76, 2026-03-29 122/78 pulse 64, 2026-03-28 124/80]",
+            "weights": [
+              {
+                "date": "2026-03-30",
+                "value": 151.6,
+                "unit": "lb"
+              },
+              {
+                "date": "2026-03-29",
+                "value": 152.2,
+                "unit": "lb"
+              },
+              {
+                "date": "2026-03-28",
+                "value": 153,
+                "unit": "lb"
+              }
+            ],
+            "blood_pressures": [
+              {
+                "date": "2026-03-30",
+                "systolic": 118,
+                "diastolic": 76
+              },
+              {
+                "date": "2026-03-29",
+                "systolic": 122,
+                "diastolic": 78,
+                "pulse": 64
+              },
+              {
+                "date": "2026-03-28",
+                "systolic": 124,
+                "diastolic": 80
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/mixed-bounded-range/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "list only 2026-03-29 through 2026-03-30 for both domains",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/mixed-bounded-range/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "mixed-invalid-direct-reject",
+      "scenario_title": "Reject invalid mixed-domain values without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 6.41,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.8,
+        "agent_run_seconds": 6.41,
+        "verify_seconds": 0.01,
+        "total_seconds": 8.38
+      },
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 46345,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 5641,
+        "output_tokens": 363,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no mixed-domain writes and a direct invalid input rejection; observed weights [] and blood pressures []"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 6.41,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 2,
+            "tool_calls": 1,
+            "command_executions": 1,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 46345,
+            "cached_input_tokens": 40704,
+            "non_cached_input_tokens": 5641,
+            "output_tokens": 363,
+            "event_type_counts": {
+              "item.completed": 3,
+              "item.started": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no mixed-domain writes and a direct invalid input rejection; observed weights [] and blood pressures []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/mixed-invalid-direct-reject/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reject invalid mixed weight and blood-pressure values without tools",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/mixed-invalid-direct-reject/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "medication-add-list",
+      "scenario_title": "Record medications and list active courses",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 12.47,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.81,
+        "agent_run_seconds": 12.47,
+        "total_seconds": 14.1
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 3,
+        "command_executions": 3,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 96445,
+        "cached_input_tokens": 90112,
+        "non_cached_input_tokens": 6333,
+        "output_tokens": 723,
+        "event_type_counts": {
+          "item.completed": 6,
+          "item.started": 3,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected two stored medications and active output limited to Levothyroxine; observed [Vitamin D from 2026-02-01 to 2026-03-01, Levothyroxine 25 mcg from 2026-01-01]"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 12.47,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 3,
+            "command_executions": 3,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 96445,
+            "cached_input_tokens": 90112,
+            "non_cached_input_tokens": 6333,
+            "output_tokens": 723,
+            "event_type_counts": {
+              "item.completed": 6,
+              "item.started": 3,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected two stored medications and active output limited to Levothyroxine; observed [Vitamin D from 2026-02-01 to 2026-03-01, Levothyroxine 25 mcg from 2026-01-01]",
+            "medications": [
+              {
+                "name": "Vitamin D",
+                "start_date": "2026-02-01",
+                "end_date": "2026-03-01"
+              },
+              {
+                "name": "Levothyroxine",
+                "dosage_text": "25 mcg",
+                "start_date": "2026-01-01"
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/medication-add-list/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "record two medications, then list active medications",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/medication-add-list/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "medication-correct",
+      "scenario_title": "Correct an existing medication course",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 10.25,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "build_agent_app_seconds": 0.87,
+        "agent_run_seconds": 10.25,
+        "total_seconds": 11.86
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 71278,
+        "cached_input_tokens": 59520,
+        "non_cached_input_tokens": 11758,
+        "output_tokens": 831,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected Levothyroxine dosage correction; observed [Vitamin D from 2026-02-01 to 2026-03-01, Levothyroxine 50 mcg from 2026-01-01]"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 10.25,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71278,
+            "cached_input_tokens": 59520,
+            "non_cached_input_tokens": 11758,
+            "output_tokens": 831,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected Levothyroxine dosage correction; observed [Vitamin D from 2026-02-01 to 2026-03-01, Levothyroxine 50 mcg from 2026-01-01]",
+            "medications": [
+              {
+                "name": "Vitamin D",
+                "start_date": "2026-02-01",
+                "end_date": "2026-03-01"
+              },
+              {
+                "name": "Levothyroxine",
+                "dosage_text": "50 mcg",
+                "start_date": "2026-01-01"
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/medication-correct/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "correct Levothyroxine dosage from 25 mcg to 50 mcg",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/medication-correct/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "medication-delete",
+      "scenario_title": "Delete an existing medication course",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 10.75,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.96,
+        "agent_run_seconds": 10.75,
+        "total_seconds": 12.44
+      },
+      "metrics": {
+        "assistant_calls": 4,
+        "tool_calls": 3,
+        "command_executions": 3,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 96349,
+        "cached_input_tokens": 83968,
+        "non_cached_input_tokens": 12381,
+        "output_tokens": 871,
+        "event_type_counts": {
+          "item.completed": 7,
+          "item.started": 3,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected Vitamin D deleted and Levothyroxine retained; observed [Levothyroxine 25 mcg from 2026-01-01]"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 10.75,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 4,
+            "tool_calls": 3,
+            "command_executions": 3,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 96349,
+            "cached_input_tokens": 83968,
+            "non_cached_input_tokens": 12381,
+            "output_tokens": 871,
+            "event_type_counts": {
+              "item.completed": 7,
+              "item.started": 3,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected Vitamin D deleted and Levothyroxine retained; observed [Levothyroxine 25 mcg from 2026-01-01]",
+            "medications": [
+              {
+                "name": "Levothyroxine",
+                "dosage_text": "25 mcg",
+                "start_date": "2026-01-01"
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/medication-delete/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "delete Vitamin D and list all medications",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/medication-delete/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "medication-invalid-date",
+      "scenario_title": "Reject an invalid medication date without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 6.3,
+      "phase_timings": {
+        "copy_repo_seconds": 0.03,
+        "build_agent_app_seconds": 0.92,
+        "agent_run_seconds": 6.3,
+        "total_seconds": 7.91
+      },
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 46409,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 5705,
+        "output_tokens": 443,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no write and strict medication date rejection; observed []"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 6.3,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 2,
+            "tool_calls": 1,
+            "command_executions": 1,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 46409,
+            "cached_input_tokens": 40704,
+            "non_cached_input_tokens": 5705,
+            "output_tokens": 443,
+            "event_type_counts": {
+              "item.completed": 3,
+              "item.started": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no write and strict medication date rejection; observed []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/medication-invalid-date/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reject medication date 2026/01/01 without tools",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/medication-invalid-date/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "medication-end-before-start",
+      "scenario_title": "Reject a medication end date before start date",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 3.84,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "build_agent_app_seconds": 0.78,
+        "agent_run_seconds": 3.84,
+        "total_seconds": 5.57
+      },
+      "metrics": {
+        "assistant_calls": 1,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "file_inspection_commands": 0,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 21996,
+        "cached_input_tokens": 18816,
+        "non_cached_input_tokens": 3180,
+        "output_tokens": 170,
+        "event_type_counts": {
+          "item.completed": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no write and end-before-start rejection; observed []"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 3.84,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 1,
+            "tool_calls": 0,
+            "command_executions": 0,
+            "file_inspection_commands": 0,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 21996,
+            "cached_input_tokens": 18816,
+            "non_cached_input_tokens": 3180,
+            "output_tokens": 170,
+            "event_type_counts": {
+              "item.completed": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no write and end-before-start rejection; observed []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/medication-end-before-start/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reject medication end date before start date without tools",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/medication-end-before-start/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "lab-record-list",
+      "scenario_title": "Record labs and list latest collection",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 11.62,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "build_agent_app_seconds": 0.77,
+        "agent_run_seconds": 11.62,
+        "total_seconds": 13.05
+      },
+      "metrics": {
+        "assistant_calls": 4,
+        "tool_calls": 3,
+        "command_executions": 3,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 96083,
+        "cached_input_tokens": 89600,
+        "non_cached_input_tokens": 6483,
+        "output_tokens": 711,
+        "event_type_counts": {
+          "item.completed": 7,
+          "item.started": 3,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected one glucose lab collection; observed [2026-03-29 (Glucose 89)]"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 11.62,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 4,
+            "tool_calls": 3,
+            "command_executions": 3,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 96083,
+            "cached_input_tokens": 89600,
+            "non_cached_input_tokens": 6483,
+            "output_tokens": 711,
+            "event_type_counts": {
+              "item.completed": 7,
+              "item.started": 3,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected one glucose lab collection; observed [2026-03-29 (Glucose 89)]",
+            "labs": [
+              {
+                "date": "2026-03-29",
+                "results": [
+                  {
+                    "test_name": "Glucose",
+                    "canonical_slug": "glucose",
+                    "value_text": "89",
+                    "value_numeric": 89,
+                    "units": "mg/dL"
+                  }
+                ]
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/lab-record-list/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "record one glucose lab collection and list latest labs",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/lab-record-list/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "lab-range",
+      "scenario_title": "List a bounded lab date range",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 9.71,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "build_agent_app_seconds": 1.06,
+        "agent_run_seconds": 9.71,
+        "total_seconds": 11.63
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 71054,
+        "cached_input_tokens": 65152,
+        "non_cached_input_tokens": 5902,
+        "output_tokens": 496,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected unchanged lab seed rows and output limited to 2026-03-29..2026-03-30; observed [2026-03-30 (TSH 3.4), 2026-03-29 (Glucose 89), 2026-03-28 (Glucose 91)]"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 9.71,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71054,
+            "cached_input_tokens": 65152,
+            "non_cached_input_tokens": 5902,
+            "output_tokens": 496,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected unchanged lab seed rows and output limited to 2026-03-29..2026-03-30; observed [2026-03-30 (TSH 3.4), 2026-03-29 (Glucose 89), 2026-03-28 (Glucose 91)]",
+            "labs": [
+              {
+                "date": "2026-03-30",
+                "results": [
+                  {
+                    "test_name": "TSH",
+                    "canonical_slug": "tsh",
+                    "value_text": "3.4",
+                    "value_numeric": 3.4,
+                    "units": "uIU/mL"
+                  }
+                ]
+              },
+              {
+                "date": "2026-03-29",
+                "results": [
+                  {
+                    "test_name": "Glucose",
+                    "canonical_slug": "glucose",
+                    "value_text": "89",
+                    "value_numeric": 89,
+                    "units": "mg/dL"
+                  }
+                ]
+              },
+              {
+                "date": "2026-03-28",
+                "results": [
+                  {
+                    "test_name": "Glucose",
+                    "canonical_slug": "glucose",
+                    "value_text": "91",
+                    "value_numeric": 91,
+                    "units": "mg/dL"
+                  }
+                ]
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/lab-range/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "list only 2026-03-29 through 2026-03-30 lab collections",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/lab-range/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "lab-latest-analyte",
+      "scenario_title": "List latest lab result for a canonical analyte",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 12.62,
+      "phase_timings": {
+        "copy_repo_seconds": 0.03,
+        "build_agent_app_seconds": 0.97,
+        "agent_run_seconds": 12.62,
+        "total_seconds": 14.58
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 71135,
+        "cached_input_tokens": 65152,
+        "non_cached_input_tokens": 5983,
+        "output_tokens": 473,
+        "event_type_counts": {
+          "item.completed": 6,
+          "item.started": 3,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected unchanged lab seed rows and latest glucose answer; observed [2026-03-30 (TSH 3.4), 2026-03-29 (Glucose 89), 2026-03-28 (Glucose 91)]"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 12.62,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71135,
+            "cached_input_tokens": 65152,
+            "non_cached_input_tokens": 5983,
+            "output_tokens": 473,
+            "event_type_counts": {
+              "item.completed": 6,
+              "item.started": 3,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected unchanged lab seed rows and latest glucose answer; observed [2026-03-30 (TSH 3.4), 2026-03-29 (Glucose 89), 2026-03-28 (Glucose 91)]",
+            "labs": [
+              {
+                "date": "2026-03-30",
+                "results": [
+                  {
+                    "test_name": "TSH",
+                    "canonical_slug": "tsh",
+                    "value_text": "3.4",
+                    "value_numeric": 3.4,
+                    "units": "uIU/mL"
+                  }
+                ]
+              },
+              {
+                "date": "2026-03-29",
+                "results": [
+                  {
+                    "test_name": "Glucose",
+                    "canonical_slug": "glucose",
+                    "value_text": "89",
+                    "value_numeric": 89,
+                    "units": "mg/dL"
+                  }
+                ]
+              },
+              {
+                "date": "2026-03-28",
+                "results": [
+                  {
+                    "test_name": "Glucose",
+                    "canonical_slug": "glucose",
+                    "value_text": "91",
+                    "value_numeric": 91,
+                    "units": "mg/dL"
+                  }
+                ]
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/lab-latest-analyte/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "list only the latest glucose lab result",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/lab-latest-analyte/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "lab-correct",
+      "scenario_title": "Correct an existing lab collection",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 8.94,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "build_agent_app_seconds": 0.79,
+        "agent_run_seconds": 8.94,
+        "total_seconds": 10.51
+      },
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 71123,
+        "cached_input_tokens": 65152,
+        "non_cached_input_tokens": 5971,
+        "output_tokens": 569,
+        "event_type_counts": {
+          "item.completed": 5,
+          "item.started": 2,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected 2026-03-29 lab correction; observed [2026-03-30 (TSH 3.4), 2026-03-29 (TSH 3.1), 2026-03-28 (Glucose 91)]"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 8.94,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71123,
+            "cached_input_tokens": 65152,
+            "non_cached_input_tokens": 5971,
+            "output_tokens": 569,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected 2026-03-29 lab correction; observed [2026-03-30 (TSH 3.4), 2026-03-29 (TSH 3.1), 2026-03-28 (Glucose 91)]",
+            "labs": [
+              {
+                "date": "2026-03-30",
+                "results": [
+                  {
+                    "test_name": "TSH",
+                    "canonical_slug": "tsh",
+                    "value_text": "3.4",
+                    "value_numeric": 3.4,
+                    "units": "uIU/mL"
+                  }
+                ]
+              },
+              {
+                "date": "2026-03-29",
+                "results": [
+                  {
+                    "test_name": "TSH",
+                    "canonical_slug": "tsh",
+                    "value_text": "3.1",
+                    "value_numeric": 3.1,
+                    "units": "uIU/mL"
+                  }
+                ]
+              },
+              {
+                "date": "2026-03-28",
+                "results": [
+                  {
+                    "test_name": "Glucose",
+                    "canonical_slug": "glucose",
+                    "value_text": "91",
+                    "value_numeric": 91,
+                    "units": "mg/dL"
+                  }
+                ]
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/lab-correct/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "correct 2026-03-29 lab collection to TSH",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/lab-correct/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "lab-delete",
+      "scenario_title": "Delete an existing lab collection",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 14.95,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.99,
+        "seed_db_seconds": 0.01,
+        "agent_run_seconds": 14.95,
+        "total_seconds": 18.21
+      },
+      "metrics": {
+        "assistant_calls": 4,
+        "tool_calls": 3,
+        "command_executions": 3,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 96620,
+        "cached_input_tokens": 90112,
+        "non_cached_input_tokens": 6508,
+        "output_tokens": 1023,
+        "event_type_counts": {
+          "item.completed": 7,
+          "item.started": 3,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected 2026-03-29 lab deleted; observed [2026-03-30 (TSH 3.4), 2026-03-28 (Glucose 91)]"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 14.95,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 4,
+            "tool_calls": 3,
+            "command_executions": 3,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 96620,
+            "cached_input_tokens": 90112,
+            "non_cached_input_tokens": 6508,
+            "output_tokens": 1023,
+            "event_type_counts": {
+              "item.completed": 7,
+              "item.started": 3,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected 2026-03-29 lab deleted; observed [2026-03-30 (TSH 3.4), 2026-03-28 (Glucose 91)]",
+            "labs": [
+              {
+                "date": "2026-03-30",
+                "results": [
+                  {
+                    "test_name": "TSH",
+                    "canonical_slug": "tsh",
+                    "value_text": "3.4",
+                    "value_numeric": 3.4,
+                    "units": "uIU/mL"
+                  }
+                ]
+              },
+              {
+                "date": "2026-03-28",
+                "results": [
+                  {
+                    "test_name": "Glucose",
+                    "canonical_slug": "glucose",
+                    "value_text": "91",
+                    "value_numeric": 91,
+                    "units": "mg/dL"
+                  }
+                ]
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/lab-delete/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "delete 2026-03-29 lab collection",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/lab-delete/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "lab-invalid-slug",
+      "scenario_title": "Reject an unsupported lab analyte slug without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 6.85,
+      "phase_timings": {
+        "copy_repo_seconds": 0.03,
+        "build_agent_app_seconds": 0.99,
+        "agent_run_seconds": 6.85,
+        "total_seconds": 8.54
+      },
+      "metrics": {
+        "assistant_calls": 2,
+        "tool_calls": 1,
+        "command_executions": 1,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 46293,
+        "cached_input_tokens": 40704,
+        "non_cached_input_tokens": 5589,
+        "output_tokens": 284,
+        "event_type_counts": {
+          "item.completed": 3,
+          "item.started": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no write and unsupported analyte rejection; observed []"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 6.85,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 2,
+            "tool_calls": 1,
+            "command_executions": 1,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 46293,
+            "cached_input_tokens": 40704,
+            "non_cached_input_tokens": 5589,
+            "output_tokens": 284,
+            "event_type_counts": {
+              "item.completed": 3,
+              "item.started": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no write and unsupported analyte rejection; observed []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/lab-invalid-slug/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reject unsupported lab analyte without tools",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/lab-invalid-slug/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "mixed-medication-lab",
+      "scenario_title": "Record medication and lab data, then report latest domain entries",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 17.53,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "build_agent_app_seconds": 0.92,
+        "agent_run_seconds": 17.53,
+        "verify_seconds": 0.01,
+        "total_seconds": 19.45
+      },
+      "metrics": {
+        "assistant_calls": 4,
+        "tool_calls": 5,
+        "command_executions": 5,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 148012,
+        "cached_input_tokens": 141056,
+        "non_cached_input_tokens": 6956,
+        "output_tokens": 1301,
+        "event_type_counts": {
+          "item.completed": 9,
+          "item.started": 5,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected one medication and one glucose lab; observed medications [Levothyroxine 25 mcg from 2026-01-01] and labs [2026-03-29 (Glucose 89)]"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 17.53,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 4,
+            "tool_calls": 5,
+            "command_executions": 5,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 148012,
+            "cached_input_tokens": 141056,
+            "non_cached_input_tokens": 6956,
+            "output_tokens": 1301,
+            "event_type_counts": {
+              "item.completed": 9,
+              "item.started": 5,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected one medication and one glucose lab; observed medications [Levothyroxine 25 mcg from 2026-01-01] and labs [2026-03-29 (Glucose 89)]",
+            "medications": [
+              {
+                "name": "Levothyroxine",
+                "dosage_text": "25 mcg",
+                "start_date": "2026-01-01"
+              }
+            ],
+            "labs": [
+              {
+                "date": "2026-03-29",
+                "results": [
+                  {
+                    "test_name": "Glucose",
+                    "canonical_slug": "glucose",
+                    "value_text": "89",
+                    "value_numeric": 89,
+                    "units": "mg/dL"
+                  }
+                ]
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/mixed-medication-lab/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "record one medication and one lab result, then report both",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/mixed-medication-lab/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "mt-weight-clarify-then-add",
+      "scenario_title": "Clarify missing year, then add weight in a resumed turn",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 13.42,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.88,
+        "agent_run_seconds": 13.42,
+        "verify_seconds": 0.01,
+        "total_seconds": 15.83
+      },
+      "metrics": {
+        "assistant_calls": 4,
+        "tool_calls": 2,
+        "command_executions": 2,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 142057,
+        "cached_input_tokens": 129792,
+        "non_cached_input_tokens": 12265,
+        "output_tokens": 857,
+        "event_type_counts": {
+          "item.completed": 6,
+          "item.started": 2,
+          "thread.started": 2,
+          "turn.completed": 2,
+          "turn.started": 2
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no first-turn writes and a year clarification; observed weights [] and blood pressures []; turn 2: expected second-turn weight write after year clarification with no blood-pressure writes; observed weights [2026-03-29 152.2 lb] and blood pressures []",
+        "weights": [
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 7.82,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 2,
+            "tool_calls": 1,
+            "command_executions": 1,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 46391,
+            "cached_input_tokens": 40704,
+            "non_cached_input_tokens": 5687,
+            "output_tokens": 322,
+            "event_type_counts": {
+              "item.completed": 3,
+              "item.started": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no first-turn writes and a year clarification; observed weights [] and blood pressures []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/mt-weight-clarify-then-add/turn-1/events.jsonl"
+        },
+        {
+          "turn_index": 2,
+          "wall_seconds": 5.6,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 2,
+            "tool_calls": 1,
+            "command_executions": 1,
+            "file_inspection_commands": 0,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 95666,
+            "cached_input_tokens": 89088,
+            "non_cached_input_tokens": 6578,
+            "output_tokens": 535,
+            "event_type_counts": {
+              "item.completed": 3,
+              "item.started": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected second-turn weight write after year clarification with no blood-pressure writes; observed weights [2026-03-29 152.2 lb] and blood pressures []",
+            "weights": [
+              {
+                "date": "2026-03-29",
+                "value": 152.2,
+                "unit": "lb"
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/mt-weight-clarify-then-add/turn-2/events.jsonl"
+        }
+      ],
+      "prompt_summary": "ask for missing year, then add 2026-03-29 152.2 lb in a resumed turn",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/mt-weight-clarify-then-add/turn-2/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "mt-mixed-latest-then-correct",
+      "scenario_title": "Read latest mixed-domain entries, then correct both in a resumed turn",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 31.56,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.82,
+        "agent_run_seconds": 31.56,
+        "verify_seconds": 0.02,
+        "total_seconds": 33.31
+      },
+      "metrics": {
+        "assistant_calls": 5,
+        "tool_calls": 5,
+        "command_executions": 5,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 192971,
+        "cached_input_tokens": 173568,
+        "non_cached_input_tokens": 19403,
+        "output_tokens": 1617,
+        "event_type_counts": {
+          "item.completed": 10,
+          "item.started": 5,
+          "thread.started": 2,
+          "turn.completed": 2,
+          "turn.started": 2
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected unchanged seed rows and latest mixed-domain answer; observed weights [2026-03-30 151.6 lb, 2026-03-29 152.2 lb] and blood pressures [2026-03-30 118/76, 2026-03-29 122/78 pulse 64]; turn 2: expected latest mixed-domain corrections on 2026-03-30; observed weights [2026-03-30 151.0 lb, 2026-03-29 152.2 lb] and blood pressures [2026-03-30 117/75 pulse 63, 2026-03-29 122/78 pulse 64]",
+        "weights": [
+          {
+            "date": "2026-03-30",
+            "value": 151,
+            "unit": "lb"
+          },
+          {
+            "date": "2026-03-29",
+            "value": 152.2,
+            "unit": "lb"
+          }
+        ],
+        "blood_pressures": [
+          {
+            "date": "2026-03-30",
+            "systolic": 117,
+            "diastolic": 75,
+            "pulse": 63
+          },
+          {
+            "date": "2026-03-29",
+            "systolic": 122,
+            "diastolic": 78,
+            "pulse": 64
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 24.84,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 3,
+            "command_executions": 3,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71218,
+            "cached_input_tokens": 62080,
+            "non_cached_input_tokens": 9138,
+            "output_tokens": 594,
+            "event_type_counts": {
+              "item.completed": 6,
+              "item.started": 3,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected unchanged seed rows and latest mixed-domain answer; observed weights [2026-03-30 151.6 lb, 2026-03-29 152.2 lb] and blood pressures [2026-03-30 118/76, 2026-03-29 122/78 pulse 64]",
+            "weights": [
+              {
+                "date": "2026-03-30",
+                "value": 151.6,
+                "unit": "lb"
+              },
+              {
+                "date": "2026-03-29",
+                "value": 152.2,
+                "unit": "lb"
+              }
+            ],
+            "blood_pressures": [
+              {
+                "date": "2026-03-30",
+                "systolic": 118,
+                "diastolic": 76
+              },
+              {
+                "date": "2026-03-29",
+                "systolic": 122,
+                "diastolic": 78,
+                "pulse": 64
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/mt-mixed-latest-then-correct/turn-1/events.jsonl"
+        },
+        {
+          "turn_index": 2,
+          "wall_seconds": 6.72,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 2,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 0,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 121753,
+            "cached_input_tokens": 111488,
+            "non_cached_input_tokens": 10265,
+            "output_tokens": 1023,
+            "event_type_counts": {
+              "item.completed": 4,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected latest mixed-domain corrections on 2026-03-30; observed weights [2026-03-30 151.0 lb, 2026-03-29 152.2 lb] and blood pressures [2026-03-30 117/75 pulse 63, 2026-03-29 122/78 pulse 64]",
+            "weights": [
+              {
+                "date": "2026-03-30",
+                "value": 151,
+                "unit": "lb"
+              },
+              {
+                "date": "2026-03-29",
+                "value": 152.2,
+                "unit": "lb"
+              }
+            ],
+            "blood_pressures": [
+              {
+                "date": "2026-03-30",
+                "systolic": 117,
+                "diastolic": 75,
+                "pulse": 63
+              },
+              {
+                "date": "2026-03-29",
+                "systolic": 122,
+                "diastolic": 78,
+                "pulse": 64
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/mt-mixed-latest-then-correct/turn-2/events.jsonl"
+        }
+      ],
+      "prompt_summary": "read latest weight and blood pressure, then correct both in a resumed turn",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/mt-mixed-latest-then-correct/turn-2/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "mt-bp-latest-then-correct",
+      "scenario_title": "Read latest blood pressure, then correct it in a resumed turn",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 19.79,
+      "phase_timings": {
+        "copy_repo_seconds": 0.01,
+        "build_agent_app_seconds": 0.79,
+        "agent_run_seconds": 19.79,
+        "verify_seconds": 0.02,
+        "total_seconds": 21.27
+      },
+      "metrics": {
+        "assistant_calls": 5,
+        "tool_calls": 3,
+        "command_executions": 3,
+        "file_inspection_commands": 1,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 192017,
+        "cached_input_tokens": 179712,
+        "non_cached_input_tokens": 12305,
+        "output_tokens": 1338,
+        "event_type_counts": {
+          "item.completed": 8,
+          "item.started": 3,
+          "thread.started": 2,
+          "turn.completed": 2,
+          "turn.started": 2
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected unchanged seed rows and latest blood-pressure answer; observed weights [] and blood pressures [2026-03-30 118/76, 2026-03-29 122/78 pulse 64]; turn 2: expected latest blood-pressure correction on 2026-03-30; observed weights [] and blood pressures [2026-03-30 117/75 pulse 63, 2026-03-29 122/78 pulse 64]",
+        "blood_pressures": [
+          {
+            "date": "2026-03-30",
+            "systolic": 117,
+            "diastolic": 75,
+            "pulse": 63
+          },
+          {
+            "date": "2026-03-29",
+            "systolic": 122,
+            "diastolic": 78,
+            "pulse": 64
+          }
+        ]
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 9.92,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 3,
+            "tool_calls": 2,
+            "command_executions": 2,
+            "file_inspection_commands": 1,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 71055,
+            "cached_input_tokens": 65152,
+            "non_cached_input_tokens": 5903,
+            "output_tokens": 487,
+            "event_type_counts": {
+              "item.completed": 5,
+              "item.started": 2,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected unchanged seed rows and latest blood-pressure answer; observed weights [] and blood pressures [2026-03-30 118/76, 2026-03-29 122/78 pulse 64]",
+            "blood_pressures": [
+              {
+                "date": "2026-03-30",
+                "systolic": 118,
+                "diastolic": 76
+              },
+              {
+                "date": "2026-03-29",
+                "systolic": 122,
+                "diastolic": 78,
+                "pulse": 64
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/mt-bp-latest-then-correct/turn-1/events.jsonl"
+        },
+        {
+          "turn_index": 2,
+          "wall_seconds": 9.87,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 2,
+            "tool_calls": 1,
+            "command_executions": 1,
+            "file_inspection_commands": 0,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 120962,
+            "cached_input_tokens": 114560,
+            "non_cached_input_tokens": 6402,
+            "output_tokens": 851,
+            "event_type_counts": {
+              "item.completed": 3,
+              "item.started": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected latest blood-pressure correction on 2026-03-30; observed weights [] and blood pressures [2026-03-30 117/75 pulse 63, 2026-03-29 122/78 pulse 64]",
+            "blood_pressures": [
+              {
+                "date": "2026-03-30",
+                "systolic": 117,
+                "diastolic": 75,
+                "pulse": 63
+              },
+              {
+                "date": "2026-03-29",
+                "systolic": 122,
+                "diastolic": 78,
+                "pulse": 64
+              }
+            ]
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/mt-bp-latest-then-correct/turn-2/events.jsonl"
+        }
+      ],
+      "prompt_summary": "read latest blood pressure, then correct it in a resumed turn",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/mt-bp-latest-then-correct/turn-2/events.jsonl"
+    }
+  ],
+  "comparison": {
+    "baseline_report": "docs/agent-eval-results/oh-5yr-2026-04-18.json",
+    "entries": [
+      {
+        "variant": "production",
+        "scenario": "add-two",
+        "result": "same_pass",
+        "tool_calls_delta": -1,
+        "assistant_calls_delta": -1,
+        "wall_seconds_delta": -3.17,
+        "non_cached_input_tokens_delta": -113,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "repeat-add",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 1.66,
+        "non_cached_input_tokens_delta": 328,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "update-existing",
+        "result": "same_pass",
+        "tool_calls_delta": -1,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -6.9,
+        "non_cached_input_tokens_delta": 2819,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bounded-range",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -4.79,
+        "non_cached_input_tokens_delta": 56,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bounded-range-natural",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 0.8,
+        "non_cached_input_tokens_delta": 66,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "latest-only",
+        "result": "same_pass",
+        "tool_calls_delta": -2,
+        "assistant_calls_delta": -1,
+        "wall_seconds_delta": -6.44,
+        "non_cached_input_tokens_delta": -722,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "history-limit-two",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 0.2,
+        "non_cached_input_tokens_delta": 522,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "ambiguous-short-date",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 1.79,
+        "non_cached_input_tokens_delta": -22,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "invalid-input",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 1.92,
+        "non_cached_input_tokens_delta": 84,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "non-iso-date-reject",
+        "result": "same_pass",
+        "tool_calls_delta": 1,
+        "assistant_calls_delta": 1,
+        "wall_seconds_delta": 3.67,
+        "non_cached_input_tokens_delta": 2428,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bp-add-two",
+        "result": "same_pass",
+        "tool_calls_delta": -13,
+        "assistant_calls_delta": -3,
+        "wall_seconds_delta": -26.08,
+        "non_cached_input_tokens_delta": -32701,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "improved_to_no",
+        "broad_repo_search_change": "improved_to_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bp-latest-only",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -2.86,
+        "non_cached_input_tokens_delta": -290,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bp-history-limit-two",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 0.08,
+        "non_cached_input_tokens_delta": -355,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bp-bounded-range",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 1.67,
+        "non_cached_input_tokens_delta": 176,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bp-bounded-range-natural",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -1.54,
+        "non_cached_input_tokens_delta": -422,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bp-invalid-input",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -0.3,
+        "non_cached_input_tokens_delta": 127,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bp-non-iso-date-reject",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 0.47,
+        "non_cached_input_tokens_delta": 164,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bp-correct-existing",
+        "result": "same_pass",
+        "tool_calls_delta": 1,
+        "assistant_calls_delta": 1,
+        "wall_seconds_delta": -2.04,
+        "non_cached_input_tokens_delta": 602,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bp-correct-missing-reject",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 0.1,
+        "non_cached_input_tokens_delta": -3019,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bp-correct-ambiguous-reject",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 0.58,
+        "non_cached_input_tokens_delta": 83,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "mixed-add-latest",
+        "result": "same_pass",
+        "tool_calls_delta": 2,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 4.3,
+        "non_cached_input_tokens_delta": 1078,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "mixed-bounded-range",
+        "result": "same_pass",
+        "tool_calls_delta": -1,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -3.66,
+        "non_cached_input_tokens_delta": -583,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "mixed-invalid-direct-reject",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -0.2,
+        "non_cached_input_tokens_delta": 68,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "medication-add-list",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": -1,
+        "wall_seconds_delta": 1.12,
+        "non_cached_input_tokens_delta": -316,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "medication-correct",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -1,
+        "non_cached_input_tokens_delta": 5743,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "medication-delete",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -1.76,
+        "non_cached_input_tokens_delta": 5820,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "medication-invalid-date",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -2.47,
+        "non_cached_input_tokens_delta": 24,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "medication-end-before-start",
+        "result": "same_pass",
+        "tool_calls_delta": -1,
+        "assistant_calls_delta": -1,
+        "wall_seconds_delta": -2.58,
+        "non_cached_input_tokens_delta": -2412,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "lab-record-list",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 1,
+        "wall_seconds_delta": -0.02,
+        "non_cached_input_tokens_delta": 11,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "lab-range",
+        "result": "fixed",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -0.88,
+        "non_cached_input_tokens_delta": 27,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "lab-latest-analyte",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 2.45,
+        "non_cached_input_tokens_delta": 205,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "lab-correct",
+        "result": "same_pass",
+        "tool_calls_delta": -1,
+        "assistant_calls_delta": -1,
+        "wall_seconds_delta": -4.89,
+        "non_cached_input_tokens_delta": -437,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "lab-delete",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 0.26,
+        "non_cached_input_tokens_delta": 4,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "lab-invalid-slug",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -1.3,
+        "non_cached_input_tokens_delta": 0,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "mixed-medication-lab",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 3.88,
+        "non_cached_input_tokens_delta": -6334,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "mt-weight-clarify-then-add",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -1.66,
+        "non_cached_input_tokens_delta": -552,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "mt-mixed-latest-then-correct",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 12.92,
+        "non_cached_input_tokens_delta": 5926,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "mt-bp-latest-then-correct",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -0.68,
+        "non_cached_input_tokens_delta": -89,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      }
+    ]
+  },
+  "raw_logs_committed": false,
+  "raw_logs_note": "Raw codex exec event logs and stderr files were retained under \u003crun-root\u003e during execution and intentionally not committed.",
+  "token_usage_caveat": "Token metrics come from codex exec turn.completed usage events when exposed; unavailable usage must be recorded as not_exposed.",
+  "app_server_fallback": "not used: codex exec --json exposed enough event detail for this run"
+}

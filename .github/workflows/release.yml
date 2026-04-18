@@ -91,9 +91,9 @@ jobs:
 
           for target in "${targets[@]}"; do
             IFS=/ read -r os arch <<< "${target}"
-            name="openhealth-agentops_${version}_${os}_${arch}"
+            name="openhealth_${version}_${os}_${arch}"
             mkdir -p "dist/${name}"
-            GOOS="${os}" GOARCH="${arch}" go build -trimpath -ldflags="-s -w" -o "dist/${name}/openhealth-agentops" ./cmd/openhealth-agentops
+            GOOS="${os}" GOARCH="${arch}" go build -trimpath -ldflags="-s -w" -o "dist/${name}/openhealth" ./cmd/openhealth
             tar -C dist -czf "dist/${name}.tar.gz" "${name}"
             rm -rf "dist/${name}"
           done

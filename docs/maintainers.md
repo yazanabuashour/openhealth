@@ -4,8 +4,8 @@ This repository uses **Beads** (`bd`) in embedded mode for maintainer task track
 
 This repository is public and now includes a production AgentOps runner binary,
 a single-file OpenHealth skill, a generated Go client, an in-process local
-runtime, a maintainer/debug CLI, and an OpenAPI contract. Keep maintainer docs
-honest about the actual supported surface.
+runtime, and an OpenAPI contract. Keep maintainer docs honest about the actual
+supported surface.
 
 ## Initial Setup
 
@@ -88,7 +88,7 @@ When changing GitHub settings, keep the repo aligned with:
 ## Release publication
 
 The first public release tag should be `v0.1.0`. The release contract is a
-tagged agent-app release for the `openhealth-agentops` binary, the single-file
+tagged agent-app release for the `openhealth` binary, the single-file
 OpenHealth skill, and the local in-process runtime. Tag a version like
 `v0.1.0`, push the tag, and let the release workflow:
 

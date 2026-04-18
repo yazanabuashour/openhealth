@@ -33,7 +33,7 @@ const (
 	cacheModeIsolated     = "isolated"
 )
 
-var prewarmCompilePackages = []string{"./cmd/openhealth-agentops", "./agentops"}
+var prewarmCompilePackages = []string{"./cmd/openhealth", "./agentops"}
 
 type scenario struct {
 	ID     string         `json:"id"`
@@ -614,7 +614,7 @@ func runOne(repoRoot string, runRoot string, currentVariant variant, currentScen
 	if err := timedPhase(&timings.InstallVariant, func() error { return installVariant(repoRoot, runRepo, currentVariant) }); err != nil {
 		return runResult{}, fmt.Errorf("install variant: %w", err)
 	}
-	if err := timedPhase(&timings.BuildAgentApp, func() error { return buildAgentOpsBinary(runRepo, runDir, dbPath, cache) }); err != nil {
+	if err := timedPhase(&timings.BuildAgentApp, func() error { return buildProductionBinary(runRepo, runDir, dbPath, cache) }); err != nil {
 		return runResult{}, fmt.Errorf("build agent app: %w", err)
 	}
 	if err := preflightEvalContext(repoRoot, runRepo, runDir, cache); err != nil {
@@ -1038,13 +1038,13 @@ func evalEnv(runDir string, dbPath string, cache cacheConfig) []string {
 	return env
 }
 
-func buildAgentOpsBinary(runRepo string, runDir string, dbPath string, cache cacheConfig) error {
+func buildProductionBinary(runRepo string, runDir string, dbPath string, cache cacheConfig) error {
 	binDir := filepath.Join(runDir, "bin")
 	if err := os.MkdirAll(binDir, 0o755); err != nil {
 		return err
 	}
-	outputPath := filepath.Join(binDir, "openhealth-agentops")
-	cmd := exec.Command("go", "build", "-o", outputPath, "./cmd/openhealth-agentops")
+	outputPath := filepath.Join(binDir, "openhealth")
+	cmd := exec.Command("go", "build", "-o", outputPath, "./cmd/openhealth")
 	cmd.Dir = runRepo
 	cmd.Env = evalEnv(runDir, dbPath, cache)
 	output, err := cmd.CombinedOutput()
@@ -2410,7 +2410,7 @@ func containsOpenHealthAgentsInstructions(rendered string) bool {
 	}
 	agentsText := rendered[index:]
 	for _, forbidden := range []string{
-		"openhealth-agentops",
+		"openhealth",
 		"upsert_weights",
 		"record_blood_pressure",
 		"record_medications",
@@ -2703,7 +2703,7 @@ func productionStopLoss(results []runResult) *stopLossSummary {
 		recommendation = "continue_production_hardening"
 	}
 	return &stopLossSummary{
-		Policy:         "Production AgentOps must pass every scenario without direct generated-file inspection, module-cache inspection, direct SQLite access, legacy openhealth CLI usage, broad repo search in more than one routine scenario, or excessive core tool counts.",
+		Policy:         "Production AgentOps must pass every scenario without direct generated-file inspection, module-cache inspection, direct SQLite access, retired human OpenHealth CLI usage, broad repo search in more than one routine scenario, or excessive core tool counts.",
 		Triggered:      len(triggers) > 0,
 		Recommendation: recommendation,
 		Triggers:       triggers,
@@ -3519,7 +3519,7 @@ func lineLooksLikeResult(line string) bool {
 func mentionsDatesInOrder(message string, dates ...string) bool {
 	previous := -1
 	for _, date := range dates {
-		index := dateMentionIndex(message, date)
+		index := includedDateResultLineIndex(message, date)
 		if index < 0 || index <= previous {
 			return false
 		}
@@ -3871,9 +3871,20 @@ func segmentUsesOpenHealthCLI(segment string) bool {
 			}
 		}
 		if (field == "openhealth" || strings.HasSuffix(field, "/openhealth")) && i+1 < len(fields) {
-			switch fields[i+1] {
-			case "weight", "blood-pressure", "medications", "labs", "migrate", "serve":
+			if fields[i+1] == "migrate" || fields[i+1] == "serve" {
 				return true
+			}
+			if i+2 < len(fields) {
+				switch fields[i+1] {
+				case "weight":
+					if fields[i+2] == "add" || fields[i+2] == "list" {
+						return true
+					}
+				case "blood-pressure":
+					if fields[i+2] == "add" || fields[i+2] == "list" || fields[i+2] == "correct" {
+						return true
+					}
+				}
 			}
 		}
 	}

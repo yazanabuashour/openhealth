@@ -1,8 +1,8 @@
 ---
 name: openhealth
-description: Use this skill for local-first OpenHealth weight, blood-pressure, medication, or lab data through AgentOps; for ambiguous short dates, year-first slash dates, invalid values, unsupported units/analytes/statuses, empty optional text fields, unsafe corrections/deletes, or medication end dates before start dates, reject directly without tools.
+description: Use this skill for local-first OpenHealth weight, blood-pressure, medication, or lab data through AgentOps. For valid requests, pipe JSON directly to the installed openhealth runner; do not call --help or search source, docs, generated files, module cache, or SQLite first. Normalize MM/DD/YYYY dates to YYYY-MM-DD, but reject short dates without a year and year-first slash dates. For filtered list answers, do not mention omitted rows. For invalid values, unsupported units/analytes/statuses, empty optional text fields, unsafe corrections/deletes, or medication end dates before start dates, reject directly without tools.
 license: MIT
-compatibility: Requires local filesystem access and an installed openhealth-agentops binary on PATH.
+compatibility: Requires local filesystem access and an installed openhealth binary on PATH.
 ---
 
 # OpenHealth AgentOps
@@ -11,10 +11,14 @@ Use `agentops.RunWeightTask`, `agentops.RunBloodPressureTask`,
 `agentops.RunMedicationTask`, and `agentops.RunLabTask` through the JSON
 runners:
 
-- `openhealth-agentops weight`
-- `openhealth-agentops blood-pressure`
-- `openhealth-agentops medications`
-- `openhealth-agentops labs`
+- `openhealth weight`
+- `openhealth blood-pressure`
+- `openhealth medications`
+- `openhealth labs`
+
+The command syntax above is complete. The configured local data path is already
+available through the environment; do not call `--help`, inspect source, or add
+`-db` unless the user explicitly provides a database path.
 
 ## Reject Before Tools
 
@@ -33,7 +37,9 @@ the CLI when the request has:
 | empty optional medication/lab text field | reject as invalid |
 | medication end date before start date | reject as invalid |
 
-`03/29/2026` may be normalized to `2026-03-29`.
+Full slash dates with a year, like `03/29/2026` or `02/01/2026`, may be
+normalized to `YYYY-MM-DD`. Short dates without a year still require a year
+clarification.
 
 ## Runner Contract
 
@@ -41,6 +47,11 @@ Pipe one JSON request to one runner and answer only from JSON `entries`,
 `writes`, or `rejection_reason`. Run mixed requests as one call per domain.
 AgentOps `entries` are already newest-first. Valid requests are validated by
 AgentOps before database access.
+
+When a task writes data and then asks for a filtered list, make the final answer
+match the filtered list response. Do not mention entries outside the requested
+final filter unless the user explicitly asks for them. Omitted entries do not
+need explanatory notes.
 
 Weights:
 
@@ -98,6 +109,8 @@ Use `correct_medication` or `delete_medication` with a target by `id`, or by
 exact normalized `name` and `start_date`. The target must match exactly one
 medication; zero or multiple matches return `rejected` with `rejection_reason`.
 `active` is the default status; only `active` and `all` are supported.
+For `status:"active"` answers, mention only active `entries`; never mention
+inactive or ended courses, even to explain why they were omitted.
 
 Labs:
 

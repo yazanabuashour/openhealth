@@ -1,7 +1,7 @@
 # openhealth
 
 OpenHealth is a local-first health runtime for agent-operated personal health
-data. The production agent surface is the `openhealth-agentops` binary plus the
+data. The production agent surface is the `openhealth` binary plus the
 single-file `openhealth` skill. The Go client package remains available for
 developers who want to embed the local runtime directly.
 
@@ -10,7 +10,7 @@ toolchain on the client machine.
 
 ## Install the agent app
 
-Download the `openhealth-agentops` archive for your platform from a tagged
+Download the `openhealth` archive for your platform from a tagged
 GitHub Release, unpack it, and put the binary on `PATH`.
 
 Install the skill by placing the released `SKILL.md` at:
@@ -22,10 +22,10 @@ Install the skill by placing the released `SKILL.md` at:
 The skill calls these production runner domains:
 
 ```bash
-openhealth-agentops weight
-openhealth-agentops blood-pressure
-openhealth-agentops medications
-openhealth-agentops labs
+openhealth weight
+openhealth blood-pressure
+openhealth medications
+openhealth labs
 ```
 
 The runner reads JSON from stdin and writes JSON to stdout. The skill is the
@@ -107,15 +107,6 @@ Override the default location with either:
 
 The database path override wins over the data directory override.
 
-## Maintainer debugging
-
-The legacy `cmd/openhealth` CLI remains available only for maintainer debugging
-or contract inspection. It is not the production agent-app interface:
-
-```bash
-mise exec -- go run ./cmd/openhealth serve
-```
-
 ## Contributing and maintainer setup
 
 Repository development still uses the full local toolchain:
@@ -129,21 +120,13 @@ mise exec -- golangci-lint run
 mise exec -- go test ./...
 ```
 
-Maintainers who need explicit database or HTTP debugging can also run:
-
-```bash
-mise exec -- go run ./cmd/openhealth migrate
-mise exec -- go run ./cmd/openhealth serve
-```
-
 See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor expectations and [docs/maintainers.md](docs/maintainers.md) for maintainer-only workflow details.
 
 ## Repository contents
 
 - [openapi/openapi.yaml](openapi/openapi.yaml) defines the API contract that generates the server and client bindings.
 - [client](client) contains the checked-in generated Go client plus local runtime bootstrap helpers.
-- [cmd/openhealth-agentops](cmd/openhealth-agentops) contains the production JSON runner binary used by the skill.
-- [cmd/openhealth](cmd/openhealth) contains the maintainer/debug CLI with explicit `migrate` and `serve` commands.
+- [cmd/openhealth](cmd/openhealth) contains the production JSON runner binary used by the skill.
 - [examples/client_summary](examples/client_summary) shows a minimal no-daemon consumer program that imports the generated client.
 - [skills/openhealth/SKILL.md](skills/openhealth/SKILL.md) is the complete shipped OpenHealth skill payload.
 - [CONTRIBUTING.md](CONTRIBUTING.md) explains how outside contributors should propose changes.
@@ -157,14 +140,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor expectations and [docs/ma
 
 The production release deliverables are:
 
-- platform archives for the `openhealth-agentops` binary
+- platform archives for the `openhealth` binary
 - the single-file `openhealth` skill archive
 - the Go module import path rooted at `github.com/yazanabuashour/openhealth`
 - the generated client package at `github.com/yazanabuashour/openhealth/client`
 - the local in-process runtime surfaced through `client.OpenLocal(...)`
-
-The maintainer CLI under `cmd/openhealth` remains part of the repository for
-debugging and contract inspection, but it is not a product install surface.
 
 The release workflow is built around semantic version tags in the `v0.y.z`
 range. Each tagged GitHub Release publishes binary archives, the skill archive,

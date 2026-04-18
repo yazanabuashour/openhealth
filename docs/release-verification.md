@@ -3,13 +3,13 @@
 Tagged OpenHealth releases publish integrity-focused assets alongside the Git
 tag:
 
-- `openhealth-agentops_<version>_<os>_<arch>.tar.gz`
+- `openhealth_<version>_<os>_<arch>.tar.gz`
 - `openhealth_<version>_skill.tar.gz`
 - `openhealth_<version>_source.tar.gz`
 - `openhealth_<version>_checksums.txt`
 - `openhealth_<version>_sbom.spdx.json`
 
-The platform archives contain the production `openhealth-agentops` binary. The
+The platform archives contain the production `openhealth` binary. The
 skill archive contains the single shipped `SKILL.md` payload. The source archive
 is the canonical source artifact for the Go module and local runtime. The
 checksums file and GitHub attestations let users verify that the assets were
@@ -22,7 +22,7 @@ then run:
 
 ```bash
 shasum -a 256 -c openhealth_<version>_checksums.txt
-gh attestation verify openhealth-agentops_<version>_<os>_<arch>.tar.gz --repo yazanabuashour/openhealth
+gh attestation verify openhealth_<version>_<os>_<arch>.tar.gz --repo yazanabuashour/openhealth
 gh attestation verify openhealth_<version>_skill.tar.gz --repo yazanabuashour/openhealth
 gh attestation verify openhealth_<version>_source.tar.gz --repo yazanabuashour/openhealth
 ```

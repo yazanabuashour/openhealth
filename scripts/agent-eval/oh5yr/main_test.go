@@ -187,7 +187,7 @@ func TestPromptInputPreflightFlagsOpenHealthAgentsInstructions(t *testing.T) {
 	if containsOpenHealthAgentsInstructions(clean) {
 		t.Fatalf("clean rendered prompt flagged as contaminated")
 	}
-	contaminated := `{"text":"# AGENTS.md instructions for /tmp/run/repo\n\n<INSTRUCTIONS>\nFor valid tasks, pipe JSON to openhealth-agentops weight.\n{\"action\":\"upsert_weights\"}\n</INSTRUCTIONS>"}`
+	contaminated := `{"text":"# AGENTS.md instructions for /tmp/run/repo\n\n<INSTRUCTIONS>\nFor valid tasks, pipe JSON to openhealth weight.\n{\"action\":\"upsert_weights\"}\n</INSTRUCTIONS>"}`
 	if !containsOpenHealthAgentsInstructions(contaminated) {
 		t.Fatalf("contaminated rendered prompt was not flagged")
 	}
@@ -503,14 +503,9 @@ func TestCacheModeEnvPathSelectionAndPrewarmArgs(t *testing.T) {
 	}
 
 	args := strings.Join(prewarmCompileArgs(), " ")
-	for _, want := range []string{"test -run ^$", "./cmd/openhealth-agentops", "./agentops"} {
+	for _, want := range []string{"test -run ^$", "./cmd/openhealth", "./agentops"} {
 		if !strings.Contains(args, want) {
 			t.Fatalf("prewarm args = %q, want %q", args, want)
-		}
-	}
-	for _, arg := range prewarmCompileArgs() {
-		if arg == "./cmd/openhealth" {
-			t.Fatalf("prewarm args = %q, should not include retired CLI", args)
 		}
 	}
 }
@@ -754,7 +749,7 @@ EOF
 		},
 		{
 			name:    "agentops json runner",
-			command: `openhealth-agentops weight <<'EOF'{"action":"list_weights"}EOF`,
+			command: `openhealth weight <<'EOF'{"action":"list_weights"}EOF`,
 		},
 		{
 			name:       "sqlite executable",
@@ -1287,6 +1282,15 @@ func TestMentionsDatesInOrder(t *testing.T) {
 			name:    "newest first short dates",
 			message: "03/30: 151.6 lb; 03/29: 152.2 lb.",
 			want:    true,
+		},
+		{
+			name: "newest first nested lab answer with range heading",
+			message: `OpenHealth lab collections for March 29 and March 30, 2026, newest first:
+- 2026-03-30
+  - TSH: 3.4 uIU/mL
+- 2026-03-29
+  - Glucose: 89 mg/dL`,
+			want: true,
 		},
 		{
 			name:    "missing date",

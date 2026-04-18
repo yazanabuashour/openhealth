@@ -2,307 +2,293 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/yazanabuashour/openhealth/agentops"
 )
 
-func TestRunMigrateCreatesDefaultDataDir(t *testing.T) {
-	homeDir := t.TempDir()
-	t.Setenv("HOME", homeDir)
-	t.Setenv("XDG_DATA_HOME", "")
-	t.Setenv("OPENHEALTH_DATA_DIR", "")
-	t.Setenv("OPENHEALTH_DATABASE_PATH", "")
-
-	var stdout bytes.Buffer
-	if err := runMigrate(nil, &stdout); err != nil {
-		t.Fatalf("run migrate: %v", err)
-	}
-
-	wantDatabasePath := filepath.Join(homeDir, ".local", "share", "openhealth", "openhealth.db")
-	if _, err := os.Stat(wantDatabasePath); err != nil {
-		t.Fatalf("stat migrated database: %v", err)
-	}
-	if !strings.Contains(stdout.String(), wantDatabasePath) {
-		t.Fatalf("stdout = %q, want path %q", stdout.String(), wantDatabasePath)
-	}
-}
-
-func TestRunMigrateHonorsExplicitDBPathWithoutHomeDir(t *testing.T) {
-	t.Setenv("HOME", "")
-	t.Setenv("XDG_DATA_HOME", "")
-	t.Setenv("OPENHEALTH_DATA_DIR", "")
-	t.Setenv("OPENHEALTH_DATABASE_PATH", "")
-
+func TestRunWeightJSONRoundTrip(t *testing.T) {
 	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
 
-	var stdout bytes.Buffer
-	if err := runMigrate([]string{"-db", databasePath}, &stdout); err != nil {
-		t.Fatalf("run migrate with explicit db path: %v", err)
+	upsert := `{"action":"upsert_weights","weights":[{"date":"2026-03-29","value":152.2,"unit":"lb"},{"date":"2026-03-30","value":151.6,"unit":"lb"}]}`
+	var upsertStdout bytes.Buffer
+	if err := run([]string{"weight", "--db", databasePath}, strings.NewReader(upsert), &upsertStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run weight upsert: %v", err)
 	}
-
-	if _, err := os.Stat(databasePath); err != nil {
-		t.Fatalf("stat explicit database path: %v", err)
+	var upsertResult agentops.WeightTaskResult
+	decodeJSON(t, upsertStdout.Bytes(), &upsertResult)
+	if len(upsertResult.Writes) != 2 {
+		t.Fatalf("writes = %d, want 2", len(upsertResult.Writes))
 	}
-	if !strings.Contains(stdout.String(), databasePath) {
-		t.Fatalf("stdout = %q, want path %q", stdout.String(), databasePath)
-	}
-}
+	assertWeightEntries(t, upsertResult.Entries, []agentops.WeightTaskEntry{
+		{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
+		{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
+	})
 
-func TestRunWeightAddAndList(t *testing.T) {
-	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
-
-	for _, args := range [][]string{
-		{"-db", databasePath, "--date", "2026-03-28", "--value", "153.0"},
-		{"-db", databasePath, "--date", "2026-03-29", "--value", "152.2"},
-		{"-db", databasePath, "--date", "2026-03-30", "--value", "151.6", "--unit", "lb"},
-	} {
-		var stdout bytes.Buffer
-		if err := runWeightAdd(args, &stdout); err != nil {
-			t.Fatalf("run weight add %v: %v", args, err)
-		}
-		if !strings.Contains(stdout.String(), " lb created") {
-			t.Fatalf("stdout = %q, want created status", stdout.String())
-		}
-	}
-
-	var stdout bytes.Buffer
-	if err := runWeightList([]string{"-db", databasePath, "--from", "2026-03-29", "--to", "2026-03-30"}, &stdout); err != nil {
+	list := `{"action":"list_weights","list_mode":"history","limit":2}`
+	var listStdout bytes.Buffer
+	if err := run([]string{"weight", "--db", databasePath}, strings.NewReader(list), &listStdout, ioDiscard{}); err != nil {
 		t.Fatalf("run weight list: %v", err)
 	}
-	got := stdout.String()
-	if !strings.Contains(got, "2026-03-30 151.6 lb") || !strings.Contains(got, "2026-03-29 152.2 lb") {
-		t.Fatalf("stdout = %q, want bounded rows", got)
-	}
-	if strings.Contains(got, "2026-03-28") {
-		t.Fatalf("stdout = %q, did not expect 2026-03-28", got)
-	}
-	if strings.Index(got, "2026-03-30") > strings.Index(got, "2026-03-29") {
-		t.Fatalf("stdout = %q, want newest first", got)
-	}
-}
-
-func TestRunWeightAddRejectsInvalidInputBeforeOpeningDatabase(t *testing.T) {
-	for _, tt := range []struct {
-		name string
-		args []string
-	}{
-		{
-			name: "short date",
-			args: []string{"--date", "03/29", "--value", "152.2"},
-		},
-		{
-			name: "unsupported unit",
-			args: []string{"--date", "2026-03-29", "--value", "152.2", "--unit", "stone"},
-		},
-		{
-			name: "nonpositive value",
-			args: []string{"--date", "2026-03-29", "--value", "-5"},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
-			args := append([]string{"-db", databasePath}, tt.args...)
-			var stdout bytes.Buffer
-			if err := runWeightAdd(args, &stdout); err == nil {
-				t.Fatalf("runWeightAdd(%v) succeeded, want error", args)
-			}
-			if _, err := os.Stat(databasePath); !os.IsNotExist(err) {
-				t.Fatalf("database stat error = %v, want not exist", err)
-			}
-		})
-	}
-}
-
-func TestRunBloodPressureAddAndList(t *testing.T) {
-	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
-
-	for _, args := range [][]string{
-		{"-db", databasePath, "--date", "2026-03-28", "--systolic", "124", "--diastolic", "80"},
-		{"-db", databasePath, "--date", "2026-03-29", "--systolic", "122", "--diastolic", "78", "--pulse", "64"},
-		{"-db", databasePath, "--date", "2026-03-30", "--systolic", "118", "--diastolic", "76"},
-	} {
-		var stdout bytes.Buffer
-		if err := runBloodPressureAdd(args, &stdout); err != nil {
-			t.Fatalf("run blood-pressure add %v: %v", args, err)
-		}
-		if !strings.Contains(stdout.String(), " created") {
-			t.Fatalf("stdout = %q, want created status", stdout.String())
-		}
-	}
-
-	var stdout bytes.Buffer
-	if err := runBloodPressureList([]string{"-db", databasePath, "--from", "2026-03-29", "--to", "2026-03-30"}, &stdout); err != nil {
-		t.Fatalf("run blood-pressure list: %v", err)
-	}
-	got := stdout.String()
-	if !strings.Contains(got, "2026-03-30 118/76") || !strings.Contains(got, "2026-03-29 122/78 pulse 64") {
-		t.Fatalf("stdout = %q, want bounded rows", got)
-	}
-	if strings.Contains(got, "2026-03-28") {
-		t.Fatalf("stdout = %q, did not expect 2026-03-28", got)
-	}
-	if strings.Index(got, "2026-03-30") > strings.Index(got, "2026-03-29") {
-		t.Fatalf("stdout = %q, want newest first", got)
-	}
-}
-
-func TestRunBloodPressureCorrectUpdatesExistingReading(t *testing.T) {
-	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
-
-	for _, args := range [][]string{
-		{"-db", databasePath, "--date", "2026-03-28", "--systolic", "124", "--diastolic", "80"},
-		{"-db", databasePath, "--date", "2026-03-29", "--systolic", "122", "--diastolic", "78", "--pulse", "64"},
-		{"-db", databasePath, "--date", "2026-03-30", "--systolic", "118", "--diastolic", "76"},
-	} {
-		var stdout bytes.Buffer
-		if err := runBloodPressureAdd(args, &stdout); err != nil {
-			t.Fatalf("run blood-pressure add %v: %v", args, err)
-		}
-	}
-
-	var corrected bytes.Buffer
-	if err := runBloodPressureCorrect([]string{"-db", databasePath, "--date", "2026-03-29", "--systolic", "121", "--diastolic", "77", "--pulse", "63"}, &corrected); err != nil {
-		t.Fatalf("run blood-pressure correct with pulse: %v", err)
-	}
-	if got := corrected.String(); !strings.Contains(got, "2026-03-29 121/77 pulse 63 updated") {
-		t.Fatalf("stdout = %q, want updated row with pulse", got)
-	}
-
-	var clearedPulse bytes.Buffer
-	if err := runBloodPressureCorrect([]string{"-db", databasePath, "--date", "2026-03-29", "--systolic", "120", "--diastolic", "76"}, &clearedPulse); err != nil {
-		t.Fatalf("run blood-pressure correct without pulse: %v", err)
-	}
-	if got := clearedPulse.String(); !strings.Contains(got, "2026-03-29 120/76 updated") || strings.Contains(got, "pulse") {
-		t.Fatalf("stdout = %q, want updated row without pulse", got)
-	}
-
-	var listed bytes.Buffer
-	if err := runBloodPressureList([]string{"-db", databasePath, "--limit", "25"}, &listed); err != nil {
-		t.Fatalf("run blood-pressure list: %v", err)
-	}
-	got := listed.String()
-	if strings.Count(got, "2026-03-29") != 1 {
-		t.Fatalf("stdout = %q, want one corrected 2026-03-29 row", got)
-	}
-	if !strings.Contains(got, "2026-03-29 120/76") || strings.Contains(got, "122/78") || strings.Contains(got, "121/77") {
-		t.Fatalf("stdout = %q, want replacement values only", got)
-	}
-}
-
-func TestRunBloodPressureCorrectRejectsMissingOrAmbiguousReading(t *testing.T) {
-	t.Run("missing", func(t *testing.T) {
-		databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
-		var stdout bytes.Buffer
-		err := runBloodPressureCorrect([]string{"-db", databasePath, "--date", "2026-03-29", "--systolic", "121", "--diastolic", "77"}, &stdout)
-		if err == nil || !strings.Contains(err.Error(), "no existing blood-pressure reading for 2026-03-29") {
-			t.Fatalf("error = %v, want missing reading rejection", err)
-		}
-	})
-
-	t.Run("ambiguous", func(t *testing.T) {
-		databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
-		for _, args := range [][]string{
-			{"-db", databasePath, "--date", "2026-03-29", "--systolic", "122", "--diastolic", "78"},
-			{"-db", databasePath, "--date", "2026-03-29", "--systolic", "120", "--diastolic", "76"},
-		} {
-			var stdout bytes.Buffer
-			if err := runBloodPressureAdd(args, &stdout); err != nil {
-				t.Fatalf("run blood-pressure add %v: %v", args, err)
-			}
-		}
-
-		var stdout bytes.Buffer
-		err := runBloodPressureCorrect([]string{"-db", databasePath, "--date", "2026-03-29", "--systolic", "121", "--diastolic", "77"}, &stdout)
-		if err == nil || !strings.Contains(err.Error(), "multiple blood-pressure readings for 2026-03-29; correction is ambiguous") {
-			t.Fatalf("error = %v, want ambiguous reading rejection", err)
-		}
+	var listResult agentops.WeightTaskResult
+	decodeJSON(t, listStdout.Bytes(), &listResult)
+	assertWeightEntries(t, listResult.Entries, []agentops.WeightTaskEntry{
+		{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
+		{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
 	})
 }
 
-func TestRunBloodPressureCorrectRejectsInvalidInputBeforeOpeningDatabase(t *testing.T) {
-	for _, tt := range []struct {
-		name string
-		args []string
-	}{
-		{
-			name: "short date",
-			args: []string{"--date", "03/29", "--systolic", "122", "--diastolic", "78"},
-		},
-		{
-			name: "nonpositive systolic",
-			args: []string{"--date", "2026-03-29", "--systolic", "0", "--diastolic", "78"},
-		},
-		{
-			name: "nonpositive diastolic",
-			args: []string{"--date", "2026-03-29", "--systolic", "122", "--diastolic", "-1"},
-		},
-		{
-			name: "nonpositive pulse",
-			args: []string{"--date", "2026-03-29", "--systolic", "122", "--diastolic", "78", "--pulse", "0"},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
-			args := append([]string{"-db", databasePath}, tt.args...)
-			var stdout bytes.Buffer
-			if err := runBloodPressureCorrect(args, &stdout); err == nil {
-				t.Fatalf("runBloodPressureCorrect(%v) succeeded, want error", args)
-			}
-			if _, err := os.Stat(databasePath); !os.IsNotExist(err) {
-				t.Fatalf("database stat error = %v, want not exist", err)
-			}
-		})
+func TestRunBloodPressureJSONRoundTrip(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
+
+	record := `{"action":"record_blood_pressure","readings":[{"date":"2026-03-29","systolic":122,"diastolic":78,"pulse":64},{"date":"2026-03-30","systolic":118,"diastolic":76}]}`
+	var recordStdout bytes.Buffer
+	if err := run([]string{"blood-pressure", "--db", databasePath}, strings.NewReader(record), &recordStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run blood-pressure record: %v", err)
 	}
+	var recordResult agentops.BloodPressureTaskResult
+	decodeJSON(t, recordStdout.Bytes(), &recordResult)
+	if len(recordResult.Writes) != 2 {
+		t.Fatalf("writes = %d, want 2", len(recordResult.Writes))
+	}
+	assertBloodPressureEntries(t, recordResult.Entries, []agentops.BloodPressureEntry{
+		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+		{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+	})
+
+	list := `{"action":"list_blood_pressure","list_mode":"latest"}`
+	var listStdout bytes.Buffer
+	if err := run([]string{"blood-pressure", "--db", databasePath}, strings.NewReader(list), &listStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run blood-pressure list: %v", err)
+	}
+	var listResult agentops.BloodPressureTaskResult
+	decodeJSON(t, listStdout.Bytes(), &listResult)
+	assertBloodPressureEntries(t, listResult.Entries, []agentops.BloodPressureEntry{
+		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+	})
 }
 
-func TestRunBloodPressureUsageIncludesCorrect(t *testing.T) {
+func TestRunMedicationsJSONRoundTrip(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
+
+	record := `{"action":"record_medications","medications":[{"name":"Levothyroxine","dosage_text":"25 mcg","start_date":"2026-01-01"},{"name":"Vitamin D","start_date":"2026-02-01","end_date":"2026-03-01"}]}`
+	var recordStdout bytes.Buffer
+	if err := run([]string{"medications", "--db", databasePath}, strings.NewReader(record), &recordStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run medications record: %v", err)
+	}
+	var recordResult agentops.MedicationTaskResult
+	decodeJSON(t, recordStdout.Bytes(), &recordResult)
+	if len(recordResult.Writes) != 2 {
+		t.Fatalf("writes = %d, want 2", len(recordResult.Writes))
+	}
+	assertMedicationEntries(t, recordResult.Entries, []agentops.MedicationEntry{
+		{Name: "Vitamin D", StartDate: "2026-02-01", EndDate: stringPointer("2026-03-01")},
+		{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01"},
+	})
+
+	list := `{"action":"list_medications","status":"all"}`
+	var listStdout bytes.Buffer
+	if err := run([]string{"medications", "--db", databasePath}, strings.NewReader(list), &listStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run medications list: %v", err)
+	}
+	var listResult agentops.MedicationTaskResult
+	decodeJSON(t, listStdout.Bytes(), &listResult)
+	assertMedicationEntries(t, listResult.Entries, []agentops.MedicationEntry{
+		{Name: "Vitamin D", StartDate: "2026-02-01", EndDate: stringPointer("2026-03-01")},
+		{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01"},
+	})
+}
+
+func TestRunLabsJSONRoundTrip(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
+
+	record := `{"action":"record_labs","collections":[{"date":"2026-03-29","panels":[{"panel_name":"Metabolic","results":[{"test_name":"Glucose","canonical_slug":"glucose","value_text":"89","value_numeric":89,"units":"mg/dL","range_text":"70-99"}]}]},{"date":"2026-03-30","panels":[{"panel_name":"Thyroid","results":[{"test_name":"TSH","canonical_slug":"tsh","value_text":"3.1","units":"uIU/mL"}]}]}]}`
+	var recordStdout bytes.Buffer
+	if err := run([]string{"labs", "--db", databasePath}, strings.NewReader(record), &recordStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run labs record: %v", err)
+	}
+	var recordResult agentops.LabTaskResult
+	decodeJSON(t, recordStdout.Bytes(), &recordResult)
+	if len(recordResult.Writes) != 2 {
+		t.Fatalf("writes = %d, want 2", len(recordResult.Writes))
+	}
+	assertLabEntryDates(t, recordResult.Entries, []string{"2026-03-30", "2026-03-29"})
+
+	list := `{"action":"list_labs","list_mode":"latest","analyte_slug":"glucose"}`
+	var listStdout bytes.Buffer
+	if err := run([]string{"labs", "--db", databasePath}, strings.NewReader(list), &listStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run labs list: %v", err)
+	}
+	var listResult agentops.LabTaskResult
+	decodeJSON(t, listStdout.Bytes(), &listResult)
+	assertLabEntryDates(t, listResult.Entries, []string{"2026-03-29"})
+}
+
+func TestRunValidationRejectionDoesNotCreateDatabase(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
+	request := `{"action":"upsert_weights","weights":[{"date":"2026-03-31","value":-5,"unit":"stone"}]}`
+
 	var stdout bytes.Buffer
-	if err := writeBloodPressureUsage(&stdout); err != nil {
-		t.Fatalf("write blood-pressure usage: %v", err)
+	if err := run([]string{"weight", "--db", databasePath}, strings.NewReader(request), &stdout, ioDiscard{}); err != nil {
+		t.Fatalf("run invalid weight request: %v", err)
 	}
-	if !strings.Contains(stdout.String(), "openhealth blood-pressure correct --date YYYY-MM-DD --systolic N --diastolic N [--pulse N] [-db path]") {
-		t.Fatalf("usage = %q, want correct command", stdout.String())
+	var result agentops.WeightTaskResult
+	decodeJSON(t, stdout.Bytes(), &result)
+	if !result.Rejected || result.RejectionReason == "" {
+		t.Fatalf("result = %#v, want rejection", result)
+	}
+	if _, err := os.Stat(databasePath); !os.IsNotExist(err) {
+		t.Fatalf("database stat error = %v, want not exist", err)
 	}
 }
 
-func TestRunBloodPressureAddRejectsInvalidInputBeforeOpeningDatabase(t *testing.T) {
-	for _, tt := range []struct {
-		name string
-		args []string
-	}{
-		{
-			name: "short date",
-			args: []string{"--date", "03/29", "--systolic", "122", "--diastolic", "78"},
-		},
-		{
-			name: "nonpositive systolic",
-			args: []string{"--date", "2026-03-29", "--systolic", "0", "--diastolic", "78"},
-		},
-		{
-			name: "nonpositive diastolic",
-			args: []string{"--date", "2026-03-29", "--systolic", "122", "--diastolic", "-1"},
-		},
-		{
-			name: "nonpositive pulse",
-			args: []string{"--date", "2026-03-29", "--systolic", "122", "--diastolic", "78", "--pulse", "0"},
-		},
-		{
-			name: "nonpositive pulse single dash",
-			args: []string{"--date", "2026-03-29", "--systolic", "122", "--diastolic", "78", "-pulse=0"},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
-			args := append([]string{"-db", databasePath}, tt.args...)
-			var stdout bytes.Buffer
-			if err := runBloodPressureAdd(args, &stdout); err == nil {
-				t.Fatalf("runBloodPressureAdd(%v) succeeded, want error", args)
-			}
-			if _, err := os.Stat(databasePath); !os.IsNotExist(err) {
-				t.Fatalf("database stat error = %v, want not exist", err)
-			}
-		})
+func TestRunRejectsBadJSONAndUnknownDomain(t *testing.T) {
+	var stdout bytes.Buffer
+	if err := run([]string{"weight"}, strings.NewReader("{"), &stdout, ioDiscard{}); err == nil || !strings.Contains(err.Error(), "decode request JSON") {
+		t.Fatalf("bad JSON error = %v, want decode request JSON", err)
 	}
+	if err := run(nil, strings.NewReader("{}"), &stdout, ioDiscard{}); err == nil || !strings.Contains(err.Error(), "missing AgentOps domain") {
+		t.Fatalf("missing domain error = %v, want missing AgentOps domain", err)
+	}
+	if err := run([]string{"unknown"}, strings.NewReader("{}"), &stdout, ioDiscard{}); err == nil || !strings.Contains(err.Error(), `unknown AgentOps domain "unknown"`) {
+		t.Fatalf("unknown domain error = %v, want unknown domain", err)
+	}
+}
+
+func TestRunRejectsUnknownJSONFields(t *testing.T) {
+	var stdout bytes.Buffer
+	request := `{"action":"list_weights","list_mode":"latest","unexpected":true}`
+	err := run([]string{"weight"}, strings.NewReader(request), &stdout, ioDiscard{})
+	if err == nil || !strings.Contains(err.Error(), `unknown field "unexpected"`) {
+		t.Fatalf("unknown field error = %v, want unknown field rejection", err)
+	}
+}
+
+func TestRunReturnsRuntimeErrorsNonZeroForMain(t *testing.T) {
+	databasePath := t.TempDir()
+	request := `{"action":"list_weights","list_mode":"history","limit":1}`
+
+	var stdout bytes.Buffer
+	if err := run([]string{"weight", "--db", databasePath}, strings.NewReader(request), &stdout, ioDiscard{}); err == nil {
+		t.Fatal("run weight with directory database path succeeded, want error")
+	}
+}
+
+func TestRunDBFlagOverridesEnvironment(t *testing.T) {
+	envDatabasePath := filepath.Join(t.TempDir(), "env", "openhealth.db")
+	flagDatabasePath := filepath.Join(t.TempDir(), "flag", "openhealth.db")
+	t.Setenv("OPENHEALTH_DATABASE_PATH", envDatabasePath)
+
+	request := `{"action":"upsert_weights","weights":[{"date":"2026-03-29","value":152.2,"unit":"lb"}]}`
+	var stdout bytes.Buffer
+	if err := run([]string{"weight", "--db", flagDatabasePath}, strings.NewReader(request), &stdout, ioDiscard{}); err != nil {
+		t.Fatalf("run with --db: %v", err)
+	}
+	if _, err := os.Stat(flagDatabasePath); err != nil {
+		t.Fatalf("stat flag database path: %v", err)
+	}
+	if _, err := os.Stat(envDatabasePath); !os.IsNotExist(err) {
+		t.Fatalf("env database stat error = %v, want not exist", err)
+	}
+}
+
+type ioDiscard struct{}
+
+func (ioDiscard) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+
+func decodeJSON[T any](t *testing.T, data []byte, out *T) {
+	t.Helper()
+	if err := json.Unmarshal(data, out); err != nil {
+		t.Fatalf("decode JSON %q: %v", string(data), err)
+	}
+}
+
+func assertWeightEntries(t *testing.T, got []agentops.WeightTaskEntry, want []agentops.WeightTaskEntry) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("entries = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("entries = %#v, want %#v", got, want)
+		}
+	}
+}
+
+func assertBloodPressureEntries(t *testing.T, got []agentops.BloodPressureEntry, want []agentops.BloodPressureEntry) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("entries = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i].Date != want[i].Date ||
+			got[i].Systolic != want[i].Systolic ||
+			got[i].Diastolic != want[i].Diastolic ||
+			!equalIntPointers(got[i].Pulse, want[i].Pulse) {
+			t.Fatalf("entries = %#v, want %#v", got, want)
+		}
+	}
+}
+
+func intPointer(value int) *int {
+	return &value
+}
+
+func equalIntPointers(a *int, b *int) bool {
+	switch {
+	case a == nil && b == nil:
+		return true
+	case a == nil || b == nil:
+		return false
+	default:
+		return *a == *b
+	}
+}
+
+func assertMedicationEntries(t *testing.T, got []agentops.MedicationEntry, want []agentops.MedicationEntry) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("entries = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i].Name != want[i].Name ||
+			got[i].StartDate != want[i].StartDate ||
+			!equalStringPointers(got[i].DosageText, want[i].DosageText) ||
+			!equalStringPointers(got[i].EndDate, want[i].EndDate) {
+			t.Fatalf("entries = %#v, want %#v", got, want)
+		}
+	}
+}
+
+func assertLabEntryDates(t *testing.T, got []agentops.LabCollectionEntry, want []string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("entries = %#v, want dates %#v", got, want)
+	}
+	for i := range want {
+		if got[i].Date != want[i] {
+			t.Fatalf("entries = %#v, want dates %#v", got, want)
+		}
+	}
+}
+
+func equalStringPointers(a *string, b *string) bool {
+	switch {
+	case a == nil && b == nil:
+		return true
+	case a == nil || b == nil:
+		return false
+	default:
+		return *a == *b
+	}
+}
+
+func stringPointer(value string) *string {
+	return &value
 }

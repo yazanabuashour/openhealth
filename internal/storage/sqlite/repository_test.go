@@ -217,11 +217,11 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 				DisplayOrder: 0,
 				Results: []health.LabResultWriteParams{
 					{
-						TestName:      "TSH",
-						CanonicalSlug: analytePointer(health.AnalyteSlugTSH),
-						ValueText:     "3.1",
-						ValueNumeric:  float64Pointer(3.1),
-						Units:         stringPointer("uIU/mL"),
+						TestName:      "Vitamin D",
+						CanonicalSlug: analytePointer(health.AnalyteSlug("vitamin-d")),
+						ValueText:     "32",
+						ValueNumeric:  float64Pointer(32),
+						Units:         stringPointer("ng/mL"),
 						DisplayOrder:  0,
 					},
 				},
@@ -233,6 +233,9 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 	}
 	if len(lab.Panels) != 1 || len(lab.Panels[0].Results) != 1 {
 		t.Fatalf("created lab collection = %#v", lab)
+	}
+	if slug := lab.Panels[0].Results[0].CanonicalSlug; slug == nil || *slug != health.AnalyteSlug("vitamin-d") {
+		t.Fatalf("created arbitrary lab slug = %#v, want vitamin-d", slug)
 	}
 	lab, err = repo.UpdateLabCollection(ctx, health.UpdateLabCollectionParams{
 		ID:          lab.ID,

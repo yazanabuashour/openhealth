@@ -23,6 +23,22 @@ func TestPendingAndApplyMigrationsBaselineLegacySchema(t *testing.T) {
 	if _, err := db.ExecContext(ctx, migrations[0].SQL); err != nil {
 		t.Fatalf("seed legacy schema: %v", err)
 	}
+	collectionID := insertTestRowID(t, db, `
+INSERT INTO health_lab_collection (collected_at, source, created_at)
+VALUES ('2026-04-01T00:00:00Z', 'test', '2026-04-01T00:00:00Z')
+RETURNING id
+`)
+	panelID := insertTestRowID(t, db, `
+INSERT INTO health_lab_panel (collection_id, panel_name, display_order)
+VALUES (?, 'Metabolic', 0)
+RETURNING id
+`, collectionID)
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO health_lab_result (panel_id, test_name, canonical_slug, value_text, display_order)
+VALUES (?, 'Glucose', 'glucose', '89', 0)
+`, panelID); err != nil {
+		t.Fatalf("seed legacy lab result: %v", err)
+	}
 
 	pending, err := PendingMigrations(ctx, db)
 	if err != nil {
@@ -47,6 +63,24 @@ func TestPendingAndApplyMigrationsBaselineLegacySchema(t *testing.T) {
 		if _, ok := applied[migration.Name]; !ok {
 			t.Fatalf("expected %s to be recorded in schema_migrations", migration.Name)
 		}
+	}
+
+	var preservedSlug string
+	if err := db.QueryRowContext(ctx, `
+SELECT canonical_slug
+FROM health_lab_result
+WHERE test_name = 'Glucose'
+`).Scan(&preservedSlug); err != nil {
+		t.Fatalf("query preserved lab result: %v", err)
+	}
+	if preservedSlug != "glucose" {
+		t.Fatalf("preserved slug = %q, want glucose", preservedSlug)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO health_lab_result (panel_id, test_name, canonical_slug, value_text, display_order)
+VALUES (?, 'Vitamin D', 'vitamin-d', '32', 1)
+`, panelID); err != nil {
+		t.Fatalf("insert arbitrary lab slug after migration: %v", err)
 	}
 }
 
@@ -90,4 +124,14 @@ func openTestDB(t *testing.T) *sql.DB {
 		_ = db.Close()
 	})
 	return db
+}
+
+func insertTestRowID(t *testing.T, db *sql.DB, statement string, args ...any) int {
+	t.Helper()
+
+	var id int
+	if err := db.QueryRowContext(context.Background(), statement, args...).Scan(&id); err != nil {
+		t.Fatalf("insert test row: %v", err)
+	}
+	return id
 }

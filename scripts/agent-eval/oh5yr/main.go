@@ -1320,8 +1320,8 @@ func scenarios() []scenario {
 		},
 		{
 			ID:     "lab-invalid-slug",
-			Title:  "Reject an unsupported lab analyte slug without writing",
-			Prompt: "Please add this local OpenHealth lab for 03/29/2026: UnknownTest 1 mg/dL with canonical analyte unsupported. Do not write it if the analyte is unsupported.",
+			Title:  "Reject an invalid lab analyte slug shape without writing",
+			Prompt: "Please add this local OpenHealth lab for 03/29/2026: UnknownTest 1 mg/dL with canonical analyte bad/slug. Do not write it if the analyte slug shape is invalid.",
 		},
 		{
 			ID:     "mixed-medication-lab",
@@ -2005,8 +2005,8 @@ func verifyLabScenario(dbPath string, sc scenario, finalMessage string) (verific
 		result.Details = fmt.Sprintf("expected 2026-03-29 lab deleted; observed %s", describeLabs(states))
 	case "lab-invalid-slug":
 		result.DatabasePass = len(states) == 0
-		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"unsupported", "analyte", "invalid", "cannot", "can't", "reject"})
-		result.Details = fmt.Sprintf("expected no write and unsupported analyte rejection; observed %s", describeLabs(states))
+		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"analyte", "slug", "invalid", "cannot", "can't", "reject"})
+		result.Details = fmt.Sprintf("expected no write and invalid analyte slug rejection; observed %s", describeLabs(states))
 	default:
 		return verificationResult{}, fmt.Errorf("unknown lab scenario %q", sc.ID)
 	}
@@ -3580,7 +3580,7 @@ func promptSummary(sc scenario) string {
 	case "lab-delete":
 		return "delete 2026-03-29 lab collection"
 	case "lab-invalid-slug":
-		return "reject unsupported lab analyte without tools"
+		return "reject invalid lab analyte slug without tools"
 	case "mixed-medication-lab":
 		return "record one medication and one lab result, then report both"
 	case "mt-weight-clarify-then-add":

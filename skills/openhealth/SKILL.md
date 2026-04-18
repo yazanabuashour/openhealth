@@ -1,6 +1,6 @@
 ---
 name: openhealth
-description: Use this skill for local-first OpenHealth weight, blood-pressure, medication, or lab data. For valid requests, pipe JSON directly to the installed openhealth runner; do not call --help or search source, docs, module cache, or SQLite first. Normalize MM/DD/YYYY dates to YYYY-MM-DD, but reject short dates without a year and year-first slash dates. For filtered list answers, do not mention omitted rows. For invalid values, unsupported units/analytes/statuses, empty optional text fields, unsafe corrections/deletes, or medication end dates before start dates, reject directly without tools.
+description: Use this skill for local-first OpenHealth weight, blood-pressure, medication, or lab data. For valid requests, pipe JSON directly to the installed openhealth runner; do not call --help or search source, docs, module cache, or SQLite first. Normalize MM/DD/YYYY dates to YYYY-MM-DD, but reject short dates without a year and year-first slash dates. For filtered list answers, do not mention omitted rows. For invalid values, unsupported units/statuses, invalid lab slug shapes, empty optional text fields, unsafe corrections/deletes, or medication end dates before start dates, reject directly without tools.
 license: MIT
 compatibility: Requires local filesystem access and an installed openhealth binary on PATH.
 ---
@@ -30,7 +30,7 @@ the CLI when the request has:
 | year-first slash date, like `2026/03/31` | require `YYYY-MM-DD` |
 | non-positive weight, systolic, diastolic, or pulse | reject as invalid |
 | unsupported weight unit, like `stone` | reject; pounds only |
-| unsupported lab analyte slug | reject as invalid |
+| invalid lab analyte slug shape, like punctuation-only text | reject as invalid |
 | unsupported medication status | reject as invalid |
 | empty optional medication/lab text field | reject as invalid |
 | medication end date before start date | reject as invalid |
@@ -103,6 +103,9 @@ Request JSON fields are `action`, `medications`, `medication`, `target`, and
 courses. Repeating an exact same `name` and `start_date` course is idempotent
 and returns `already_exists`; the same `name` and `start_date` with different
 details is rejected and should be corrected with `correct_medication`.
+When the user provides dose details, put the full amount, route, form, frequency,
+and delivery details in `dosage_text`, such as `2.5 mg subcutaneous injection
+weekly`, `topical cream twice daily`, or `1 patch every 24 hours`.
 Use `correct_medication` or `delete_medication` with a target by `id`, or by
 exact normalized `name` and `start_date`. The target must match exactly one
 medication; zero or multiple matches return `rejected` with `rejection_reason`.
@@ -129,8 +132,10 @@ has `panel_name` and `results`. Each result has `test_name`, optional
 `canonical_slug`, `value_text`, optional `value_numeric`, optional `units`,
 optional `range_text`, and optional `flag`.
 
-Supported `canonical_slug` and `analyte_slug` values are `tsh`, `free-t4`,
-`cholesterol-total`, `ldl`, `hdl`, `triglycerides`, and `glucose`.
+Use lowercase kebab-case `canonical_slug` and `analyte_slug` values derived from
+the lab or test name, such as `vitamin-d`, `hemoglobin-a1c`, `ferritin`, and
+`urine-albumin-creatinine-ratio`. The runner normalizes spaces and underscores
+to hyphens and rejects empty or non-kebab-case slug shapes.
 Use `record_labs` with one or more date-only collections. Repeating an exact
 same-date collection is idempotent and returns `already_exists`; a same-date
 collection with different panels or results is rejected and should be corrected

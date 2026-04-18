@@ -122,6 +122,61 @@ func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
 	assertLabCollectionDates(t, deleted.Entries, []string{"2026-03-30"})
 }
 
+func TestRunLabTaskAcceptsArbitraryLabSlugs(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "openhealth.db")
+	ctx := context.Background()
+	config := client.LocalConfig{DatabasePath: dbPath}
+
+	result, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action: runner.LabTaskActionRecord,
+		Collections: []runner.LabCollectionInput{
+			arbitraryLabCollection("2026-04-01"),
+			thyroidCollection("2026-04-02", "2.9"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("record arbitrary labs: %v", err)
+	}
+	if result.Rejected {
+		t.Fatalf("result rejected: %#v", result)
+	}
+
+	vitaminD, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action:      runner.LabTaskActionList,
+		ListMode:    runner.LabListModeLatest,
+		AnalyteSlug: "Vitamin D",
+	})
+	if err != nil {
+		t.Fatalf("list vitamin d: %v", err)
+	}
+	assertLabCollectionDates(t, vitaminD.Entries, []string{"2026-04-01"})
+	assertSingleLabResult(t, vitaminD.Entries[0], "Vitamin D", "vitamin-d", "32")
+
+	hemoglobinA1C, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action:      runner.LabTaskActionList,
+		ListMode:    runner.LabListModeLatest,
+		AnalyteSlug: "hemoglobin_a1c",
+	})
+	if err != nil {
+		t.Fatalf("list hemoglobin a1c: %v", err)
+	}
+	assertLabCollectionDates(t, hemoglobinA1C.Entries, []string{"2026-04-01"})
+	assertSingleLabResult(t, hemoglobinA1C.Entries[0], "Hemoglobin A1c", "hemoglobin-a1c", "5.4")
+
+	uacr, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action:      runner.LabTaskActionList,
+		ListMode:    runner.LabListModeLatest,
+		AnalyteSlug: "urine-albumin-creatinine-ratio",
+	})
+	if err != nil {
+		t.Fatalf("list uacr: %v", err)
+	}
+	assertLabCollectionDates(t, uacr.Entries, []string{"2026-04-01"})
+	assertSingleLabResult(t, uacr.Entries[0], "Urine Albumin Creatinine Ratio", "urine-albumin-creatinine-ratio", "9")
+}
+
 func TestRunLabTaskRejectsMissingOrAmbiguousTarget(t *testing.T) {
 	t.Parallel()
 
@@ -192,12 +247,20 @@ func TestRunLabTaskRejectsInvalidInputBeforeOpeningDatabase(t *testing.T) {
 			reason: "date must be YYYY-MM-DD",
 		},
 		{
-			name: "unsupported slug",
+			name: "empty canonical slug",
 			request: runner.LabTaskRequest{
 				Action:      runner.LabTaskActionRecord,
-				Collections: []runner.LabCollectionInput{{Date: "2026-03-29", Panels: []runner.LabPanelInput{{PanelName: "Metabolic", Results: []runner.LabResultInput{{TestName: "Unknown", CanonicalSlug: stringPointer("unsupported"), ValueText: "1"}}}}}},
+				Collections: []runner.LabCollectionInput{{Date: "2026-03-29", Panels: []runner.LabPanelInput{{PanelName: "Metabolic", Results: []runner.LabResultInput{{TestName: "Unknown", CanonicalSlug: stringPointer(" "), ValueText: "1"}}}}}},
 			},
-			reason: "canonical_slug must be a supported analyte",
+			reason: "canonical_slug must be a valid analyte slug",
+		},
+		{
+			name: "invalid canonical slug shape",
+			request: runner.LabTaskRequest{
+				Action:      runner.LabTaskActionRecord,
+				Collections: []runner.LabCollectionInput{{Date: "2026-03-29", Panels: []runner.LabPanelInput{{PanelName: "Metabolic", Results: []runner.LabResultInput{{TestName: "Unknown", CanonicalSlug: stringPointer("vitamin/d"), ValueText: "1"}}}}}},
+			},
+			reason: "canonical_slug must be a valid analyte slug",
 		},
 		{
 			name: "empty units",
@@ -208,13 +271,13 @@ func TestRunLabTaskRejectsInvalidInputBeforeOpeningDatabase(t *testing.T) {
 			reason: "units must not be empty",
 		},
 		{
-			name: "unsupported list analyte",
+			name: "invalid list analyte shape",
 			request: runner.LabTaskRequest{
 				Action:      runner.LabTaskActionList,
 				ListMode:    runner.LabListModeLatest,
-				AnalyteSlug: "unsupported",
+				AnalyteSlug: "!!!",
 			},
-			reason: "analyte_slug must be a supported analyte",
+			reason: "analyte_slug must be a valid analyte slug",
 		},
 		{
 			name: "missing target date",
@@ -284,6 +347,40 @@ func thyroidCollection(date string, value string) runner.LabCollectionInput {
 	}
 }
 
+func arbitraryLabCollection(date string) runner.LabCollectionInput {
+	return runner.LabCollectionInput{
+		Date: date,
+		Panels: []runner.LabPanelInput{
+			{
+				PanelName: "Micronutrients",
+				Results: []runner.LabResultInput{
+					{
+						TestName:      "Vitamin D",
+						CanonicalSlug: stringPointer("Vitamin D"),
+						ValueText:     "32",
+						ValueNumeric:  floatPointer(32),
+						Units:         stringPointer("ng/mL"),
+					},
+					{
+						TestName:      "Hemoglobin A1c",
+						CanonicalSlug: stringPointer("hemoglobin_a1c"),
+						ValueText:     "5.4",
+						ValueNumeric:  floatPointer(5.4),
+						Units:         stringPointer("%"),
+					},
+					{
+						TestName:      "Urine Albumin Creatinine Ratio",
+						CanonicalSlug: stringPointer("urine  albumin_creatinine   ratio"),
+						ValueText:     "9",
+						ValueNumeric:  floatPointer(9),
+						Units:         stringPointer("mg/g"),
+					},
+				},
+			},
+		},
+	}
+}
+
 func labWriteStatuses(writes []runner.LabCollectionWrite) string {
 	out := ""
 	for i, write := range writes {
@@ -293,6 +390,17 @@ func labWriteStatuses(writes []runner.LabCollectionWrite) string {
 		out += write.Status
 	}
 	return out
+}
+
+func assertSingleLabResult(t *testing.T, entry runner.LabCollectionEntry, testName string, slug string, valueText string) {
+	t.Helper()
+	if len(entry.Panels) != 1 || len(entry.Panels[0].Results) != 1 {
+		t.Fatalf("entry = %#v, want exactly one nested result", entry)
+	}
+	result := entry.Panels[0].Results[0]
+	if result.TestName != testName || result.CanonicalSlug == nil || *result.CanonicalSlug != slug || result.ValueText != valueText {
+		t.Fatalf("result = %#v, want %s %s %s", result, testName, slug, valueText)
+	}
 }
 
 func assertLabCollectionDates(t *testing.T, got []runner.LabCollectionEntry, want []string) {

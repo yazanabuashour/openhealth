@@ -56,6 +56,10 @@ const (
 	AnalyteSlugGlucose          = health.AnalyteSlugGlucose
 )
 
+func NormalizeAnalyteSlug(value string) (AnalyteSlug, bool) {
+	return health.NormalizeAnalyteSlug(value)
+}
+
 type WeightListOptions struct {
 	From  *time.Time
 	To    *time.Time

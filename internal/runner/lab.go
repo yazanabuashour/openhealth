@@ -395,11 +395,11 @@ func normalizeOptionalAnalyteSlug(value *string) (*client.AnalyteSlug, string) {
 	}
 	trimmed := strings.TrimSpace(*value)
 	if trimmed == "" {
-		return nil, "canonical_slug must be a supported analyte"
+		return nil, "canonical_slug must be a valid analyte slug"
 	}
 	slug, rejection := normalizeAnalyteSlug(trimmed)
 	if rejection != "" {
-		return nil, "canonical_slug must be a supported analyte"
+		return nil, "canonical_slug must be a valid analyte slug"
 	}
 	return slug, ""
 }
@@ -408,19 +408,11 @@ func normalizeAnalyteSlug(value string) (*client.AnalyteSlug, string) {
 	if value == "" {
 		return nil, ""
 	}
-	slug := client.AnalyteSlug(value)
-	switch slug {
-	case client.AnalyteSlugTSH,
-		client.AnalyteSlugFreeT4,
-		client.AnalyteSlugCholesterolTotal,
-		client.AnalyteSlugLDL,
-		client.AnalyteSlugHDL,
-		client.AnalyteSlugTriglycerides,
-		client.AnalyteSlugGlucose:
-		return &slug, ""
-	default:
-		return nil, "analyte_slug must be a supported analyte"
+	slug, ok := client.NormalizeAnalyteSlug(value)
+	if !ok {
+		return nil, "analyte_slug must be a valid analyte slug"
 	}
+	return &slug, ""
 }
 
 func runLabRecord(ctx context.Context, api *client.LocalClient, request normalizedLabTaskRequest) (LabTaskResult, error) {

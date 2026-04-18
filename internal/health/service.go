@@ -737,10 +737,11 @@ func normalizeMedicationStatus(value MedicationStatus) (MedicationStatus, error)
 }
 
 func validateAnalyteSlug(value AnalyteSlug) (AnalyteSlug, error) {
-	if _, ok := validAnalyteSlugs[value]; !ok {
-		return "", &ValidationError{Message: "slug must be a supported analyte"}
+	slug, ok := NormalizeAnalyteSlug(string(value))
+	if !ok {
+		return "", &ValidationError{Message: "slug must be a valid analyte slug"}
 	}
-	return value, nil
+	return slug, nil
 }
 
 func sortWeightEntriesDescending(entries []WeightEntry) []WeightEntry {
@@ -857,11 +858,7 @@ func includeLabHighlight(result LabResult) bool {
 	if result.Flag != nil && *result.Flag != "" {
 		return true
 	}
-	if result.CanonicalSlug == nil {
-		return false
-	}
-	_, ok := validAnalyteSlugs[*result.CanonicalSlug]
-	return ok
+	return result.CanonicalSlug != nil
 }
 
 func calculateAverage7d(entries []WeightEntry, latest *WeightEntry) *float64 {

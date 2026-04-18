@@ -63,10 +63,11 @@ INSERT INTO health_lab_result (panel_id, test_name, canonical_slug, value_text, 
 VALUES
   (?, 'TSH', 'tsh', '4.90', 4.90, 'uIU/mL', '0.57-3.74', 'High', 0),
   (?, 'Glucose', 'glucose', '89', 89.00, 'mg/dL', '70-99', NULL, 1),
-  (?, 'Legacy Unsupported', NULL, '1', 1.00, 'mg/dL', '0-1', NULL, 2),
-  (?, 'Legacy Flagged', NULL, '2', 2.00, 'mg/dL', '0-1', 'High', 3)
+  (?, 'Vitamin D', 'vitamin-d', '32', 32.00, 'ng/mL', '30-100', NULL, 2),
+  (?, 'Legacy Unsupported', NULL, '1', 1.00, 'mg/dL', '0-1', NULL, 3),
+  (?, 'Legacy Flagged', NULL, '2', 2.00, 'mg/dL', '0-1', 'High', 4)
 `,
-		panelID, panelID, panelID, panelID,
+		panelID, panelID, panelID, panelID, panelID,
 	)
 
 	summary, err := service.Summary(context.Background())
@@ -88,19 +89,24 @@ VALUES
 	if summary.ActiveMedicationCount != 1 {
 		t.Fatalf("activeMedicationCount = %d, want 1", summary.ActiveMedicationCount)
 	}
-	if names := []string{
+	if len(summary.LatestLabHighlights) != 4 {
+		t.Fatalf("unexpected highlights: %#v", summary.LatestLabHighlights)
+	}
+	names := []string{
 		summary.LatestLabHighlights[0].TestName,
 		summary.LatestLabHighlights[1].TestName,
 		summary.LatestLabHighlights[2].TestName,
-	}; len(summary.LatestLabHighlights) != 3 || names[0] != "TSH" || names[1] != "Glucose" || names[2] != "Legacy Flagged" {
+		summary.LatestLabHighlights[3].TestName,
+	}
+	if names[0] != "TSH" || names[1] != "Glucose" || names[2] != "Vitamin D" || names[3] != "Legacy Flagged" {
 		t.Fatalf("unexpected highlights: %#v", summary.LatestLabHighlights)
 	}
 
-	trend, err := service.AnalyteTrend(context.Background(), health.AnalyteSlugTSH)
+	trend, err := service.AnalyteTrend(context.Background(), health.AnalyteSlug("Vitamin D"))
 	if err != nil {
 		t.Fatalf("analyte trend: %v", err)
 	}
-	if len(trend.Points) != 1 || trend.Latest == nil || trend.Latest.TestName != "TSH" {
+	if trend.Slug != health.AnalyteSlug("vitamin-d") || len(trend.Points) != 1 || trend.Latest == nil || trend.Latest.TestName != "Vitamin D" {
 		t.Fatalf("unexpected analyte trend: %#v", trend)
 	}
 }
@@ -208,8 +214,8 @@ func TestServiceNonWeightValidationAndNotFound(t *testing.T) {
 				PanelName: "Metabolic",
 				Results: []health.LabResultInput{
 					{
-						TestName:      "Unsupported",
-						CanonicalSlug: analytePointer(health.AnalyteSlug("unsupported")),
+						TestName:      "Invalid",
+						CanonicalSlug: analytePointer(health.AnalyteSlug("bad/slug")),
 						ValueText:     "1",
 					},
 				},

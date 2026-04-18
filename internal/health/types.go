@@ -2,7 +2,9 @@ package health
 
 import (
 	"context"
+	"strings"
 	"time"
+	"unicode"
 )
 
 type WeightUnit string
@@ -37,20 +39,34 @@ const (
 	AnalyteSlugGlucose          AnalyteSlug = "glucose"
 )
 
-var validAnalyteSlugs = map[AnalyteSlug]struct{}{
-	AnalyteSlugTSH:              {},
-	AnalyteSlugFreeT4:           {},
-	AnalyteSlugCholesterolTotal: {},
-	AnalyteSlugLDL:              {},
-	AnalyteSlugHDL:              {},
-	AnalyteSlugTriglycerides:    {},
-	AnalyteSlugGlucose:          {},
-}
-
 func NormalizeAnalyteSlug(value string) (AnalyteSlug, bool) {
-	slug := AnalyteSlug(value)
-	_, ok := validAnalyteSlugs[slug]
-	return slug, ok
+	value = strings.TrimSpace(strings.ToLower(value))
+	if value == "" {
+		return "", false
+	}
+
+	var builder strings.Builder
+	previousHyphen := false
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			builder.WriteRune(r)
+			previousHyphen = false
+		case r == '-' || r == '_' || unicode.IsSpace(r):
+			if !previousHyphen {
+				builder.WriteByte('-')
+				previousHyphen = true
+			}
+		default:
+			return "", false
+		}
+	}
+
+	normalized := builder.String()
+	if normalized == "" || normalized[0] == '-' || normalized[len(normalized)-1] == '-' {
+		return "", false
+	}
+	return AnalyteSlug(normalized), true
 }
 
 type HistoryFilter struct {

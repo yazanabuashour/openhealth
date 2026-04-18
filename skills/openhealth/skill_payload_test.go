@@ -55,10 +55,15 @@ func TestProductionSkillUsesAgentOpsForRoutineUserData(t *testing.T) {
 	for _, want := range []string{
 		"agentops.RunWeightTask",
 		"agentops.RunBloodPressureTask",
-		"github.com/yazanabuashour/openhealth/agentops",
-		"GOPROXY=off GOSUMDB=off go run -mod=mod .",
+		"go run ./cmd/openhealth-agentops weight",
+		"go run ./cmd/openhealth-agentops blood-pressure",
+		"upsert_weights",
+		"record_blood_pressure",
+		"list_blood_pressure",
+		"Do not run repo-wide file discovery or broad searches",
 		"references/weights.md",
 		"references/blood-pressure.md",
+		"reject directly without running code",
 		"AgentOps `entries` are already newest-first",
 		"2026/03/31",
 	} {
@@ -66,8 +71,13 @@ func TestProductionSkillUsesAgentOpsForRoutineUserData(t *testing.T) {
 			t.Fatalf("skill missing %q", want)
 		}
 	}
+	if regexp.MustCompile(`go run \./cmd/openhealth(\s|$)`).MatchString(text) {
+		t.Fatalf("skill contains forbidden user-facing openhealth CLI command")
+	}
 	for _, forbidden := range []string{
-		"go run ./cmd/openhealth",
+		"temporary Go module",
+		"GOPROXY=off",
+		"go run -mod=mod",
 		"CLI fallback",
 		"Generated Client Fallback",
 	} {
@@ -86,7 +96,7 @@ func TestBloodPressureReferenceDocumentsCorrection(t *testing.T) {
 	}
 	text := string(content)
 	for _, want := range []string{
-		"BloodPressureTaskActionCorrect",
+		"correct_blood_pressure",
 		"updates exactly one existing reading",
 		"multiple same-date readings",
 		"rejection_reason",

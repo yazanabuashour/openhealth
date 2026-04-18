@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -24,9 +25,10 @@ import (
 )
 
 const (
-	issueID         = "oh-5yr"
-	modelName       = "gpt-5.4-mini"
-	reasoningEffort = "medium"
+	issueID               = "oh-5yr"
+	modelName             = "gpt-5.4-mini"
+	reasoningEffort       = "medium"
+	defaultRunParallelism = 4
 )
 
 type scenario struct {
@@ -41,24 +43,26 @@ type variant struct {
 }
 
 type report struct {
-	Issue             string                  `json:"issue"`
-	Date              string                  `json:"date"`
-	Model             string                  `json:"model"`
-	ReasoningEffort   string                  `json:"reasoning_effort"`
-	Harness           string                  `json:"harness"`
-	CodexVersion      string                  `json:"codex_version"`
-	HistoryIsolation  historyIsolationSummary `json:"history_isolation"`
-	CommandTemplate   []string                `json:"command_template"`
-	CLIStatus         string                  `json:"cli_status"`
-	MetricNotes       []string                `json:"metric_notes,omitempty"`
-	StopLoss          *stopLossSummary        `json:"stop_loss,omitempty"`
-	CodeFirst         *codeFirstSummary       `json:"code_first,omitempty"`
-	Results           []runResult             `json:"results"`
-	Comparison        *comparisonSummary      `json:"comparison,omitempty"`
-	RawLogsCommitted  bool                    `json:"raw_logs_committed"`
-	RawLogsNote       string                  `json:"raw_logs_note"`
-	TokenUsageCaveat  string                  `json:"token_usage_caveat"`
-	AppServerFallback string                  `json:"app_server_fallback"`
+	Issue                 string                  `json:"issue"`
+	Date                  string                  `json:"date"`
+	Model                 string                  `json:"model"`
+	ReasoningEffort       string                  `json:"reasoning_effort"`
+	Harness               string                  `json:"harness"`
+	Parallelism           int                     `json:"parallelism"`
+	HarnessElapsedSeconds float64                 `json:"harness_elapsed_seconds"`
+	CodexVersion          string                  `json:"codex_version"`
+	HistoryIsolation      historyIsolationSummary `json:"history_isolation"`
+	CommandTemplate       []string                `json:"command_template"`
+	CLIStatus             string                  `json:"cli_status"`
+	MetricNotes           []string                `json:"metric_notes,omitempty"`
+	StopLoss              *stopLossSummary        `json:"stop_loss,omitempty"`
+	CodeFirst             *codeFirstSummary       `json:"code_first,omitempty"`
+	Results               []runResult             `json:"results"`
+	Comparison            *comparisonSummary      `json:"comparison,omitempty"`
+	RawLogsCommitted      bool                    `json:"raw_logs_committed"`
+	RawLogsNote           string                  `json:"raw_logs_note"`
+	TokenUsageCaveat      string                  `json:"token_usage_caveat"`
+	AppServerFallback     string                  `json:"app_server_fallback"`
 }
 
 type historyIsolationSummary struct {
@@ -205,6 +209,16 @@ type usage struct {
 	OutputTokens      int `json:"output_tokens"`
 }
 
+type runOptions struct {
+	RunRoot          string
+	Date             string
+	CompareTo        string
+	VariantFilter    string
+	ScenarioFilter   string
+	CandidateVariant string
+	Parallelism      int
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		failf("usage: oh5yr <run|seed|verify>")
@@ -222,19 +236,37 @@ func main() {
 	}
 }
 
-func runCommand(args []string) {
-	fs := flag.NewFlagSet("run", flag.ExitOnError)
-	runRootFlag := fs.String("run-root", "", "directory for raw run artifacts outside the repo")
-	dateFlag := fs.String("date", time.Now().Format(time.DateOnly), "report date in YYYY-MM-DD form")
-	compareToFlag := fs.String("compare-to", "", "optional baseline JSON report path for comparison")
-	variantFilter := fs.String("variant", "", "optional comma-separated variant ids to run")
-	scenarioFilter := fs.String("scenario", "", "optional comma-separated scenario ids to run")
-	candidateVariantFlag := fs.String("candidate", "production", "candidate variant id to compare directly with cli")
+func parseRunOptions(args []string) (runOptions, error) {
+	options := runOptions{
+		Date:             time.Now().Format(time.DateOnly),
+		CandidateVariant: "production",
+		Parallelism:      defaultRunParallelism,
+	}
+	fs := flag.NewFlagSet("run", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	fs.StringVar(&options.RunRoot, "run-root", options.RunRoot, "directory for raw run artifacts outside the repo")
+	fs.StringVar(&options.Date, "date", options.Date, "report date in YYYY-MM-DD form")
+	fs.StringVar(&options.CompareTo, "compare-to", options.CompareTo, "optional baseline JSON report path for comparison")
+	fs.StringVar(&options.VariantFilter, "variant", options.VariantFilter, "optional comma-separated variant ids to run")
+	fs.StringVar(&options.ScenarioFilter, "scenario", options.ScenarioFilter, "optional comma-separated scenario ids to run")
+	fs.StringVar(&options.CandidateVariant, "candidate", options.CandidateVariant, "candidate variant id to compare directly with cli")
+	fs.IntVar(&options.Parallelism, "parallel", options.Parallelism, "number of scenario jobs to run concurrently")
 	if err := fs.Parse(args); err != nil {
-		failf("parse flags: %v", err)
+		return runOptions{}, err
 	}
 	if fs.NArg() != 0 {
-		failf("run does not accept positional arguments")
+		return runOptions{}, errors.New("run does not accept positional arguments")
+	}
+	if options.Parallelism < 1 {
+		return runOptions{}, errors.New("parallel must be greater than or equal to 1")
+	}
+	return options, nil
+}
+
+func runCommand(args []string) {
+	options, err := parseRunOptions(args)
+	if err != nil {
+		failf("parse flags: %v", err)
 	}
 
 	repoRoot, err := repoRoot()
@@ -242,7 +274,7 @@ func runCommand(args []string) {
 		failf("resolve repo root: %v", err)
 	}
 
-	runRoot := *runRootFlag
+	runRoot := options.RunRoot
 	if runRoot == "" {
 		runRoot, err = os.MkdirTemp("", "openhealth-oh-5yr-*")
 		if err != nil {
@@ -258,11 +290,11 @@ func runCommand(args []string) {
 	if isWithin(runRoot, repoRoot) {
 		failf("run root must be outside the repository: %s", runRoot)
 	}
-	selectedVariants, err := selectVariants(*variantFilter)
+	selectedVariants, err := selectVariants(options.VariantFilter)
 	if err != nil {
 		failf("select variants: %v", err)
 	}
-	selectedScenarios, err := selectScenarios(*scenarioFilter)
+	selectedScenarios, err := selectScenarios(options.ScenarioFilter)
 	if err != nil {
 		failf("select scenarios: %v", err)
 	}
@@ -277,26 +309,9 @@ func runCommand(args []string) {
 	}
 
 	codexVersion := commandOutput("codex", "--version")
-	results := []runResult{}
-	for _, currentVariant := range selectedVariants {
-		for _, currentScenario := range selectedScenarios {
-			result, err := runOne(repoRoot, runRoot, currentVariant, currentScenario)
-			if err != nil {
-				result = runResult{
-					Variant:       currentVariant.ID,
-					Scenario:      currentScenario.ID,
-					ScenarioTitle: currentScenario.Title,
-					ExitCode:      -1,
-					Verification: verificationResult{
-						Passed:  false,
-						Details: fmt.Sprintf("harness error: %v", err),
-					},
-					PromptSummary: promptSummary(currentScenario),
-				}
-			}
-			results = append(results, result)
-		}
-	}
+	harnessStart := time.Now()
+	results := runEvalJobs(repoRoot, runRoot, evalJobsFor(selectedVariants, selectedScenarios), options.Parallelism, runOne)
+	harnessElapsedSeconds := roundSeconds(time.Since(harnessStart).Seconds())
 
 	newSessionFiles := countNewSessionFiles(markerInfo.ModTime(), runRoot)
 	historyStatus := "passed"
@@ -310,16 +325,18 @@ func runCommand(args []string) {
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		failf("create result directory: %v", err)
 	}
-	jsonPath := filepath.Join(outDir, fmt.Sprintf("%s-%s.json", issueID, *dateFlag))
-	mdPath := filepath.Join(outDir, fmt.Sprintf("%s-%s.md", issueID, *dateFlag))
+	jsonPath := filepath.Join(outDir, fmt.Sprintf("%s-%s.json", issueID, options.Date))
+	mdPath := filepath.Join(outDir, fmt.Sprintf("%s-%s.md", issueID, options.Date))
 
 	outReport := report{
-		Issue:           issueID,
-		Date:            *dateFlag,
-		Model:           modelName,
-		ReasoningEffort: reasoningEffort,
-		Harness:         "codex exec --json --ephemeral --full-auto from throwaway run directories",
-		CodexVersion:    codexVersion,
+		Issue:                 issueID,
+		Date:                  options.Date,
+		Model:                 modelName,
+		ReasoningEffort:       reasoningEffort,
+		Harness:               "codex exec --json --ephemeral --full-auto from throwaway run directories",
+		Parallelism:           options.Parallelism,
+		HarnessElapsedSeconds: harnessElapsedSeconds,
+		CodexVersion:          codexVersion,
 		HistoryIsolation: historyIsolationSummary{
 			Status:                  historyStatus,
 			EphemeralFlagRequired:   true,
@@ -337,16 +354,16 @@ func runCommand(args []string) {
 			"codex exec --json --ephemeral --full-auto --skip-git-repo-check --add-dir <run-root>/<variant>/<scenario> -C <run-root>/<variant>/<scenario>/repo -m gpt-5.4-mini -c model_reasoning_effort=\"medium\" -c shell_environment_policy.inherit=all <natural user prompt>",
 		},
 		CLIStatus:         "runnable: cli variant uses go run ./cmd/openhealth weight and blood-pressure commands with a prewarmed per-scenario module cache",
-		MetricNotes:       metricNotes(*dateFlag, results),
+		MetricNotes:       metricNotes(options.Date, results),
 		StopLoss:          productionStopLoss(results),
-		CodeFirst:         codeFirstSummaryFor(results, *candidateVariantFlag),
+		CodeFirst:         codeFirstSummaryFor(results, options.CandidateVariant),
 		Results:           results,
 		RawLogsCommitted:  false,
 		RawLogsNote:       "Raw codex exec event logs and stderr files were retained under <run-root> during execution and intentionally not committed.",
 		TokenUsageCaveat:  "Token metrics come from codex exec turn.completed usage events when exposed; unavailable usage must be recorded as not_exposed.",
 		AppServerFallback: "not used: codex exec --json exposed enough event detail for this run",
 	}
-	baseline, baselineRef, err := baselineReport(repoRoot, outDir, jsonPath, *compareToFlag)
+	baseline, baselineRef, err := baselineReport(repoRoot, outDir, jsonPath, options.CompareTo)
 	if err != nil {
 		failf("read baseline report: %v", err)
 	}
@@ -418,6 +435,92 @@ func verifyCommand(args []string) {
 	}
 	if !result.Passed {
 		os.Exit(1)
+	}
+}
+
+type evalJob struct {
+	Index    int
+	Variant  variant
+	Scenario scenario
+}
+
+type evalJobResult struct {
+	Index  int
+	Result runResult
+}
+
+type runOneFunc func(repoRoot string, runRoot string, currentVariant variant, currentScenario scenario) (runResult, error)
+
+func evalJobsFor(selectedVariants []variant, selectedScenarios []scenario) []evalJob {
+	jobs := make([]evalJob, 0, len(selectedVariants)*len(selectedScenarios))
+	for _, currentVariant := range selectedVariants {
+		for _, currentScenario := range selectedScenarios {
+			jobs = append(jobs, evalJob{
+				Index:    len(jobs),
+				Variant:  currentVariant,
+				Scenario: currentScenario,
+			})
+		}
+	}
+	return jobs
+}
+
+func runEvalJobs(repoRoot string, runRoot string, jobs []evalJob, parallelism int, runOne runOneFunc) []runResult {
+	if parallelism < 1 {
+		parallelism = 1
+	}
+	workerCount := parallelism
+	if workerCount > len(jobs) {
+		workerCount = len(jobs)
+	}
+	results := make([]runResult, len(jobs))
+	if workerCount == 0 {
+		return results
+	}
+
+	jobsCh := make(chan evalJob)
+	resultsCh := make(chan evalJobResult)
+	var wg sync.WaitGroup
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for job := range jobsCh {
+				result, err := runOne(repoRoot, runRoot, job.Variant, job.Scenario)
+				if err != nil {
+					result = harnessErrorResult(job.Variant, job.Scenario, err)
+				}
+				resultsCh <- evalJobResult{Index: job.Index, Result: result}
+			}
+		}()
+	}
+
+	go func() {
+		for _, job := range jobs {
+			jobsCh <- job
+		}
+		close(jobsCh)
+		wg.Wait()
+		close(resultsCh)
+	}()
+
+	for result := range resultsCh {
+		results[result.Index] = result.Result
+	}
+	return results
+}
+
+func harnessErrorResult(currentVariant variant, currentScenario scenario, err error) runResult {
+	return runResult{
+		Variant:       currentVariant.ID,
+		Scenario:      currentScenario.ID,
+		ScenarioTitle: currentScenario.Title,
+		ExitCode:      -1,
+		Verification: verificationResult{
+			Passed:  false,
+			Details: fmt.Sprintf("harness error: %v", err),
+		},
+		PromptSummary: promptSummary(currentScenario),
 	}
 }
 
@@ -1843,6 +1946,12 @@ func writeMarkdown(path string, value report) error {
 	fmt.Fprintf(&b, "Harness: `%s`\n\n", value.Harness)
 	fmt.Fprintf(&b, "Model: `%s`, reasoning effort `%s`\n\n", value.Model, value.ReasoningEffort)
 	fmt.Fprintf(&b, "Codex CLI: `%s`\n\n", value.CodexVersion)
+	if value.Parallelism > 0 {
+		fmt.Fprintf(&b, "Parallelism: `%d`\n\n", value.Parallelism)
+	}
+	if value.HarnessElapsedSeconds > 0 {
+		fmt.Fprintf(&b, "Harness elapsed seconds: `%.2f`\n\n", value.HarnessElapsedSeconds)
+	}
 	fmt.Fprintf(&b, "Reduced JSON artifact: `docs/agent-eval-results/%s-%s.json`\n\n", value.Issue, value.Date)
 	fmt.Fprintf(&b, "Raw logs: not committed. They were retained under `<run-root>` during execution and are referenced below only with neutral placeholders.\n\n")
 
@@ -2352,7 +2461,11 @@ func lineLooksLikeResult(line string) bool {
 	if len(trimmed) >= 2 && unicode.IsDigit(rune(trimmed[0])) && (trimmed[1] == '.' || trimmed[1] == ')') {
 		return true
 	}
-	return strings.Contains(strings.ToLower(trimmed), " lb")
+	lower := strings.ToLower(trimmed)
+	return strings.Contains(lower, " lb") ||
+		(strings.Contains(lower, `"date"`) &&
+			strings.Contains(lower, `"value"`) &&
+			(strings.Contains(lower, `"unit":"lb"`) || strings.Contains(lower, `"unit": "lb"`)))
 }
 
 func mentionsDatesInOrder(message string, dates ...string) bool {

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPrepareRunDirResetsAndCreatesRuntimeDirs(t *testing.T) {
@@ -148,6 +151,115 @@ func TestWriteMarkdownReportsRunnableCLIStatus(t *testing.T) {
 	}
 	if strings.Contains(text, "not run because") {
 		t.Fatalf("markdown = %q, should not report CLI as skipped", text)
+	}
+}
+
+func TestParseRunOptionsDefaultsParallelismToFour(t *testing.T) {
+	t.Parallel()
+
+	options, err := parseRunOptions(nil)
+	if err != nil {
+		t.Fatalf("parseRunOptions: %v", err)
+	}
+	if options.Parallelism != defaultRunParallelism {
+		t.Fatalf("parallelism = %d, want %d", options.Parallelism, defaultRunParallelism)
+	}
+
+	options, err = parseRunOptions([]string{"--parallel", "1"})
+	if err != nil {
+		t.Fatalf("parseRunOptions --parallel 1: %v", err)
+	}
+	if options.Parallelism != 1 {
+		t.Fatalf("parallelism = %d, want 1", options.Parallelism)
+	}
+
+	if _, err := parseRunOptions([]string{"--parallel", "0"}); err == nil || !strings.Contains(err.Error(), "parallel must be greater than or equal to 1") {
+		t.Fatalf("parseRunOptions --parallel 0 error = %v, want validation error", err)
+	}
+}
+
+func TestRunEvalJobsPreservesOrderAndHarnessErrors(t *testing.T) {
+	t.Parallel()
+
+	selectedVariants := []variant{
+		{ID: "production", Title: "Production"},
+		{ID: "cli", Title: "CLI"},
+	}
+	selectedScenarios := []scenario{
+		{ID: "slow", Title: "Slow scenario", Prompt: "slow prompt"},
+		{ID: "fast", Title: "Fast scenario", Prompt: "fast prompt"},
+	}
+	jobs := evalJobsFor(selectedVariants, selectedScenarios)
+	results := runEvalJobs("repo", "run", jobs, 2, func(_ string, _ string, currentVariant variant, currentScenario scenario) (runResult, error) {
+		if currentScenario.ID == "slow" {
+			time.Sleep(20 * time.Millisecond)
+		}
+		if currentVariant.ID == "cli" && currentScenario.ID == "fast" {
+			return runResult{}, errors.New("boom")
+		}
+		return runResult{
+			Variant:       currentVariant.ID,
+			Scenario:      currentScenario.ID,
+			ScenarioTitle: currentScenario.Title,
+			Passed:        true,
+		}, nil
+	})
+
+	wantKeys := []string{"production/slow", "production/fast", "cli/slow", "cli/fast"}
+	if len(results) != len(wantKeys) {
+		t.Fatalf("results = %d, want %d", len(results), len(wantKeys))
+	}
+	for i, want := range wantKeys {
+		if got := resultKey(results[i].Variant, results[i].Scenario); got != want {
+			t.Fatalf("result %d key = %q, want %q; results = %#v", i, got, want, results)
+		}
+	}
+	failed := results[3]
+	if failed.ExitCode != -1 || failed.Verification.Passed || !strings.Contains(failed.Verification.Details, "harness error: boom") {
+		t.Fatalf("failed result = %#v, want harness error", failed)
+	}
+	if failed.PromptSummary == "" {
+		t.Fatalf("failed result prompt summary is empty: %#v", failed)
+	}
+}
+
+func TestReportIncludesParallelMetadata(t *testing.T) {
+	t.Parallel()
+
+	value := report{
+		Issue:                 issueID,
+		Date:                  "parallel-test",
+		Harness:               "test",
+		Parallelism:           4,
+		HarnessElapsedSeconds: 12.34,
+		Model:                 modelName,
+		ReasoningEffort:       reasoningEffort,
+		CodexVersion:          "test",
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal report: %v", err)
+	}
+	text := string(encoded)
+	for _, want := range []string{`"parallelism":4`, `"harness_elapsed_seconds":12.34`} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("json = %s, want %s", text, want)
+		}
+	}
+
+	path := filepath.Join(t.TempDir(), "report.md")
+	if err := writeMarkdown(path, value); err != nil {
+		t.Fatalf("writeMarkdown: %v", err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read markdown: %v", err)
+	}
+	markdown := string(content)
+	for _, want := range []string{"Parallelism: `4`", "Harness elapsed seconds: `12.34`"} {
+		if !strings.Contains(markdown, want) {
+			t.Fatalf("markdown = %q, want %q", markdown, want)
+		}
 	}
 }
 
@@ -376,6 +488,10 @@ EOF
 (cd "$tmp" && GOPROXY=off GOSUMDB=off go run -mod=mod .)`,
 		},
 		{
+			name:    "agentops json runner",
+			command: `go run ./cmd/openhealth-agentops weight <<'EOF'{"action":"list_weights"}EOF`,
+		},
+		{
 			name:       "sqlite executable",
 			command:    `sqlite3 "$OPENHEALTH_DATABASE_PATH" "select * from health_weight_entry"`,
 			wantSQLite: true,
@@ -472,11 +588,13 @@ func TestExpandedWeightScenariosVerifyExpectedOutput(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
+		name         string
 		scenarioID   string
 		finalMessage string
 		wantWeights  []weightState
 	}{
 		{
+			name:         "latest text",
 			scenarioID:   "latest-only",
 			finalMessage: "2026-03-30 151.6 lb",
 			wantWeights: []weightState{
@@ -486,6 +604,7 @@ func TestExpandedWeightScenariosVerifyExpectedOutput(t *testing.T) {
 			},
 		},
 		{
+			name:       "history text",
 			scenarioID: "history-limit-two",
 			finalMessage: strings.Join([]string{
 				"2026-03-30 151.6 lb",
@@ -499,6 +618,21 @@ func TestExpandedWeightScenariosVerifyExpectedOutput(t *testing.T) {
 			},
 		},
 		{
+			name:       "history json lines",
+			scenarioID: "history-limit-two",
+			finalMessage: strings.Join([]string{
+				`{"date":"2026-03-30","value":151.6,"unit":"lb"}`,
+				`{"date":"2026-03-29","value":152.2,"unit":"lb"}`,
+			}, "\n"),
+			wantWeights: []weightState{
+				{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
+				{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
+				{Date: "2026-03-28", Value: 153.0, Unit: "lb"},
+				{Date: "2026-03-27", Value: 154.1, Unit: "lb"},
+			},
+		},
+		{
+			name:         "non iso reject",
 			scenarioID:   "non-iso-date-reject",
 			finalMessage: "Invalid date: use YYYY-MM-DD.",
 			wantWeights:  []weightState{},
@@ -506,7 +640,7 @@ func TestExpandedWeightScenariosVerifyExpectedOutput(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.scenarioID, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			sc, ok := scenarioByID(tt.scenarioID)
 			if !ok {

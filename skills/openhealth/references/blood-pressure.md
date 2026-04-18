@@ -4,27 +4,21 @@ Use `agentops.RunBloodPressureTask` for routine local blood-pressure tasks. It
 returns JSON-friendly write statuses, newest-first entries, and rejection
 reasons.
 This reference is the task contract for routine agent use; do not inspect source
-or test files to rediscover these shapes unless a task run fails.
+or test files to rediscover these shapes unless a task run fails. In the
+production skill, send this request JSON to
+`go run ./cmd/openhealth-agentops blood-pressure`.
 
 ## Request And Result Fields
 
-```go
-agentops.BloodPressureTaskRequest{
-	Action:   string,
-	Readings: []agentops.BloodPressureInput,
-	ListMode: string,
-	FromDate: string,
-	ToDate:   string,
-	Limit:    int,
-}
+Request JSON fields are `action`, `readings`, `list_mode`, `from_date`,
+`to_date`, and `limit`. Each reading has `date`, `systolic`, `diastolic`, and
+optional `pulse`.
 
-agentops.BloodPressureInput{
-	Date:      string,
-	Systolic:  int,
-	Diastolic: int,
-	Pulse:     *int,
-}
-```
+Use these exact JSON values:
+
+- `action`: `record_blood_pressure`, `correct_blood_pressure`,
+  `list_blood_pressure`, or `validate`
+- `list_mode`: `latest`, `history`, or `range`
 
 `BloodPressureTaskResult` encodes to JSON with `rejected`, `rejection_reason`,
 `writes`, `entries`, and `summary`. Each write and entry has `date`, `systolic`,
@@ -33,42 +27,41 @@ agentops.BloodPressureInput{
 
 ## Record Blood Pressure
 
-Use `BloodPressureTaskActionRecord` with one or more readings:
+Use `record_blood_pressure` with one or more readings:
 
-```go
-result, err := agentops.RunBloodPressureTask(context.Background(), client.LocalConfig{}, agentops.BloodPressureTaskRequest{
-	Action: agentops.BloodPressureTaskActionRecord,
-	Readings: []agentops.BloodPressureInput{
-		{Date: "2026-03-29", Systolic: 122, Diastolic: 78},
-		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
-	},
-})
+```json
+{
+  "action": "record_blood_pressure",
+  "readings": [
+    {"date": "2026-03-29", "systolic": 122, "diastolic": 78},
+    {"date": "2026-03-30", "systolic": 118, "diastolic": 76}
+  ]
+}
 ```
 
-Pulse is optional. When present, pass it as a positive integer pointer:
+Pulse is optional. When present, pass it as a positive integer:
 
-```go
-pulse := 64
-result, err := agentops.RunBloodPressureTask(context.Background(), client.LocalConfig{}, agentops.BloodPressureTaskRequest{
-	Action: agentops.BloodPressureTaskActionRecord,
-	Readings: []agentops.BloodPressureInput{
-		{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: &pulse},
-	},
-})
+```json
+{
+  "action": "record_blood_pressure",
+  "readings": [
+    {"date": "2026-03-29", "systolic": 122, "diastolic": 78, "pulse": 64}
+  ]
+}
 ```
 
 ## Correct Blood Pressure
 
-Use `BloodPressureTaskActionCorrect` when the user asks to correct an existing
-same-date reading:
+Use `correct_blood_pressure` when the user asks to correct an existing same-date
+reading:
 
-```go
-result, err := agentops.RunBloodPressureTask(context.Background(), client.LocalConfig{}, agentops.BloodPressureTaskRequest{
-	Action: agentops.BloodPressureTaskActionCorrect,
-	Readings: []agentops.BloodPressureInput{
-		{Date: "2026-03-29", Systolic: 121, Diastolic: 77},
-	},
-})
+```json
+{
+  "action": "correct_blood_pressure",
+  "readings": [
+    {"date": "2026-03-29", "systolic": 121, "diastolic": 77}
+  ]
+}
 ```
 
 Correction updates exactly one existing reading on the requested date. If there
@@ -77,27 +70,10 @@ returns `rejected` with a `rejection_reason` instead of guessing.
 
 ## Read Blood Pressure
 
-```go
-// latest only
-agentops.BloodPressureTaskRequest{
-	Action:   agentops.BloodPressureTaskActionList,
-	ListMode: agentops.BloodPressureListModeLatest,
-}
-
-// history, optionally limited
-agentops.BloodPressureTaskRequest{
-	Action:   agentops.BloodPressureTaskActionList,
-	ListMode: agentops.BloodPressureListModeHistory,
-	Limit:    2,
-}
-
-// inclusive bounded date range
-agentops.BloodPressureTaskRequest{
-	Action:   agentops.BloodPressureTaskActionList,
-	ListMode: agentops.BloodPressureListModeRange,
-	FromDate: "2026-03-29",
-	ToDate:   "2026-03-30",
-}
+```json
+{"action":"list_blood_pressure","list_mode":"latest"}
+{"action":"list_blood_pressure","list_mode":"history","limit":2}
+{"action":"list_blood_pressure","list_mode":"range","from_date":"2026-03-29","to_date":"2026-03-30"}
 ```
 
 For "two most recent" or any count greater than one, use

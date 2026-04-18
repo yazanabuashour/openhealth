@@ -157,6 +157,8 @@ func runBloodPressure(args []string, stdout io.Writer) error {
 		return writeBloodPressureUsage(stdout)
 	case "add":
 		return runBloodPressureAdd(args[1:], stdout)
+	case "correct":
+		return runBloodPressureCorrect(args[1:], stdout)
 	case "list":
 		return runBloodPressureList(args[1:], stdout)
 	default:
@@ -271,40 +273,12 @@ func runWeightList(args []string, stdout io.Writer) error {
 }
 
 func runBloodPressureAdd(args []string, stdout io.Writer) error {
-	fs := flag.NewFlagSet("blood-pressure add", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
-
-	databasePath := fs.String("db", "", "SQLite database path")
-	dateValue := fs.String("date", "", "Recorded date in YYYY-MM-DD form")
-	systolic := fs.Int("systolic", 0, "Systolic blood pressure")
-	diastolic := fs.Int("diastolic", 0, "Diastolic blood pressure")
-	pulse := fs.Int("pulse", 0, "Pulse")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if fs.NArg() != 0 {
-		return fmt.Errorf("blood-pressure add does not accept positional arguments")
-	}
-
-	recordedAt, err := parseCLIDateOnly(*dateValue)
+	input, err := parseBloodPressureWriteArgs("add", args)
 	if err != nil {
 		return err
 	}
-	if *systolic <= 0 {
-		return fmt.Errorf("systolic must be greater than 0")
-	}
-	if *diastolic <= 0 {
-		return fmt.Errorf("diastolic must be greater than 0")
-	}
-	var pulseValue *int
-	if pulseProvided(args) {
-		if *pulse <= 0 {
-			return fmt.Errorf("pulse must be greater than 0")
-		}
-		pulseValue = pulse
-	}
 
-	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: *databasePath})
+	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: input.databasePath})
 	if err != nil {
 		return err
 	}
@@ -313,16 +287,111 @@ func runBloodPressureAdd(args []string, stdout io.Writer) error {
 	}()
 
 	result, err := api.RecordBloodPressure(context.Background(), client.BloodPressureRecordInput{
-		RecordedAt: recordedAt,
-		Systolic:   *systolic,
-		Diastolic:  *diastolic,
-		Pulse:      pulseValue,
+		RecordedAt: input.recordedAt,
+		Systolic:   input.systolic,
+		Diastolic:  input.diastolic,
+		Pulse:      input.pulse,
 	})
 	if err != nil {
 		return err
 	}
 	_, err = fmt.Fprintf(stdout, "%s %d/%d%s created\n", result.RecordedAt.Format(time.DateOnly), result.Systolic, result.Diastolic, formatPulse(result.Pulse))
 	return err
+}
+
+func runBloodPressureCorrect(args []string, stdout io.Writer) error {
+	input, err := parseBloodPressureWriteArgs("correct", args)
+	if err != nil {
+		return err
+	}
+
+	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: input.databasePath})
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = api.Close()
+	}()
+
+	to := input.recordedAt.Add(24*time.Hour - time.Nanosecond)
+	existing, err := api.ListBloodPressure(context.Background(), client.BloodPressureListOptions{
+		From:  &input.recordedAt,
+		To:    &to,
+		Limit: 2,
+	})
+	if err != nil {
+		return err
+	}
+	switch len(existing) {
+	case 0:
+		return fmt.Errorf("no existing blood-pressure reading for %s", input.recordedAt.Format(time.DateOnly))
+	case 1:
+	default:
+		return fmt.Errorf("multiple blood-pressure readings for %s; correction is ambiguous", input.recordedAt.Format(time.DateOnly))
+	}
+
+	result, err := api.ReplaceBloodPressure(context.Background(), existing[0].ID, client.BloodPressureRecordInput{
+		RecordedAt: existing[0].RecordedAt,
+		Systolic:   input.systolic,
+		Diastolic:  input.diastolic,
+		Pulse:      input.pulse,
+	})
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(stdout, "%s %d/%d%s updated\n", result.RecordedAt.Format(time.DateOnly), result.Systolic, result.Diastolic, formatPulse(result.Pulse))
+	return err
+}
+
+type bloodPressureWriteInput struct {
+	databasePath string
+	recordedAt   time.Time
+	systolic     int
+	diastolic    int
+	pulse        *int
+}
+
+func parseBloodPressureWriteArgs(command string, args []string) (bloodPressureWriteInput, error) {
+	fs := flag.NewFlagSet("blood-pressure "+command, flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+
+	databasePath := fs.String("db", "", "SQLite database path")
+	dateValue := fs.String("date", "", "Recorded date in YYYY-MM-DD form")
+	systolic := fs.Int("systolic", 0, "Systolic blood pressure")
+	diastolic := fs.Int("diastolic", 0, "Diastolic blood pressure")
+	pulse := fs.Int("pulse", 0, "Pulse")
+	if err := fs.Parse(args); err != nil {
+		return bloodPressureWriteInput{}, err
+	}
+	if fs.NArg() != 0 {
+		return bloodPressureWriteInput{}, fmt.Errorf("blood-pressure %s does not accept positional arguments", command)
+	}
+
+	recordedAt, err := parseCLIDateOnly(*dateValue)
+	if err != nil {
+		return bloodPressureWriteInput{}, err
+	}
+	if *systolic <= 0 {
+		return bloodPressureWriteInput{}, fmt.Errorf("systolic must be greater than 0")
+	}
+	if *diastolic <= 0 {
+		return bloodPressureWriteInput{}, fmt.Errorf("diastolic must be greater than 0")
+	}
+	var pulseValue *int
+	if pulseProvided(args) {
+		if *pulse <= 0 {
+			return bloodPressureWriteInput{}, fmt.Errorf("pulse must be greater than 0")
+		}
+		pulseValue = pulse
+	}
+
+	return bloodPressureWriteInput{
+		databasePath: *databasePath,
+		recordedAt:   recordedAt,
+		systolic:     *systolic,
+		diastolic:    *diastolic,
+		pulse:        pulseValue,
+	}, nil
 }
 
 func runBloodPressureList(args []string, stdout io.Writer) error {
@@ -388,7 +457,7 @@ func runBloodPressureList(args []string, stdout io.Writer) error {
 func writeUsage(w io.Writer) error {
 	_, err := fmt.Fprintf(
 		w,
-		"%s\n\nUsage:\n  openhealth migrate [-db path]\n  openhealth serve [-listen addr] [-db path]\n  openhealth weight add --date YYYY-MM-DD --value N [--unit lb] [-db path]\n  openhealth weight list [-db path] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--limit N]\n  openhealth blood-pressure add --date YYYY-MM-DD --systolic N --diastolic N [--pulse N] [-db path]\n  openhealth blood-pressure list [-db path] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--limit N]\n",
+		"%s\n\nUsage:\n  openhealth migrate [-db path]\n  openhealth serve [-listen addr] [-db path]\n  openhealth weight add --date YYYY-MM-DD --value N [--unit lb] [-db path]\n  openhealth weight list [-db path] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--limit N]\n  openhealth blood-pressure add --date YYYY-MM-DD --systolic N --diastolic N [--pulse N] [-db path]\n  openhealth blood-pressure correct --date YYYY-MM-DD --systolic N --diastolic N [--pulse N] [-db path]\n  openhealth blood-pressure list [-db path] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--limit N]\n",
 		app.Banner(),
 	)
 	return err
@@ -406,7 +475,7 @@ func writeWeightUsage(w io.Writer) error {
 func writeBloodPressureUsage(w io.Writer) error {
 	_, err := fmt.Fprintf(
 		w,
-		"%s\n\nUsage:\n  openhealth blood-pressure add --date YYYY-MM-DD --systolic N --diastolic N [--pulse N] [-db path]\n  openhealth blood-pressure list [-db path] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--limit N]\n",
+		"%s\n\nUsage:\n  openhealth blood-pressure add --date YYYY-MM-DD --systolic N --diastolic N [--pulse N] [-db path]\n  openhealth blood-pressure correct --date YYYY-MM-DD --systolic N --diastolic N [--pulse N] [-db path]\n  openhealth blood-pressure list [-db path] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--limit N]\n",
 		app.Banner(),
 	)
 	return err

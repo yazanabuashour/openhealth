@@ -39,12 +39,19 @@ The CLI accepts `lb` for weights. Results are newest first.
 ```bash
 go run ./cmd/openhealth blood-pressure add --date 2026-03-29 --systolic 122 --diastolic 78
 go run ./cmd/openhealth blood-pressure add --date 2026-03-29 --systolic 122 --diastolic 78 --pulse 64
+go run ./cmd/openhealth blood-pressure correct --date 2026-03-29 --systolic 121 --diastolic 77
+go run ./cmd/openhealth blood-pressure correct --date 2026-03-29 --systolic 121 --diastolic 77 --pulse 63
 go run ./cmd/openhealth blood-pressure list --limit 25
 go run ./cmd/openhealth blood-pressure list --from 2026-03-29 --to 2026-03-30
 ```
 
 Blood-pressure list rows are newest first and formatted as
 `YYYY-MM-DD SYS/DIA` with optional `pulse N`.
+
+Use `blood-pressure correct` when the user asks to correct an existing
+same-date reading. Correction updates exactly one existing row for that date; if
+there is no row or multiple same-date rows, report the CLI rejection and do not
+fall back to `blood-pressure add`.
 
 For bounded date-range requests, include both `--from` and `--to`, then report
 only rows printed by that bounded command. Do not mention excluded dates.

@@ -984,6 +984,28 @@ func TestBloodPressureScenariosVerifyExpectedOutput(t *testing.T) {
 			finalMessage: "Invalid date: use YYYY-MM-DD.",
 			wantReadings: []bloodPressureState{},
 		},
+		{
+			scenarioID:   "bp-correct-existing",
+			finalMessage: "Updated 2026-03-29 to 121/77 pulse 63.",
+			wantReadings: []bloodPressureState{
+				{Date: "2026-03-29", Systolic: 121, Diastolic: 77, Pulse: intPointer(63)},
+			},
+		},
+		{
+			scenarioID:   "bp-correct-missing-reject",
+			finalMessage: "No existing reading was found for 2026-03-31, so it was not updated.",
+			wantReadings: []bloodPressureState{
+				{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			},
+		},
+		{
+			scenarioID:   "bp-correct-ambiguous-reject",
+			finalMessage: "Multiple readings exist for 2026-03-29, so the correction is ambiguous and was not updated.",
+			wantReadings: []bloodPressureState{
+				{Date: "2026-03-29", Systolic: 120, Diastolic: 76},
+				{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -996,6 +1018,29 @@ func TestBloodPressureScenariosVerifyExpectedOutput(t *testing.T) {
 			databasePath := filepath.Join(t.TempDir(), "openhealth.db")
 			if err := seedScenario(databasePath, sc); err != nil {
 				t.Fatalf("seedScenario: %v", err)
+			}
+			if tt.scenarioID == "bp-correct-existing" {
+				api, err := client.OpenLocal(client.LocalConfig{DatabasePath: databasePath})
+				if err != nil {
+					t.Fatalf("OpenLocal: %v", err)
+				}
+				readings, err := api.ListBloodPressure(context.Background(), client.BloodPressureListOptions{Limit: 1})
+				if err != nil {
+					t.Fatalf("ListBloodPressure: %v", err)
+				}
+				if len(readings) != 1 {
+					t.Fatalf("seed readings = %d, want 1", len(readings))
+				}
+				pulse63 := 63
+				if _, err := api.ReplaceBloodPressure(context.Background(), readings[0].ID, client.BloodPressureRecordInput{
+					RecordedAt: readings[0].RecordedAt,
+					Systolic:   121,
+					Diastolic:  77,
+					Pulse:      &pulse63,
+				}); err != nil {
+					t.Fatalf("ReplaceBloodPressure: %v", err)
+				}
+				_ = api.Close()
 			}
 			verification, err := verifyScenario(databasePath, sc, tt.finalMessage)
 			if err != nil {
@@ -1072,6 +1117,27 @@ func TestMixedAndMultiTurnScenariosVerifyExpectedOutput(t *testing.T) {
 				{Date: "2026-03-30", Value: 151.0, Unit: "lb"},
 				{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
 			},
+			wantReadings: []bloodPressureState{
+				{Date: "2026-03-30", Systolic: 117, Diastolic: 75, Pulse: intPointer(63)},
+				{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			},
+			manualSeed: true,
+		},
+		{
+			scenarioID:   "mt-bp-latest-then-correct",
+			turnIndex:    1,
+			finalMessage: "2026-03-30 118/76",
+			wantWeights:  []weightState{},
+			wantReadings: []bloodPressureState{
+				{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+				{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			},
+		},
+		{
+			scenarioID:   "mt-bp-latest-then-correct",
+			turnIndex:    2,
+			finalMessage: "Updated 2026-03-30 to 117/75 pulse 63.",
+			wantWeights:  []weightState{},
 			wantReadings: []bloodPressureState{
 				{Date: "2026-03-30", Systolic: 117, Diastolic: 75, Pulse: intPointer(63)},
 				{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},

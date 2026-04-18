@@ -18,10 +18,15 @@ The `oh-5yr` harness covers routine local user-data tasks:
 
 - weight add/reapply/correction, latest/history/range listing, and invalid input
   rejection
-- blood-pressure record, latest/history/range listing, and invalid input
-  rejection
+- blood-pressure record/correction, latest/history/range listing, and invalid
+  input rejection
 - mixed weight and blood-pressure requests in one user task
 - true multi-turn requests that require clarification or conversational context
+
+Labs and medications are intentionally outside the active agent-facing eval
+surface for oh-23a. They exist in lower-level OpenHealth APIs, but AgentOps
+request shapes, safety rules, correction semantics, and eval coverage should be
+defined separately before exposing them as supported agent domains.
 
 Every scenario uses a fresh ephemeral agent session, an isolated copied repo, a
 fresh local database path, and reduced JSON/Markdown artifacts. Raw event logs
@@ -97,5 +102,7 @@ The current AgentOps runner-overhead follow-up result is documented in
 `docs/agent-eval-results/oh-5yr-oh-967-final-r2.md`.
 The current eval-maturity and throughput follow-up result is documented in
 `docs/agent-eval-results/oh-5yr-maturity-throughput-final.md`.
+The current CLI correction/readiness follow-up result is documented in
+`docs/agent-eval-results/oh-5yr-oh-23a-final.md`.
 Historical iteration artifacts are archived under
 `docs/agent-eval-results/archive/`.

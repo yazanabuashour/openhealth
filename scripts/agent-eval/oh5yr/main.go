@@ -1221,6 +1221,21 @@ func scenarios() []scenario {
 			Prompt: "Please add this local OpenHealth blood pressure reading exactly as written: 2026/03/31 122/78. Do not normalize or rewrite the date if OpenHealth requires another date format.",
 		},
 		{
+			ID:     "bp-correct-existing",
+			Title:  "Correct an existing same-date blood-pressure reading",
+			Prompt: "I need to correct my local OpenHealth blood pressure reading for 03/29/2026. It should be 121/77 pulse 63, not 122/78 pulse 64. Update the configured local data and tell me what is stored now.",
+		},
+		{
+			ID:     "bp-correct-missing-reject",
+			Title:  "Reject a blood-pressure correction for a missing date",
+			Prompt: "Please correct my local OpenHealth blood pressure reading for 03/31/2026 to 121/77. If there is no reading for that date, do not create a new one; tell me why it was not updated.",
+		},
+		{
+			ID:     "bp-correct-ambiguous-reject",
+			Title:  "Reject an ambiguous same-date blood-pressure correction",
+			Prompt: "Please correct my local OpenHealth blood pressure reading for 03/29/2026 to 121/77. If more than one reading exists for that date, do not guess; tell me why it was not updated.",
+		},
+		{
 			ID:     "mixed-add-latest",
 			Title:  "Record weight and blood-pressure readings, then report latest for both",
 			Prompt: "Use the configured local OpenHealth data path. Record weight 150.8 lbs and blood pressure 119/77 pulse 62 for 03/31/2026. Then tell me the latest weight and latest blood-pressure entries.",
@@ -1249,6 +1264,14 @@ func scenarios() []scenario {
 			Turns: []scenarioTurn{
 				{Prompt: "Use the configured local OpenHealth data path. What are my latest weight and blood-pressure entries? Mention only the latest row from each domain."},
 				{Prompt: "Correct both latest entries for that same date: weight should be 151.0 lbs and blood pressure should be 117/75 pulse 63. Tell me what is stored now."},
+			},
+		},
+		{
+			ID:    "mt-bp-latest-then-correct",
+			Title: "Read latest blood pressure, then correct it in a resumed turn",
+			Turns: []scenarioTurn{
+				{Prompt: "Use the configured local OpenHealth data path. What is my latest blood-pressure reading? Mention only the latest row."},
+				{Prompt: "Correct that latest reading to 117/75 pulse 63. Tell me what is stored now."},
 			},
 		},
 	}
@@ -1364,6 +1387,11 @@ func seedScenario(dbPath string, sc scenario) error {
 			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
 			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
 		})
+	case "mt-bp-latest-then-correct":
+		return recordBloodPressures(ctx, api, []bloodPressureState{
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+		})
 	case "repeat-add":
 		return upsertWeights(ctx, api, []weightState{
 			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
@@ -1398,6 +1426,15 @@ func seedScenario(dbPath string, sc scenario) error {
 			{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
 			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
 			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+		})
+	case "bp-correct-existing", "bp-correct-missing-reject":
+		return recordBloodPressures(ctx, api, []bloodPressureState{
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+		})
+	case "bp-correct-ambiguous-reject":
+		return recordBloodPressures(ctx, api, []bloodPressureState{
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			{Date: "2026-03-29", Systolic: 120, Diastolic: 76},
 		})
 	default:
 		return nil
@@ -1609,6 +1646,24 @@ func verifyMixedOrMultiTurnScenario(dbPath string, sc scenario, turnIndex int, f
 		result.DatabasePass = weightsEqual(weightStates, expectedWeights) && bloodPressuresEqual(bloodPressureStates, expectedReadings)
 		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-30", "151", "117/75"})
 		result.Details = fmt.Sprintf("expected latest mixed-domain corrections on 2026-03-30; observed weights %s and blood pressures %s", describeWeights(weightStates), describeBloodPressures(bloodPressureStates))
+	case "mt-bp-latest-then-correct":
+		if turnIndex == 1 {
+			expectedReadings := []bloodPressureState{
+				{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+				{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			}
+			result.DatabasePass = len(weightStates) == 0 && bloodPressuresEqual(bloodPressureStates, expectedReadings)
+			result.AssistantPass = bloodPressureLatestOnlyAssistantPass(finalMessage)
+			result.Details = fmt.Sprintf("expected unchanged seed rows and latest blood-pressure answer; observed weights %s and blood pressures %s", describeWeights(weightStates), describeBloodPressures(bloodPressureStates))
+			break
+		}
+		expectedReadings := []bloodPressureState{
+			{Date: "2026-03-30", Systolic: 117, Diastolic: 75, Pulse: intPointer(63)},
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+		}
+		result.DatabasePass = len(weightStates) == 0 && bloodPressuresEqual(bloodPressureStates, expectedReadings)
+		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-30", "117/75"})
+		result.Details = fmt.Sprintf("expected latest blood-pressure correction on 2026-03-30; observed weights %s and blood pressures %s", describeWeights(weightStates), describeBloodPressures(bloodPressureStates))
 	default:
 		return verificationResult{}, fmt.Errorf("unknown mixed or multi-turn scenario %q", sc.ID)
 	}
@@ -1663,6 +1718,28 @@ func verifyBloodPressureScenario(dbPath string, sc scenario, finalMessage string
 		result.DatabasePass = bloodPressuresEqual(states, expectedDB)
 		result.AssistantPass = bloodPressureBoundedRangeAssistantPass(finalMessage)
 		result.Details = fmt.Sprintf("expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed %s", describeBloodPressures(states))
+	case "bp-correct-existing":
+		expectedDB := []bloodPressureState{
+			{Date: "2026-03-29", Systolic: 121, Diastolic: 77, Pulse: intPointer(63)},
+		}
+		result.DatabasePass = bloodPressuresEqual(states, expectedDB)
+		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "121/77"})
+		result.Details = fmt.Sprintf("expected corrected 2026-03-29 blood-pressure row with no duplicate; observed %s", describeBloodPressures(states))
+	case "bp-correct-missing-reject":
+		expectedDB := []bloodPressureState{
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+		}
+		result.DatabasePass = bloodPressuresEqual(states, expectedDB)
+		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"no existing", "missing", "not found", "cannot", "can't", "did not", "not updated"})
+		result.Details = fmt.Sprintf("expected unchanged seed row and missing-date correction rejection; observed %s", describeBloodPressures(states))
+	case "bp-correct-ambiguous-reject":
+		expectedDB := []bloodPressureState{
+			{Date: "2026-03-29", Systolic: 120, Diastolic: 76},
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+		}
+		result.DatabasePass = bloodPressuresEqual(states, expectedDB)
+		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"multiple", "ambiguous", "more than one", "cannot", "can't", "did not", "not updated"})
+		result.Details = fmt.Sprintf("expected unchanged duplicate same-date rows and ambiguous correction rejection; observed %s", describeBloodPressures(states))
 	case "bp-invalid-input":
 		result.DatabasePass = len(states) == 0
 		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"invalid", "positive", "cannot", "can't", "systolic", "diastolic", "pulse", "reject"})
@@ -2001,7 +2078,7 @@ For direct local OpenHealth weight or blood-pressure data requests, use the inst
 
 Reject ambiguous short dates with no year context, year-first slash dates such as 2026/03/31, non-positive values, and unsupported units directly in the final answer when the request is clearly invalid. Do not inspect files or run commands for those clearly invalid requests.
 
-For valid supported tasks, use go run ./cmd/openhealth weight or go run ./cmd/openhealth blood-pressure commands. Results are newest-first.
+For valid supported tasks, use go run ./cmd/openhealth weight or go run ./cmd/openhealth blood-pressure commands. Use blood-pressure correct, not add, when the user asks to correct an existing same-date reading. Results are newest-first.
 `
 	default:
 		return fmt.Errorf("unknown variant %q", currentVariant.ID)
@@ -2190,6 +2267,9 @@ func metricNotes(reportDate string, results []runResult) []string {
 	}
 
 	notes := []string{}
+	if strings.Contains(reportDate, "oh-23a") {
+		notes = append(notes, "oh-23a intentionally keeps agent-facing readiness scoped to weight and blood pressure; labs and medications remain a separate AgentOps expansion tracked in oh-bng.")
+	}
 	if len(productionGenerated) > 0 {
 		notes = append(notes, fmt.Sprintf("Production direct generated-file inspection remained in %s in the %s run.", strings.Join(productionGenerated, ", "), reportDate))
 	}
@@ -2585,7 +2665,8 @@ func isRoutineScenario(id string) bool {
 	switch id {
 	case "add-two", "repeat-add", "update-existing", "bounded-range", "bounded-range-natural", "latest-only", "history-limit-two",
 		"bp-add-two", "bp-latest-only", "bp-history-limit-two", "bp-bounded-range", "bp-bounded-range-natural",
-		"mixed-add-latest", "mixed-bounded-range", "mt-mixed-latest-then-correct":
+		"bp-correct-existing", "bp-correct-missing-reject", "bp-correct-ambiguous-reject",
+		"mixed-add-latest", "mixed-bounded-range", "mt-bp-latest-then-correct", "mt-mixed-latest-then-correct":
 		return true
 	default:
 		return false
@@ -3346,6 +3427,12 @@ func promptSummary(sc scenario) string {
 		return "reject invalid 0/-5 pulse 0 blood-pressure reading"
 	case "bp-non-iso-date-reject":
 		return "reject non-ISO blood-pressure date 2026/03/31"
+	case "bp-correct-existing":
+		return "correct 2026-03-29 blood pressure from 122/78 pulse 64 to 121/77 pulse 63"
+	case "bp-correct-missing-reject":
+		return "reject correction for missing 2026-03-31 blood-pressure reading without creating one"
+	case "bp-correct-ambiguous-reject":
+		return "reject ambiguous correction when multiple 2026-03-29 blood-pressure rows exist"
 	case "mixed-add-latest":
 		return "record one weight and one blood-pressure reading, then report latest for both"
 	case "mixed-bounded-range":
@@ -3354,6 +3441,8 @@ func promptSummary(sc scenario) string {
 		return "reject invalid mixed weight and blood-pressure values without tools"
 	case "mt-weight-clarify-then-add":
 		return "ask for missing year, then add 2026-03-29 152.2 lb in a resumed turn"
+	case "mt-bp-latest-then-correct":
+		return "read latest blood pressure, then correct it in a resumed turn"
 	case "mt-mixed-latest-then-correct":
 		return "read latest weight and blood pressure, then correct both in a resumed turn"
 	default:

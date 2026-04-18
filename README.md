@@ -1,10 +1,7 @@
 # openhealth
 
 OpenHealth is a local-first health data runtime for agents. It ships a small
-`openhealth` runner, a single-file skill, and optionally a local Go SDK.
-
-Normal use does not require a daemon, bound port, hosted service, remote HTTP
-API, or Go toolchain on the client machine.
+`openhealth` runner and a single-file skill.
 
 ## Quickstart
 
@@ -47,7 +44,7 @@ stdout.
 
 ## Local Go SDK
 
-Developers can import the optional direct-local SDK:
+Go developers can embed the same local runtime directly:
 
 ```bash
 go get github.com/yazanabuashour/openhealth@main
@@ -119,7 +116,8 @@ The database path override wins over the data directory override.
 ## Eval Evidence
 
 The production runner passed the release eval gate. In the CLI comparison run
-documented in `docs/agent-eval-results/oh-5yr-maturity-throughput-final.md`,
+documented in
+[`docs/agent-eval-results/oh-5yr-maturity-throughput-final.md`](docs/agent-eval-results/oh-5yr-maturity-throughput-final.md),
 the runner matched or improved correctness while using fewer tools, fewer
 non-cached input tokens, and less wall time than CLI:
 
@@ -162,8 +160,7 @@ The `0.1.0` release deliverables are:
 - platform archives for the `openhealth` binary
 - the single-file `openhealth` skill archive
 - the Go module import path rooted at `github.com/yazanabuashour/openhealth`
-- the optional direct-local SDK package at
-  `github.com/yazanabuashour/openhealth/client`
+- the direct-local Go package at `github.com/yazanabuashour/openhealth/client`
 
 The release workflow is built around semantic version tags in the `v0.y.z`
 range. Each tagged GitHub Release publishes binary archives, the skill archive,

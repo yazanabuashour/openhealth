@@ -8,12 +8,15 @@ tag:
 - `openhealth_<version>_source.tar.gz`
 - `openhealth_<version>_checksums.txt`
 - `openhealth_<version>_sbom.spdx.json`
+- `install.sh`
 
 The platform archives contain the production `openhealth` binary. The
 skill archive contains the single shipped `SKILL.md` payload. The source archive
 is the canonical source artifact for the Go module and local runtime. The
-checksums file and GitHub attestations let users verify that the assets were
-produced by this repository's release workflow.
+installer script downloads and verifies the matching platform archive before
+installing the same-tag runner and skills.sh skill. The checksums file and GitHub
+attestations let users verify that the assets were produced by this
+repository's release workflow.
 
 ## Verify a release
 
@@ -25,6 +28,7 @@ shasum -a 256 -c openhealth_<version>_checksums.txt
 gh attestation verify openhealth_<version>_<os>_<arch>.tar.gz --repo yazanabuashour/openhealth
 gh attestation verify openhealth_<version>_skill.tar.gz --repo yazanabuashour/openhealth
 gh attestation verify openhealth_<version>_source.tar.gz --repo yazanabuashour/openhealth
+gh attestation verify install.sh --repo yazanabuashour/openhealth
 ```
 
 If these commands succeed, the assets match the published checksums and have

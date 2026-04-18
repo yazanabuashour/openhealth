@@ -13,23 +13,29 @@ OpenHealth is a local-first health data runtime for agents. It ships a small
 Install https://github.com/yazanabuashour/openhealth
 ```
 
-### Manual Skill Install
+This installs the `openhealth` runner binary and the OpenHealth skill.
+
+### Manual Install, Latest Release
 
 ```bash
-npx skills add https://github.com/yazanabuashour/openhealth --skill openhealth
+curl -fsSL https://github.com/yazanabuashour/openhealth/releases/latest/download/install.sh | sh
 ```
 
-### Release Archive Install
+Use this for quick local setup when you want the current release.
 
-If you are installing from a GitHub Release archive instead, place the released
-`SKILL.md` at:
+### Manual Install, Pinned Version
 
-```text
-.agents/skills/openhealth/SKILL.md
+```bash
+curl -fsSL https://github.com/yazanabuashour/openhealth/releases/download/v0.1.0/install.sh | sh
 ```
 
-Install the matching `openhealth` binary for your platform from the tagged
-GitHub Release, unpack it, and put the binary on `PATH`.
+Use this for reproducible setup. Both manual install commands install the
+matching `openhealth` runner binary, put it on `PATH` when possible, and then
+install the same-tag skills.sh skill with:
+
+```bash
+npx -y skills add https://github.com/yazanabuashour/openhealth/tree/<tag>/skills/openhealth --skill openhealth --agent codex --global --yes
+```
 
 ### Runner Interface
 
@@ -163,13 +169,14 @@ The `0.1.0` release deliverables are:
 
 - platform archives for the `openhealth` binary
 - the single-file `openhealth` skill archive
+- the release installer script
 - the Go module import path rooted at `github.com/yazanabuashour/openhealth`
 - the direct-local Go package at `github.com/yazanabuashour/openhealth/client`
 
 The release workflow is built around semantic version tags in the `v0.y.z`
 range. Each tagged GitHub Release publishes binary archives, the skill archive,
-a canonical source archive, SHA256 checksums, an SPDX SBOM, and GitHub
-attestations for release verification.
+a release installer, a canonical source archive, SHA256 checksums, an SPDX SBOM,
+and GitHub attestations for release verification.
 
 ## Contributing
 

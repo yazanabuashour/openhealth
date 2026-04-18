@@ -63,12 +63,14 @@ jobs:
           skill="openhealth_${version}_skill.tar.gz"
           checksum="openhealth_${version}_checksums.txt"
           sbom="openhealth_${version}_sbom.spdx.json"
+          installer="install.sh"
 
           {
             echo "archive=${archive}"
             echo "skill=${skill}"
             echo "checksum=${checksum}"
             echo "sbom=${sbom}"
+            echo "installer=${installer}"
           } >> "${GITHUB_OUTPUT}"
 
       - name: Generate release SBOM
@@ -100,13 +102,18 @@ jobs:
 
           tar -czf "dist/${{ steps.meta.outputs.skill }}" -C skills/openhealth SKILL.md
 
+      - name: Build installer
+        run: |
+          sed "s/__OPENHEALTH_VERSION__/${GITHUB_REF_NAME}/g" scripts/install.sh > "dist/${{ steps.meta.outputs.installer }}"
+          chmod 755 "dist/${{ steps.meta.outputs.installer }}"
+
       - name: Build source archive and checksums
         run: |
           version="${GITHUB_REF_NAME#v}"
           git archive --format=tar.gz --prefix="openhealth_${version}/" -o "dist/${{ steps.meta.outputs.archive }}" "${GITHUB_REF_NAME}"
           (
             cd dist
-            shasum -a 256 *.tar.gz "${{ steps.meta.outputs.sbom }}" > "${{ steps.meta.outputs.checksum }}"
+            shasum -a 256 *.tar.gz "${{ steps.meta.outputs.sbom }}" "${{ steps.meta.outputs.installer }}" > "${{ steps.meta.outputs.checksum }}"
           )
 
       - name: Create GitHub Release from tag

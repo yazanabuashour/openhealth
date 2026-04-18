@@ -94,7 +94,7 @@ push the tag, and let the release workflow:
 - validate storage codegen, formatting, and tests before publish
 - create or reuse the GitHub Release
 - attach platform binary archives, the skill archive, the canonical source
-  archive, SHA256 checksums, and SPDX SBOM
+  archive, release installer, SHA256 checksums, and SPDX SBOM
 - generate GitHub attestations for the published assets
 
 The `release` environment should remain protected so only approved maintainers can publish release assets.

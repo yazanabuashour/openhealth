@@ -1,115 +1,65 @@
-# Agent Evaluation Plan
+# Agent Evaluation Protocol
 
-This project evaluates agent behavior against the same surface a real OpenHealth
-agent receives. The production eval must use only the installed
-`skills/openhealth` payload and a fresh session. Do not add hidden evaluator
-instructions that tell the agent which API to call unless those instructions are
-also present in the production skill.
+OpenHealth agent evals measure the same production skill a real agent receives.
+Do not add hidden evaluator-only instructions to improve a result; if an
+instruction is needed, put it in the production skill first.
 
-## Primary Production Eval
+## Active Surfaces
 
-- Start from a fresh agent session with the production `openhealth` skill.
-- Provide natural user prompts such as `03/29 152.2 lbs and 03/30 151.6`.
-- Use the normal local Go/tool environment and default OpenHealth data path.
-- Judge success by final database state, newest-first verification, duplicate
-  behavior, tool calls, assistant calls, wall time, non-cache input tokens, and
-  whether the agent read generated files or the Go module cache.
-- The expected production path for routine local weight tasks is the structured
-  `agentops.RunWeightTask(...)` facade from the `openhealth` skill.
-- Production agents should use the routine weight fast path in
-  `skills/openhealth/references/weights.md` before searching the repository.
-  Broad repo searches, generated-file inspection, and module-cache inspection
-  are tracked as separate metrics.
+- `production`: the installed `skills/openhealth` AgentOps skill.
+- `cli`: a CLI baseline skill under `docs/agent-eval-assets/variants/cli`.
 
-## Isolated Variants
+The generated client and local SDK remain supported runtime/developer APIs, but
+they are not active agent-facing eval variants.
 
-Keep comparison variants outside the production skill so the real skill stays
-opinionated and narrow.
+## Scenario Coverage
 
-- Baseline A: current or archived generated-client skill surface.
-- Variant B: production code-first SDK skill surface.
-- Variant C: CLI-oriented skill payload that exercises
-  `go run ./cmd/openhealth weight add/list`.
+The `oh-5yr` harness covers routine local user-data tasks:
 
-Each variant should have its own skill payload or harness instructions. Do not
-combine generated-client, SDK, and CLI recipes in the same production skill.
+- weight add/reapply/correction, latest/history/range listing, and invalid input
+  rejection
+- blood-pressure record, latest/history/range listing, and invalid input
+  rejection
 
-## Core Scenarios
+Every scenario uses a fresh ephemeral agent session, an isolated copied repo, a
+fresh local database path, and reduced JSON/Markdown artifacts. Raw event logs
+are not committed; reduced reports refer to them with `<run-root>` placeholders.
+The copied repo intentionally omits root `AGENTS.md`, stale `.agents` content,
+and eval/report directories before installing the selected variant skill, so the
+production and CLI surfaces do not contaminate each other.
 
-- Add two weights from a natural-language prompt and verify newest-first output.
-- Repeat the same add request and assert no duplicate manual entry is created.
-- Add the same date and unit with a different value and assert the existing entry
-  is updated through the idempotent path.
-- List a bounded date range.
-- List the same bounded date range with natural date wording.
-- Reject or clarify ambiguous short dates when the year cannot be inferred.
-- Reject invalid unit and invalid value inputs.
+## Metrics
 
-## Iteration Reports
+Reports include:
 
-When a previous reduced JSON report is available, include a comparison section
-that calls out pass/fail deltas, tool-call deltas, assistant-call deltas, wall
-time deltas, non-cache token deltas, generated-file inspection changes, and
-module-cache inspection changes. Treat correctness regressions as blockers;
-treat metric-only movement as review context unless generated-file or
-module-cache inspection regresses.
+- database verification and assistant-answer verification
+- tool calls, assistant calls, wall time, non-cache input tokens, and output
+  tokens
+- direct generated-file inspection
+- generated paths surfaced from broad search
+- broad repo search
+- Go module-cache inspection
+- OpenHealth CLI usage
+- direct SQLite access
 
-## Production Stop-Loss
+CLI usage is counted only for executed CLI invocations, not for searches or
+documentation reads that merely contain CLI command strings.
 
-Give production two focused hardening cycles before recommending a pivot to the
-CLI-oriented agent surface. Pivot after the second cycle if production loses
-correctness, directly inspects generated files, inspects the module cache, uses
-broad repo search in more than one routine scenario, or remains materially worse
-than CLI on core tool counts (`add-two` > 10, `update-existing` > 12,
-`bounded-range` > 8, or more than 2x CLI tools in at least three comparable
-scenarios). Do not add hidden evaluator-only instructions or CLI recipes to the
-production skill to avoid the pivot.
+## Comparison Policy
 
-As of the production hardening full-matrix eval, the stop-loss is triggered by
-the `update-existing` tool-count threshold and production using more than 2x CLI
-tools in three comparable scenarios. Production broad repo search remained in
-`bounded-range` and `invalid-input`, but `invalid-input` is a validation
-scenario and does not satisfy the more-than-one routine scenario trigger. Keep
-production as the SDK/developer integration surface, but prefer the CLI-oriented
-agent surface for routine local weight operations unless a later eval clears the
-stop-loss triggers without hidden evaluator-only instructions.
+Production AgentOps beats CLI only when:
 
-## Code-First Pivot Trial
+- production passes every selected scenario
+- production has no direct generated-file inspection, module-cache inspection,
+  direct SQLite access, or CLI usage
+- production has no routine broad repo search
+- production total tools are less than or equal to CLI total tools
+- production ties or beats CLI tools in at least 80% of comparable scenarios
+- no routine production scenario exceeds CLI by more than one tool
 
-The next trial uses a structured code-first AgentOps facade rather than the raw
-SDK helper snippets. The candidate variant is `agentops-code`: it creates a
-short temporary Go module outside the repository, imports
-`github.com/yazanabuashour/openhealth/agentops`, runs a task-shaped
-`WeightTaskRequest`, prints JSON, and answers from that JSON only.
-
-Run exactly three code-first iterations, then stop and report whether the final
-iteration beat CLI. The candidate beats CLI only if it passes every scenario,
-does not directly inspect generated files, does not inspect the Go module cache,
-does not use broad repo search in routine scenarios, uses no more total tools
-than CLI, is at or below CLI tools in at least five of seven scenarios, and no
-routine scenario exceeds CLI by more than one tool.
-
-Status: completed in `docs/agent-eval-results/oh-5yr-code-first-pivot.md`.
-The first code-first iteration proved correctness but failed operational
-criteria; the second cleared search/cache/generated-file violations but still
-lost on tool count and one assistant-format check; the third passed every
-criterion. Final measured verdict: prefer `agentops-code` for the routine local
-weight tasks covered by `oh-5yr`, while keeping CLI as a human-facing and
-fallback path.
-
-## AgentOps Production Expansion
-
-Status: completed in
-`docs/agent-eval-results/oh-5yr-agentops-production-expanded.md`.
-
-The structured AgentOps facade has been promoted into the production
-`openhealth` skill for routine local weight operations. Three expanded
-production-vs-CLI samples covered ten scenarios each. Production and CLI both
-passed 30/30 correctness checks, but production beat CLI in every sample with 48
-tools vs 240, 530.20 wall seconds vs 1,568.63, 177,601 non-cache input tokens vs
-394,569, 24,670 output tokens vs 131,630, and zero production hygiene hits.
-
-Current measured verdict: prefer the production AgentOps facade for routine
-local weight operations covered by this matrix. Keep CLI as a human-facing and
-fallback path. Do not generalize this recommendation beyond local weight
-operations until comparable eval coverage exists for another domain.
+The current weight recommendation is documented in
+`docs/agent-eval-results/oh-5yr-agentops-production-expanded.md`. The current
+combined weight and blood-pressure result is documented in
+`docs/agent-eval-results/oh-5yr-agentops-blood-pressure-expanded.md`.
+Historical iteration artifacts are archived under
+`docs/agent-eval-results/archive/`.

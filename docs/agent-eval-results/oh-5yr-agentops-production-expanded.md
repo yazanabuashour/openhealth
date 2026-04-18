@@ -6,10 +6,10 @@ expanded production-vs-CLI samples.
 
 Reduced artifacts:
 
-- Run 1: `docs/agent-eval-results/oh-5yr-agentops-production-expanded-r1.json` and `docs/agent-eval-results/oh-5yr-agentops-production-expanded-r1.md`
-- Run 2: `docs/agent-eval-results/oh-5yr-agentops-production-expanded-r2.json` and `docs/agent-eval-results/oh-5yr-agentops-production-expanded-r2.md`
-- Run 3: `docs/agent-eval-results/oh-5yr-agentops-production-expanded-r3.json` and `docs/agent-eval-results/oh-5yr-agentops-production-expanded-r3.md`
-- Prior pivot report: `docs/agent-eval-results/oh-5yr-code-first-pivot.md`
+- Run 1: `docs/agent-eval-results/archive/oh-5yr-agentops-production-expanded-r1.json` and `docs/agent-eval-results/archive/oh-5yr-agentops-production-expanded-r1.md`
+- Run 2: `docs/agent-eval-results/archive/oh-5yr-agentops-production-expanded-r2.json` and `docs/agent-eval-results/archive/oh-5yr-agentops-production-expanded-r2.md`
+- Run 3: `docs/agent-eval-results/archive/oh-5yr-agentops-production-expanded-r3.json` and `docs/agent-eval-results/archive/oh-5yr-agentops-production-expanded-r3.md`
+- Prior pivot report: `docs/agent-eval-results/archive/oh-5yr-code-first-pivot.md`
 
 Raw logs are not committed. Raw event references in reduced reports use
 `<run-root>` placeholders.
@@ -24,9 +24,9 @@ requests through:
 agentops.RunWeightTask(context.Background(), client.LocalConfig{}, request)
 ```
 
-This is intentionally narrower than the full OpenHealth domain. The result does
-not claim that AgentOps should cover labs, medications, blood pressure, or other
-future workflows without separate eval evidence.
+This report predates the blood-pressure expansion. Its conclusion remains
+narrowly scoped to weight. The combined weight and blood-pressure result is in
+`docs/agent-eval-results/oh-5yr-agentops-blood-pressure-expanded.md`.
 
 ## Protocol
 

@@ -40,6 +40,57 @@ func TestPrepareRunDirResetsAndCreatesRuntimeDirs(t *testing.T) {
 	}
 }
 
+func TestCopyRepoSkipsVariantContaminatingInstructions(t *testing.T) {
+	t.Parallel()
+
+	temp := t.TempDir()
+	src := filepath.Join(temp, "src")
+	dst := filepath.Join(temp, "dst")
+	for _, path := range []string{
+		filepath.Join(src, ".agents", "skills", "openhealth"),
+		filepath.Join(src, "docs", "agent-eval-results"),
+	} {
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for path, content := range map[string]string{
+		filepath.Join(src, "AGENTS.md"):                                     "repo agent instructions",
+		filepath.Join(src, "README.md"):                                     "kept",
+		filepath.Join(src, ".agents", "skills", "openhealth", "SKILL.md"):   "stale skill",
+		filepath.Join(src, "docs", "agent-eval-results", "previous.md"):     "previous report",
+		filepath.Join(src, "docs", "agent-evals.md"):                        "eval docs",
+		filepath.Join(src, "scripts", "agent-eval", "oh5yr", "main.go"):     "harness",
+		filepath.Join(src, "docs", "agent-eval-assets", "variants", "x.md"): "asset",
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := copyRepo(src, dst); err != nil {
+		t.Fatalf("copyRepo() error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dst, "README.md")); err != nil {
+		t.Fatalf("kept file stat error = %v", err)
+	}
+	for _, skipped := range []string{
+		"AGENTS.md",
+		filepath.Join(".agents", "skills", "openhealth", "SKILL.md"),
+		filepath.Join("docs", "agent-eval-results", "previous.md"),
+		filepath.Join("docs", "agent-evals.md"),
+		filepath.Join("scripts", "agent-eval", "oh5yr", "main.go"),
+		filepath.Join("docs", "agent-eval-assets", "variants", "x.md"),
+	} {
+		if _, err := os.Stat(filepath.Join(dst, skipped)); !os.IsNotExist(err) {
+			t.Fatalf("copied skipped path %s: stat error = %v", skipped, err)
+		}
+	}
+}
+
 func TestVariantsIncludeCLI(t *testing.T) {
 	t.Parallel()
 
@@ -47,10 +98,28 @@ func TestVariantsIncludeCLI(t *testing.T) {
 	for _, variant := range variants() {
 		ids[variant.ID] = true
 	}
-	for _, want := range []string{"production", "generated-client", "agentops-code", "cli"} {
+	for _, want := range []string{"production", "cli"} {
 		if !ids[want] {
 			t.Fatalf("variants() missing %q: %#v", want, variants())
 		}
+	}
+	for _, retired := range []string{"generated-client", "agentops-code"} {
+		if ids[retired] {
+			t.Fatalf("variants() includes retired variant %q: %#v", retired, variants())
+		}
+	}
+}
+
+func TestSanitizeMetricEvidenceRedactsCustomRunRoots(t *testing.T) {
+	t.Parallel()
+
+	command := "/bin/zsh -lc 'go run ./cmd/openhealth weight list --db /tmp/openhealth-oh743-final-r1/cli/latest-only/openhealth.db'"
+	got := sanitizeMetricEvidence(command)
+	if strings.Contains(got, "/tmp/") || strings.Contains(got, "openhealth-oh743") {
+		t.Fatalf("sanitizeMetricEvidence() = %q, want run root redacted", got)
+	}
+	if !strings.Contains(got, "<run-root>") {
+		t.Fatalf("sanitizeMetricEvidence() = %q, want <run-root>", got)
 	}
 }
 
@@ -65,7 +134,7 @@ func TestWriteMarkdownReportsRunnableCLIStatus(t *testing.T) {
 		Model:           modelName,
 		ReasoningEffort: reasoningEffort,
 		CodexVersion:    "test",
-		CLIStatus:       "runnable: cli variant uses go run ./cmd/openhealth weight add/list",
+		CLIStatus:       "runnable: cli variant uses go run ./cmd/openhealth weight and blood-pressure commands",
 	}); err != nil {
 		t.Fatalf("writeMarkdown: %v", err)
 	}
@@ -74,7 +143,7 @@ func TestWriteMarkdownReportsRunnableCLIStatus(t *testing.T) {
 		t.Fatalf("read markdown: %v", err)
 	}
 	text := string(content)
-	if !strings.Contains(text, "Status: `runnable: cli variant uses go run ./cmd/openhealth weight add/list`.") {
+	if !strings.Contains(text, "Status: `runnable: cli variant uses go run ./cmd/openhealth weight and blood-pressure commands`.") {
 		t.Fatalf("markdown = %q, want runnable CLI status", text)
 	}
 	if strings.Contains(text, "not run because") {
@@ -94,10 +163,10 @@ func TestWriteMarkdownIncludesCodeFirstSummary(t *testing.T) {
 		ReasoningEffort: reasoningEffort,
 		CodexVersion:    "test",
 		CodeFirst: &codeFirstSummary{
-			CandidateVariant: "agentops-code",
+			CandidateVariant: "production",
 			BaselineVariant:  "cli",
 			BeatsCLI:         true,
-			Recommendation:   "prefer_agentops_code_for_routine_weight_operations",
+			Recommendation:   "prefer_agentops_production_for_routine_openhealth_operations",
 			Criteria: []codeFirstCriterion{
 				{Name: "candidate_passes_all_scenarios", Passed: true, Details: "ok"},
 			},
@@ -113,7 +182,7 @@ func TestWriteMarkdownIncludesCodeFirstSummary(t *testing.T) {
 		t.Fatalf("read markdown: %v", err)
 	}
 	text := string(content)
-	for _, want := range []string{"## Code-First CLI Comparison", "Candidate: `agentops-code`", "Beats CLI: `yes`", "`candidate_passes_all_scenarios`"} {
+	for _, want := range []string{"## Code-First CLI Comparison", "Candidate: `production`", "Beats CLI: `yes`", "`candidate_passes_all_scenarios`"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("markdown = %q, want %q", text, want)
 		}
@@ -126,7 +195,7 @@ func TestShouldSkipEvalPath(t *testing.T) {
 	for _, path := range []string{
 		"docs/agent-evals.md",
 		"docs/agent-eval-assets",
-		"docs/agent-eval-assets/variants/generated-client/SKILL.md",
+		"docs/agent-eval-assets/variants/cli/SKILL.md",
 		"docs/agent-eval-results",
 		"docs/agent-eval-results/oh-5yr-2026-04-16.md",
 		"scripts/agent-eval",
@@ -144,26 +213,6 @@ func TestShouldSkipEvalPath(t *testing.T) {
 	} {
 		if shouldSkipEvalPath(path) {
 			t.Fatalf("shouldSkipEvalPath(%q) = true, want false", path)
-		}
-	}
-}
-
-func TestAgentOpsVariantInstructionsAreSelfContained(t *testing.T) {
-	t.Parallel()
-
-	text := agentOpsVariantInstructions()
-	for _, want := range []string{
-		"Do not run bd prime",
-		"agentops.RunWeightTask",
-		"agentops.WeightTaskActionUpsert",
-		"agentops.WeightListModeRange",
-		"client.LocalConfig{}",
-		"context.Background()",
-		"GOPROXY=off GOSUMDB=off go run -mod=mod .",
-		"2026-03-30 151.6 lb",
-	} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("agentOpsVariantInstructions() missing %q: %s", want, text)
 		}
 	}
 }
@@ -397,11 +446,11 @@ func TestNonISODateRejectAssistantPass(t *testing.T) {
 func TestSelectVariantsAndScenarios(t *testing.T) {
 	t.Parallel()
 
-	selectedVariants, err := selectVariants("production,agentops-code,cli")
+	selectedVariants, err := selectVariants("production,cli")
 	if err != nil {
 		t.Fatalf("selectVariants: %v", err)
 	}
-	if got := []string{selectedVariants[0].ID, selectedVariants[1].ID, selectedVariants[2].ID}; strings.Join(got, ",") != "production,agentops-code,cli" {
+	if got := []string{selectedVariants[0].ID, selectedVariants[1].ID}; strings.Join(got, ",") != "production,cli" {
 		t.Fatalf("selected variants = %v", got)
 	}
 	selectedScenarios, err := selectScenarios("add-two,bounded-range,latest-only")
@@ -476,6 +525,102 @@ func TestExpandedWeightScenariosVerifyExpectedOutput(t *testing.T) {
 			}
 			if !weightsEqual(verification.Weights, tt.wantWeights) {
 				t.Fatalf("weights = %s, want %s", describeWeights(verification.Weights), describeWeights(tt.wantWeights))
+			}
+		})
+	}
+}
+
+func TestBloodPressureScenariosVerifyExpectedOutput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		scenarioID   string
+		finalMessage string
+		wantReadings []bloodPressureState
+	}{
+		{
+			scenarioID: "bp-latest-only",
+			finalMessage: strings.Join([]string{
+				"2026-03-30 118/76",
+			}, "\n"),
+			wantReadings: []bloodPressureState{
+				{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+				{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+				{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
+			},
+		},
+		{
+			scenarioID: "bp-history-limit-two",
+			finalMessage: strings.Join([]string{
+				"2026-03-30 118/76",
+				"2026-03-29 122/78 pulse 64",
+			}, "\n"),
+			wantReadings: []bloodPressureState{
+				{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+				{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+				{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
+				{Date: "2026-03-27", Systolic: 126, Diastolic: 82},
+			},
+		},
+		{
+			scenarioID: "bp-bounded-range",
+			finalMessage: strings.Join([]string{
+				"2026-03-30 118/76",
+				"2026-03-29 122/78 pulse 64",
+			}, "\n"),
+			wantReadings: []bloodPressureState{
+				{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+				{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+				{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
+			},
+		},
+		{
+			scenarioID: "bp-bounded-range-natural",
+			finalMessage: strings.Join([]string{
+				"March 30, 2026",
+				"- 118/76",
+				"",
+				"March 29, 2026",
+				"- 122/78, pulse 64",
+			}, "\n"),
+			wantReadings: []bloodPressureState{
+				{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+				{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+				{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
+			},
+		},
+		{
+			scenarioID:   "bp-invalid-input",
+			finalMessage: "Invalid blood pressure: systolic, diastolic, and pulse must be positive.",
+			wantReadings: []bloodPressureState{},
+		},
+		{
+			scenarioID:   "bp-non-iso-date-reject",
+			finalMessage: "Invalid date: use YYYY-MM-DD.",
+			wantReadings: []bloodPressureState{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.scenarioID, func(t *testing.T) {
+			t.Parallel()
+			sc, ok := scenarioByID(tt.scenarioID)
+			if !ok {
+				t.Fatalf("missing scenario %q", tt.scenarioID)
+			}
+			databasePath := filepath.Join(t.TempDir(), "openhealth.db")
+			if err := seedScenario(databasePath, sc); err != nil {
+				t.Fatalf("seedScenario: %v", err)
+			}
+			verification, err := verifyScenario(databasePath, sc, tt.finalMessage)
+			if err != nil {
+				t.Fatalf("verifyScenario: %v", err)
+			}
+			if !verification.Passed {
+				t.Fatalf("verification failed: %#v", verification)
+			}
+			if !bloodPressuresEqual(verification.BloodPressures, tt.wantReadings) {
+				t.Fatalf("blood pressures = %s, want %s", describeBloodPressures(verification.BloodPressures), describeBloodPressures(tt.wantReadings))
 			}
 		})
 	}
@@ -768,7 +913,7 @@ func TestProductionStopLossTriggersPivot(t *testing.T) {
 	if !summary.Triggered {
 		t.Fatal("stop loss did not trigger")
 	}
-	if summary.Recommendation != "pivot_to_cli_for_agent_operations" {
+	if summary.Recommendation != "continue_cli_baseline_for_agent_operations" {
 		t.Fatalf("recommendation = %q", summary.Recommendation)
 	}
 	joined := strings.Join(summary.Triggers, "\n")
@@ -828,7 +973,7 @@ func TestCodeFirstSummaryBeatsCLI(t *testing.T) {
 	for _, sc := range scenarios() {
 		results = append(results,
 			runResult{
-				Variant:  "agentops-code",
+				Variant:  "production",
 				Scenario: sc.ID,
 				Passed:   true,
 				Metrics: metrics{
@@ -846,14 +991,14 @@ func TestCodeFirstSummaryBeatsCLI(t *testing.T) {
 		)
 	}
 
-	summary := codeFirstSummaryFor(results, "agentops-code")
+	summary := codeFirstSummaryFor(results, "production")
 	if summary == nil {
 		t.Fatal("codeFirstSummaryFor returned nil")
 	}
 	if !summary.BeatsCLI {
 		t.Fatalf("beats_cli = false, criteria = %#v", summary.Criteria)
 	}
-	if summary.Recommendation != "prefer_agentops_code_for_routine_weight_operations" {
+	if summary.Recommendation != "prefer_agentops_production_for_routine_openhealth_operations" {
 		t.Fatalf("recommendation = %q", summary.Recommendation)
 	}
 }
@@ -893,7 +1038,7 @@ func TestCodeFirstSummarySupportsProductionCandidate(t *testing.T) {
 	if summary.CandidateVariant != "production" {
 		t.Fatalf("candidate = %q, want production", summary.CandidateVariant)
 	}
-	if summary.Recommendation != "prefer_agentops_production_for_routine_weight_operations" {
+	if summary.Recommendation != "prefer_agentops_production_for_routine_openhealth_operations" {
 		t.Fatalf("recommendation = %q", summary.Recommendation)
 	}
 }
@@ -910,7 +1055,7 @@ func TestCodeFirstSummaryFailsWhenRoutineScenarioExceedsCLI(t *testing.T) {
 		}
 		results = append(results,
 			runResult{
-				Variant:  "agentops-code",
+				Variant:  "production",
 				Scenario: sc.ID,
 				Passed:   true,
 				Metrics: metrics{
@@ -928,7 +1073,7 @@ func TestCodeFirstSummaryFailsWhenRoutineScenarioExceedsCLI(t *testing.T) {
 		)
 	}
 
-	summary := codeFirstSummaryFor(results, "agentops-code")
+	summary := codeFirstSummaryFor(results, "production")
 	if summary == nil {
 		t.Fatal("codeFirstSummaryFor returned nil")
 	}
@@ -942,8 +1087,4 @@ func TestCodeFirstSummaryFailsWhenRoutineScenarioExceedsCLI(t *testing.T) {
 	if !strings.Contains(joined, "update-existing") {
 		t.Fatalf("criteria = %q, want update-existing detail", joined)
 	}
-}
-
-func intPointer(value int) *int {
-	return &value
 }

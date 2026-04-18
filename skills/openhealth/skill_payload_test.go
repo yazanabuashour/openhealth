@@ -44,7 +44,7 @@ func TestSkillMarkdownLinksReferenceInstalledFiles(t *testing.T) {
 	}
 }
 
-func TestProductionSkillUsesAgentOpsForRoutineWeights(t *testing.T) {
+func TestProductionSkillUsesAgentOpsForRoutineUserData(t *testing.T) {
 	t.Parallel()
 
 	content, err := os.ReadFile("SKILL.md")
@@ -54,17 +54,45 @@ func TestProductionSkillUsesAgentOpsForRoutineWeights(t *testing.T) {
 	text := string(content)
 	for _, want := range []string{
 		"agentops.RunWeightTask",
+		"agentops.RunBloodPressureTask",
 		"github.com/yazanabuashour/openhealth/agentops",
 		"GOPROXY=off GOSUMDB=off go run -mod=mod .",
-		"Do not use `go run ./cmd/openhealth`",
-		"Do not read `go.mod`",
-		"search for `RunWeightTask`",
+		"references/weights.md",
+		"references/blood-pressure.md",
 		"AgentOps `entries` are already newest-first",
-		"`bd prime`",
 		"2026/03/31",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("skill missing %q", want)
+		}
+	}
+	for _, forbidden := range []string{
+		"go run ./cmd/openhealth",
+		"CLI fallback",
+		"Generated Client Fallback",
+	} {
+		if strings.Contains(text, forbidden) {
+			t.Fatalf("skill contains forbidden text %q", forbidden)
+		}
+	}
+}
+
+func TestBloodPressureReferenceDocumentsCorrection(t *testing.T) {
+	t.Parallel()
+
+	content, err := os.ReadFile(filepath.Join("references", "blood-pressure.md"))
+	if err != nil {
+		t.Fatalf("read blood pressure reference: %v", err)
+	}
+	text := string(content)
+	for _, want := range []string{
+		"BloodPressureTaskActionCorrect",
+		"updates exactly one existing reading",
+		"multiple same-date readings",
+		"rejection_reason",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("blood pressure reference missing %q", want)
 		}
 	}
 }

@@ -1,14 +1,34 @@
 # Weight Task Recipes
 
-Use `agentops.RunWeightTask` for routine local weight tasks. The API accepts
-simple JSON-friendly request fields and returns deterministic JSON-friendly
-results.
+Use `agentops.RunWeightTask` for routine local weight tasks. It returns
+JSON-friendly write statuses, newest-first entries, and rejection reasons.
+This reference is the task contract for routine agent use; do not inspect source
+or test files to rediscover these shapes unless a task run fails.
+
+## Request And Result Fields
+
+```go
+agentops.WeightTaskRequest{
+	Action:   string,
+	Weights:  []agentops.WeightInput,
+	ListMode: string,
+	FromDate: string,
+	ToDate:   string,
+	Limit:    int,
+}
+
+agentops.WeightInput{Date: string, Value: float64, Unit: string}
+```
+
+`WeightTaskResult` encodes to JSON with `rejected`, `rejection_reason`, `writes`,
+`entries`, and `summary`. Each write has `date`, `value`, `unit`, and `status`.
+Each entry has `date`, `value`, and `unit`.
 
 ## Write, Reapply, Or Correct Weights
 
-Use `WeightTaskActionUpsert` with one or more `WeightInput` values. Upsert is
-idempotent for the same date and unit: it returns `created`, `already_exists`,
-or `updated`.
+Use `WeightTaskActionUpsert` with one or more `WeightInput` values. Repeating a
+same-date value is idempotent, and a same-date different value updates the
+existing row.
 
 ```go
 result, err := agentops.RunWeightTask(context.Background(), client.LocalConfig{}, agentops.WeightTaskRequest{
@@ -20,60 +40,41 @@ result, err := agentops.RunWeightTask(context.Background(), client.LocalConfig{}
 })
 ```
 
-## Latest And History
+Accepted units are `lb`, `lbs`, `pound`, and `pounds`; AgentOps normalizes them
+to `lb`. For same-date corrections, one upsert request with the corrected value
+is enough; the result `writes` status is `updated` and `entries` contains the
+stored newest-first rows.
 
-For only the latest entry:
+## Read Weights
 
 ```go
-result, err := agentops.RunWeightTask(context.Background(), client.LocalConfig{}, agentops.WeightTaskRequest{
+// latest only
+agentops.WeightTaskRequest{
 	Action:   agentops.WeightTaskActionList,
 	ListMode: agentops.WeightListModeLatest,
-})
-```
+}
 
-For history, optionally set `Limit`. Use history mode for "two most recent" or
-any count greater than one; `WeightListModeLatest` always returns one row.
-
-```go
-result, err := agentops.RunWeightTask(context.Background(), client.LocalConfig{}, agentops.WeightTaskRequest{
+// history, optionally limited
+agentops.WeightTaskRequest{
 	Action:   agentops.WeightTaskActionList,
 	ListMode: agentops.WeightListModeHistory,
 	Limit:    2,
-})
-```
+}
 
-## Bounded History
-
-For bounded date ranges, use strict date-only inclusive bounds:
-
-```go
-result, err := agentops.RunWeightTask(context.Background(), client.LocalConfig{}, agentops.WeightTaskRequest{
+// inclusive bounded date range
+agentops.WeightTaskRequest{
 	Action:   agentops.WeightTaskActionList,
 	ListMode: agentops.WeightListModeRange,
 	FromDate: "2026-03-29",
 	ToDate:   "2026-03-30",
-})
+}
 ```
 
-When reporting the result, mirror every row in the JSON `entries` array, newest
-first. AgentOps `entries` are already newest-first; do not inspect
-implementation details to verify ordering. Do not report only the latest row,
-and do not include older or newer records that were not part of the requested
-range. Do not mention excluded dates at all, even to say they were excluded.
+For "two most recent" or any count greater than one, use
+`WeightListModeHistory` with `Limit`; `WeightListModeLatest` returns one row.
 
 ## Validation
 
-Reject directly without running code when:
-
-- a short date like `03/29` has no explicit year context,
-- a year-first slash date is provided, such as `2026/03/31`,
-- a date has a year but cannot be converted to `YYYY-MM-DD`,
-- a value is non-positive or missing,
-- a unit is not `lb`, `lbs`, `pound`, or `pounds`.
-
-Explicit month/day/year dates with a year, such as `03/29/2026`, may be
-converted to `YYYY-MM-DD` before calling AgentOps.
-
-When the request is valid, the AgentOps facade performs the same validation
-before opening the local database and returns `Rejected: true` with
-`rejection_reason` for invalid task input.
+Reject without writing when a request has an ambiguous short date, year-first
+slash date, non-positive or missing value, or unsupported unit. Valid requests
+are also validated by AgentOps before database access.

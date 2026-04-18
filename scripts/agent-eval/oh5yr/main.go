@@ -112,11 +112,12 @@ type metrics struct {
 }
 
 type verificationResult struct {
-	Passed        bool          `json:"passed"`
-	DatabasePass  bool          `json:"database_pass"`
-	AssistantPass bool          `json:"assistant_pass"`
-	Details       string        `json:"details"`
-	Weights       []weightState `json:"weights"`
+	Passed         bool                 `json:"passed"`
+	DatabasePass   bool                 `json:"database_pass"`
+	AssistantPass  bool                 `json:"assistant_pass"`
+	Details        string               `json:"details"`
+	Weights        []weightState        `json:"weights,omitempty"`
+	BloodPressures []bloodPressureState `json:"blood_pressures,omitempty"`
 }
 
 type comparisonSummary struct {
@@ -177,6 +178,13 @@ type weightState struct {
 	Unit  string  `json:"unit"`
 }
 
+type bloodPressureState struct {
+	Date      string `json:"date"`
+	Systolic  int    `json:"systolic"`
+	Diastolic int    `json:"diastolic"`
+	Pulse     *int   `json:"pulse,omitempty"`
+}
+
 type codexEvent struct {
 	Type  string `json:"type"`
 	Item  item   `json:"item"`
@@ -221,7 +229,7 @@ func runCommand(args []string) {
 	compareToFlag := fs.String("compare-to", "", "optional baseline JSON report path for comparison")
 	variantFilter := fs.String("variant", "", "optional comma-separated variant ids to run")
 	scenarioFilter := fs.String("scenario", "", "optional comma-separated scenario ids to run")
-	candidateVariantFlag := fs.String("candidate", "agentops-code", "candidate variant id to compare directly with cli")
+	candidateVariantFlag := fs.String("candidate", "production", "candidate variant id to compare directly with cli")
 	if err := fs.Parse(args); err != nil {
 		failf("parse flags: %v", err)
 	}
@@ -328,7 +336,7 @@ func runCommand(args []string) {
 			"GOMODCACHE=<run-root>/<variant>/<scenario>/gomodcache (prewarmed with go mod download before agent execution)",
 			"codex exec --json --ephemeral --full-auto --skip-git-repo-check --add-dir <run-root>/<variant>/<scenario> -C <run-root>/<variant>/<scenario>/repo -m gpt-5.4-mini -c model_reasoning_effort=\"medium\" -c shell_environment_policy.inherit=all <natural user prompt>",
 		},
-		CLIStatus:         "runnable: cli variant uses go run ./cmd/openhealth weight add/list with a prewarmed per-scenario module cache",
+		CLIStatus:         "runnable: cli variant uses go run ./cmd/openhealth weight and blood-pressure commands with a prewarmed per-scenario module cache",
 		MetricNotes:       metricNotes(*dateFlag, results),
 		StopLoss:          productionStopLoss(results),
 		CodeFirst:         codeFirstSummaryFor(results, *candidateVariantFlag),
@@ -572,9 +580,7 @@ func prepareRunDir(runDir string) error {
 
 func variants() []variant {
 	return []variant{
-		{ID: "production", Title: "Production SDK skill"},
-		{ID: "generated-client", Title: "Generated-client baseline skill"},
-		{ID: "agentops-code", Title: "Code-first AgentOps facade skill"},
+		{ID: "production", Title: "Production AgentOps skill"},
 		{ID: "cli", Title: "CLI-oriented skill"},
 	}
 }
@@ -630,6 +636,41 @@ func scenarios() []scenario {
 			ID:     "non-iso-date-reject",
 			Title:  "Reject non-ISO full date without writing",
 			Prompt: "Please add this local OpenHealth weight entry exactly as written: 2026/03/31 152.2 lbs. Do not normalize or rewrite the date if OpenHealth requires another date format.",
+		},
+		{
+			ID:     "bp-add-two",
+			Title:  "Record two blood-pressure readings and verify newest-first output",
+			Prompt: "I need to update my local OpenHealth blood pressure history. Use the configured local OpenHealth data path, and use year 2026 for these short dates: 03/29 122/78 pulse 64 and 03/30 118/76. Then tell me the newest-first entries you see.",
+		},
+		{
+			ID:     "bp-latest-only",
+			Title:  "List only the latest blood-pressure reading",
+			Prompt: "What is my latest local OpenHealth blood pressure reading? Use the configured local data path and mention only the latest row.",
+		},
+		{
+			ID:     "bp-history-limit-two",
+			Title:  "List the two most recent blood-pressure readings",
+			Prompt: "Please show my two most recent local OpenHealth blood pressure readings, newest first. Use the configured local data path and mention only those two rows.",
+		},
+		{
+			ID:     "bp-bounded-range",
+			Title:  "List a bounded blood-pressure date range newest-first",
+			Prompt: "Please show every local OpenHealth blood pressure reading dated 03/29/2026 or 03/30/2026 only, newest first. Use the configured local data path. Include each reading dated 03/30/2026 and 03/29/2026 if present. In the final answer, mention only readings in that requested range; do not mention excluded dates at all.",
+		},
+		{
+			ID:     "bp-bounded-range-natural",
+			Title:  "List a naturally phrased bounded blood-pressure date range",
+			Prompt: "Can you show my OpenHealth blood pressure readings for Mar 29 and Mar 30, 2026, newest first? Use the configured local data path.",
+		},
+		{
+			ID:     "bp-invalid-input",
+			Title:  "Reject invalid blood-pressure values without writing",
+			Prompt: "Please add this local OpenHealth blood pressure reading: 03/31/2026 0/-5 pulse 0.",
+		},
+		{
+			ID:     "bp-non-iso-date-reject",
+			Title:  "Reject non-ISO blood-pressure date without writing",
+			Prompt: "Please add this local OpenHealth blood pressure reading exactly as written: 2026/03/31 122/78. Do not normalize or rewrite the date if OpenHealth requires another date format.",
 		},
 	}
 }
@@ -731,6 +772,19 @@ func seedScenario(dbPath string, sc scenario) error {
 			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
 			{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
 		})
+	case "bp-latest-only", "bp-bounded-range", "bp-bounded-range-natural":
+		return recordBloodPressures(ctx, api, []bloodPressureState{
+			{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+		})
+	case "bp-history-limit-two":
+		return recordBloodPressures(ctx, api, []bloodPressureState{
+			{Date: "2026-03-27", Systolic: 126, Diastolic: 82},
+			{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+		})
 	default:
 		return nil
 	}
@@ -753,7 +807,29 @@ func upsertWeights(ctx context.Context, api *client.LocalClient, weights []weigh
 	return nil
 }
 
+func recordBloodPressures(ctx context.Context, api *client.LocalClient, readings []bloodPressureState) error {
+	for _, reading := range readings {
+		recordedAt, err := parseDate(reading.Date)
+		if err != nil {
+			return err
+		}
+		if _, err := api.RecordBloodPressure(ctx, client.BloodPressureRecordInput{
+			RecordedAt: recordedAt,
+			Systolic:   reading.Systolic,
+			Diastolic:  reading.Diastolic,
+			Pulse:      reading.Pulse,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func verifyScenario(dbPath string, sc scenario, finalMessage string) (verificationResult, error) {
+	if isBloodPressureScenario(sc.ID) {
+		return verifyBloodPressureScenario(dbPath, sc, finalMessage)
+	}
+
 	weights, err := listWeights(dbPath)
 	var states []weightState
 	listErrorDetail := ""
@@ -834,6 +910,69 @@ func verifyScenario(dbPath string, sc scenario, finalMessage string) (verificati
 	return result, nil
 }
 
+func verifyBloodPressureScenario(dbPath string, sc scenario, finalMessage string) (verificationResult, error) {
+	readings, err := listBloodPressures(dbPath)
+	if err != nil {
+		return verificationResult{}, fmt.Errorf("list blood pressures: %w", err)
+	}
+	states := bloodPressureStates(readings)
+	result := verificationResult{
+		BloodPressures: states,
+	}
+
+	switch sc.ID {
+	case "bp-add-two":
+		expected := []bloodPressureState{
+			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+		}
+		result.DatabasePass = bloodPressuresEqual(states, expected)
+		result.AssistantPass = true
+		result.Details = fmt.Sprintf("expected exactly two newest-first blood-pressure rows; observed %s", describeBloodPressures(states))
+	case "bp-latest-only":
+		expectedDB := []bloodPressureState{
+			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
+		}
+		result.DatabasePass = bloodPressuresEqual(states, expectedDB)
+		result.AssistantPass = bloodPressureLatestOnlyAssistantPass(finalMessage)
+		result.Details = fmt.Sprintf("expected unchanged seed rows and assistant output limited to latest blood-pressure row 2026-03-30; observed %s", describeBloodPressures(states))
+	case "bp-history-limit-two":
+		expectedDB := []bloodPressureState{
+			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
+			{Date: "2026-03-27", Systolic: 126, Diastolic: 82},
+		}
+		result.DatabasePass = bloodPressuresEqual(states, expectedDB)
+		result.AssistantPass = bloodPressureHistoryLimitTwoAssistantPass(finalMessage)
+		result.Details = fmt.Sprintf("expected unchanged seed rows and assistant output limited to 2026-03-30 and 2026-03-29 newest-first; observed %s", describeBloodPressures(states))
+	case "bp-bounded-range", "bp-bounded-range-natural":
+		expectedDB := []bloodPressureState{
+			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
+		}
+		result.DatabasePass = bloodPressuresEqual(states, expectedDB)
+		result.AssistantPass = bloodPressureBoundedRangeAssistantPass(finalMessage)
+		result.Details = fmt.Sprintf("expected unchanged seed rows and assistant output limited to 2026-03-29..2026-03-30 newest-first; observed %s", describeBloodPressures(states))
+	case "bp-invalid-input":
+		result.DatabasePass = len(states) == 0
+		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"invalid", "positive", "cannot", "can't", "systolic", "diastolic", "pulse", "reject"})
+		result.Details = fmt.Sprintf("expected no write and an invalid blood-pressure rejection; observed %s", describeBloodPressures(states))
+	case "bp-non-iso-date-reject":
+		result.DatabasePass = len(states) == 0
+		result.AssistantPass = nonISODateRejectAssistantPass(finalMessage)
+		result.Details = fmt.Sprintf("expected no write and a strict YYYY-MM-DD date rejection; observed %s", describeBloodPressures(states))
+	default:
+		return verificationResult{}, fmt.Errorf("unknown blood-pressure scenario %q", sc.ID)
+	}
+
+	result.Passed = result.DatabasePass && result.AssistantPass
+	return result, nil
+}
+
 func listWeights(dbPath string) ([]client.WeightEntry, error) {
 	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: dbPath})
 	if err != nil {
@@ -843,6 +982,17 @@ func listWeights(dbPath string) ([]client.WeightEntry, error) {
 		_ = api.Close()
 	}()
 	return api.ListWeights(context.Background(), client.WeightListOptions{Limit: 100})
+}
+
+func listBloodPressures(dbPath string) ([]client.BloodPressureEntry, error) {
+	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: dbPath})
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = api.Close()
+	}()
+	return api.ListBloodPressure(context.Background(), client.BloodPressureListOptions{Limit: 100})
 }
 
 func listRawWeights(dbPath string) ([]weightState, error) {
@@ -886,6 +1036,19 @@ func weightStates(weights []client.WeightEntry) []weightState {
 			Date:  weight.RecordedAt.Format(time.DateOnly),
 			Value: roundWeight(weight.Value),
 			Unit:  string(weight.Unit),
+		})
+	}
+	return states
+}
+
+func bloodPressureStates(readings []client.BloodPressureEntry) []bloodPressureState {
+	states := make([]bloodPressureState, 0, len(readings))
+	for _, reading := range readings {
+		states = append(states, bloodPressureState{
+			Date:      reading.RecordedAt.Format(time.DateOnly),
+			Systolic:  reading.Systolic,
+			Diastolic: reading.Diastolic,
+			Pulse:     reading.Pulse,
 		})
 	}
 	return states
@@ -1043,7 +1206,7 @@ func shouldSkipCopy(rel string, entry fs.DirEntry) bool {
 
 func shouldSkipEvalPath(rel string) bool {
 	switch rel {
-	case "docs/agent-evals.md", "docs/agent-eval-assets", "docs/agent-eval-results", "scripts/agent-eval":
+	case "AGENTS.md", "docs/agent-evals.md", "docs/agent-eval-assets", "docs/agent-eval-results", "scripts/agent-eval":
 		return true
 	}
 	return strings.HasPrefix(rel, "docs/agent-eval-assets/") ||
@@ -1082,10 +1245,6 @@ func installVariant(repoRoot string, runRepo string, currentVariant variant) err
 	switch currentVariant.ID {
 	case "production":
 		src = filepath.Join(repoRoot, "skills", "openhealth")
-	case "generated-client":
-		src = filepath.Join(repoRoot, "docs", "agent-eval-assets", "variants", "generated-client")
-	case "agentops-code":
-		src = filepath.Join(repoRoot, "docs", "agent-eval-assets", "variants", "agentops-code")
 	case "cli":
 		src = filepath.Join(repoRoot, "docs", "agent-eval-assets", "variants", "cli")
 	default:
@@ -1094,64 +1253,12 @@ func installVariant(repoRoot string, runRepo string, currentVariant variant) err
 	if err := copyDir(src, dest); err != nil {
 		return err
 	}
-	if currentVariant.ID == "generated-client" || currentVariant.ID == "agentops-code" || currentVariant.ID == "cli" {
+	if currentVariant.ID == "cli" {
 		if err := normalizeSkillName(filepath.Join(dest, "SKILL.md"), "openhealth"); err != nil {
 			return err
 		}
 	}
-	if currentVariant.ID == "agentops-code" {
-		return appendAgentOpsVariantInstructions(filepath.Join(runRepo, "AGENTS.md"))
-	}
 	return nil
-}
-
-func appendAgentOpsVariantInstructions(path string) error {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		_ = file.Close()
-	}()
-	_, err = file.WriteString(agentOpsVariantInstructions())
-	return err
-}
-
-func agentOpsVariantInstructions() string {
-	return `
-
-## AgentOps Code Eval Variant
-
-For OpenHealth weight tasks in this isolated eval, use the code-first
-agentops facade directly. Do not run bd prime. Do not inspect .agents files,
-generated files, the Go module cache, SQLite, or repo-wide search/listing
-commands. Do not use the openhealth CLI.
-
-If the request has an ambiguous short date, a non-positive value, or a unit
-other than lb/lbs/pound/pounds, reject it directly without running code.
-
-For valid write/list requests, run a single shell command that creates a
-temporary Go module outside the repository, uses:
-
-  require github.com/yazanabuashour/openhealth v0.0.0
-  replace github.com/yazanabuashour/openhealth => $repo
-
-then imports github.com/yazanabuashour/openhealth/agentops and calls
-agentops.RunWeightTask(context.Background(), client.LocalConfig{}, request).
-Run the temporary module with exactly:
-
-  (cd "$tmp" && GOPROXY=off GOSUMDB=off go run -mod=mod .)
-
-Do not retry with module-cache inspection, repo search, or other Go command
-shapes. For writes, use agentops.WeightTaskRequest{Action:
-agentops.WeightTaskActionUpsert, Weights: []agentops.WeightInput{{Date:
-"2026-03-29", Value: 152.2, Unit: "lb"}}}. For bounded ranges, use Action:
-agentops.WeightTaskActionList, ListMode: agentops.WeightListModeRange,
-FromDate: "2026-03-29", ToDate: "2026-03-30". Print JSON and answer only from
-the JSON entries/writes/rejection fields. When reporting entries, convert them
-to plain newest-first rows such as "2026-03-30 151.6 lb"; for bounded ranges,
-include every JSON entry and do not mention excluded dates.
-`
 }
 
 func copyDir(src string, dst string) error {
@@ -1388,7 +1495,7 @@ func productionStopLoss(results []runResult) *stopLossSummary {
 		if result.Metrics.ModuleCacheInspected {
 			moduleCache = append(moduleCache, result.Scenario)
 		}
-		if result.Metrics.BroadRepoSearch && isRoutineWeightScenario(result.Scenario) {
+		if result.Metrics.BroadRepoSearch && isRoutineScenario(result.Scenario) {
 			broadSearch = append(broadSearch, result.Scenario)
 		}
 		if result.Metrics.CLIUsed {
@@ -1444,10 +1551,10 @@ func productionStopLoss(results []runResult) *stopLossSummary {
 
 	recommendation := "continue_production_hardening"
 	if len(triggers) > 0 {
-		recommendation = "pivot_to_cli_for_agent_operations"
+		recommendation = "continue_cli_baseline_for_agent_operations"
 	}
 	return &stopLossSummary{
-		Policy:         "After production hardening, pivot if production loses correctness, directly inspects generated files, inspects the module cache, uses broad repo search in more than one routine scenario, uses the openhealth CLI, uses direct SQLite access, exceeds core tool thresholds, or uses more than 2x CLI tools in at least three comparable scenarios.",
+		Policy:         "After production hardening, keep CLI as the baseline recommendation if production loses correctness, directly inspects generated files, inspects the module cache, uses broad repo search in more than one routine scenario, uses the openhealth CLI, uses direct SQLite access, exceeds core tool thresholds, or uses more than 2x CLI tools in at least three comparable scenarios.",
 		Triggered:      len(triggers) > 0,
 		Recommendation: recommendation,
 		Triggers:       triggers,
@@ -1458,7 +1565,7 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 	const baselineVariant = "cli"
 
 	if strings.TrimSpace(candidateVariant) == "" {
-		candidateVariant = "agentops-code"
+		candidateVariant = "production"
 	}
 
 	candidateByScenario := map[string]runResult{}
@@ -1508,7 +1615,7 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 		if candidate.Metrics.ModuleCacheInspected {
 			noModuleCache = false
 		}
-		if candidate.Metrics.BroadRepoSearch && isRoutineWeightScenario(candidate.Scenario) {
+		if candidate.Metrics.BroadRepoSearch && isRoutineScenario(candidate.Scenario) {
 			noRoutineBroadSearch = false
 		}
 		if candidate.Metrics.CLIUsed {
@@ -1532,7 +1639,7 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 			if candidate.Metrics.ToolCalls <= cli.Metrics.ToolCalls {
 				scenariosAtOrBelowCLI++
 			}
-			if isRoutineWeightScenario(scenario) && candidate.Metrics.ToolCalls > cli.Metrics.ToolCalls+1 {
+			if isRoutineScenario(scenario) && candidate.Metrics.ToolCalls > cli.Metrics.ToolCalls+1 {
 				routineExceedsCLIByMoreThanOne = append(routineExceedsCLIByMoreThanOne, scenario)
 			}
 		}
@@ -1559,7 +1666,7 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 		{
 			Name:    "no_routine_broad_repo_search",
 			Passed:  noRoutineBroadSearch,
-			Details: fmt.Sprintf("%s must not use broad repo search in routine weight scenarios", candidateVariant),
+			Details: fmt.Sprintf("%s must not use broad repo search in routine scenarios", candidateVariant),
 		},
 		{
 			Name:    "no_openhealth_cli_usage",
@@ -1595,7 +1702,7 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 			break
 		}
 	}
-	recommendation := "continue_cli_for_routine_weight_operations"
+	recommendation := "continue_cli_for_routine_openhealth_operations"
 	if beatsCLI {
 		recommendation = recommendationForCandidate(candidateVariant)
 	}
@@ -1631,17 +1738,14 @@ func countPassed(results map[string]runResult) int {
 }
 
 func requiredScenariosAtOrBelowCLI(candidateScenarios int) int {
-	if candidateScenarios <= 7 {
-		return min(5, candidateScenarios)
-	}
-	return candidateScenarios - 2
+	return int(math.Ceil(float64(candidateScenarios) * 0.8))
 }
 
 func recommendationForCandidate(candidateVariant string) string {
 	if candidateVariant == "production" {
-		return "prefer_agentops_production_for_routine_weight_operations"
+		return "prefer_agentops_production_for_routine_openhealth_operations"
 	}
-	return "prefer_agentops_code_for_routine_weight_operations"
+	return "prefer_agentops_for_routine_openhealth_operations"
 }
 
 func scenarioIDs() []string {
@@ -1652,13 +1756,18 @@ func scenarioIDs() []string {
 	return ids
 }
 
-func isRoutineWeightScenario(id string) bool {
+func isRoutineScenario(id string) bool {
 	switch id {
-	case "add-two", "repeat-add", "update-existing", "bounded-range", "bounded-range-natural", "latest-only", "history-limit-two":
+	case "add-two", "repeat-add", "update-existing", "bounded-range", "bounded-range-natural", "latest-only", "history-limit-two",
+		"bp-add-two", "bp-latest-only", "bp-history-limit-two", "bp-bounded-range", "bp-bounded-range-natural":
 		return true
 	default:
 		return false
 	}
+}
+
+func isBloodPressureScenario(id string) bool {
+	return strings.HasPrefix(id, "bp-")
 }
 
 func sortedJoin(values []string) string {
@@ -1988,12 +2097,38 @@ func parseDate(value string) (time.Time, error) {
 	return time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 12, 0, 0, 0, time.UTC), nil
 }
 
+func intPointer(value int) *int {
+	return &value
+}
+
+func equalIntPointer(left *int, right *int) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
+}
+
 func weightsEqual(got []weightState, want []weightState) bool {
 	if len(got) != len(want) {
 		return false
 	}
 	for i := range got {
 		if got[i].Date != want[i].Date || got[i].Unit != want[i].Unit || math.Abs(got[i].Value-want[i].Value) > 0.001 {
+			return false
+		}
+	}
+	return true
+}
+
+func bloodPressuresEqual(got []bloodPressureState, want []bloodPressureState) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i].Date != want[i].Date ||
+			got[i].Systolic != want[i].Systolic ||
+			got[i].Diastolic != want[i].Diastolic ||
+			!equalIntPointer(got[i].Pulse, want[i].Pulse) {
 			return false
 		}
 	}
@@ -2007,6 +2142,21 @@ func describeWeights(weights []weightState) string {
 	parts := make([]string, 0, len(weights))
 	for _, weight := range weights {
 		parts = append(parts, fmt.Sprintf("%s %.1f %s", weight.Date, weight.Value, weight.Unit))
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+func describeBloodPressures(readings []bloodPressureState) string {
+	if len(readings) == 0 {
+		return "[]"
+	}
+	parts := make([]string, 0, len(readings))
+	for _, reading := range readings {
+		pulse := ""
+		if reading.Pulse != nil {
+			pulse = fmt.Sprintf(" pulse %d", *reading.Pulse)
+		}
+		parts = append(parts, fmt.Sprintf("%s %d/%d%s", reading.Date, reading.Systolic, reading.Diastolic, pulse))
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
 }
@@ -2055,6 +2205,43 @@ func historyLimitTwoAssistantPass(message string) bool {
 		!mentionsIncludedDate(message, "2026-03-27")
 }
 
+func bloodPressureBoundedRangeAssistantPass(message string) bool {
+	previous := -1
+	for _, expected := range []bloodPressureState{
+		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+		{Date: "2026-03-29", Systolic: 122, Diastolic: 78},
+	} {
+		index := includedBloodPressureResultLineIndex(message, expected)
+		if index < 0 || index <= previous {
+			return false
+		}
+		previous = index
+	}
+	return !mentionsIncludedBloodPressureDate(message, "2026-03-28")
+}
+
+func bloodPressureLatestOnlyAssistantPass(message string) bool {
+	return includedBloodPressureResultLineIndex(message, bloodPressureState{Date: "2026-03-30", Systolic: 118, Diastolic: 76}) >= 0 &&
+		!mentionsIncludedBloodPressureDate(message, "2026-03-29") &&
+		!mentionsIncludedBloodPressureDate(message, "2026-03-28")
+}
+
+func bloodPressureHistoryLimitTwoAssistantPass(message string) bool {
+	previous := -1
+	for _, expected := range []bloodPressureState{
+		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+		{Date: "2026-03-29", Systolic: 122, Diastolic: 78},
+	} {
+		index := includedBloodPressureResultLineIndex(message, expected)
+		if index < 0 || index <= previous {
+			return false
+		}
+		previous = index
+	}
+	return !mentionsIncludedBloodPressureDate(message, "2026-03-28") &&
+		!mentionsIncludedBloodPressureDate(message, "2026-03-27")
+}
+
 func nonISODateRejectAssistantPass(message string) bool {
 	return containsAny(strings.ToLower(message), []string{"yyyy-mm-dd", "iso", "invalid", "cannot", "can't", "reject", "unsupported", "format"})
 }
@@ -2081,6 +2268,75 @@ func includedDateResultLineIndex(message string, date string) int {
 		offset += len(line)
 	}
 	return -1
+}
+
+func includedBloodPressureResultLineIndex(message string, expected bloodPressureState) int {
+	offset := 0
+	lines := strings.SplitAfter(message, "\n")
+	for i, line := range lines {
+		dateIndex := dateMentionIndex(line, expected.Date)
+		if dateIndex < 0 {
+			offset += len(line)
+			continue
+		}
+		if lineMentionsExclusion(line) {
+			offset += len(line)
+			continue
+		}
+		if lineMentionsBloodPressure(line, expected.Systolic, expected.Diastolic) {
+			return offset + dateIndex
+		}
+		if followingBloodPressureResultLine(lines, i, func(candidate string) bool {
+			return lineMentionsBloodPressure(candidate, expected.Systolic, expected.Diastolic)
+		}) {
+			return offset + dateIndex
+		}
+		offset += len(line)
+	}
+	return -1
+}
+
+func mentionsIncludedBloodPressureDate(message string, date string) bool {
+	lines := strings.SplitAfter(message, "\n")
+	for i, line := range lines {
+		if dateMentionIndex(line, date) >= 0 && !lineMentionsExclusion(line) {
+			if lineLooksLikeBloodPressureResult(line) {
+				return true
+			}
+			if followingBloodPressureResultLine(lines, i, lineLooksLikeBloodPressureResult) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func followingBloodPressureResultLine(lines []string, start int, matches func(string) bool) bool {
+	for i := start + 1; i < len(lines) && i <= start+3; i++ {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			continue
+		}
+		if lineMentionsExclusion(line) {
+			return false
+		}
+		return matches(line)
+	}
+	return false
+}
+
+func lineMentionsBloodPressure(line string, systolic int, diastolic int) bool {
+	lower := strings.ToLower(line)
+	return strings.Contains(lower, fmt.Sprintf("%d/%d", systolic, diastolic)) ||
+		(strings.Contains(lower, fmt.Sprintf("%d", systolic)) && strings.Contains(lower, fmt.Sprintf("%d", diastolic)))
+}
+
+func lineLooksLikeBloodPressureResult(line string) bool {
+	lower := strings.ToLower(strings.TrimSpace(line))
+	return strings.Contains(lower, "/") ||
+		strings.Contains(lower, "systolic") ||
+		strings.Contains(lower, "diastolic") ||
+		strings.Contains(lower, "blood pressure")
 }
 
 func lineMentionsExclusion(line string) bool {
@@ -2159,6 +2415,20 @@ func promptSummary(sc scenario) string {
 		return "reject -5 stone for 2026-03-31"
 	case "non-iso-date-reject":
 		return "reject non-ISO date 2026/03/31"
+	case "bp-add-two":
+		return "record 2026-03-29 122/78 pulse 64 and 2026-03-30 118/76"
+	case "bp-latest-only":
+		return "list only the latest blood-pressure row from preseeded rows"
+	case "bp-history-limit-two":
+		return "list only the two most recent blood-pressure rows from preseeded rows"
+	case "bp-bounded-range":
+		return "list only 2026-03-29 through 2026-03-30 blood-pressure rows from preseeded rows"
+	case "bp-bounded-range-natural":
+		return "naturally ask for 2026-03-29 and 2026-03-30 blood-pressure rows from preseeded rows"
+	case "bp-invalid-input":
+		return "reject invalid 0/-5 pulse 0 blood-pressure reading"
+	case "bp-non-iso-date-reject":
+		return "reject non-ISO blood-pressure date 2026/03/31"
 	default:
 		return sc.Title
 	}
@@ -2398,7 +2668,7 @@ func segmentUsesOpenHealthCLI(segment string) bool {
 		}
 		if (field == "openhealth" || strings.HasSuffix(field, "/openhealth")) && i+1 < len(fields) {
 			switch fields[i+1] {
-			case "weight", "migrate", "serve":
+			case "weight", "blood-pressure", "migrate", "serve":
 				return true
 			}
 		}
@@ -2498,7 +2768,7 @@ func addMetricEvidence(evidence *[]string, command string) {
 func sanitizeMetricEvidence(command string) string {
 	fields := strings.Fields(command)
 	for i, field := range fields {
-		if strings.Contains(field, "openhealth-oh-5yr-") {
+		if strings.Contains(field, "openhealth-oh") {
 			fields[i] = "<run-root>"
 		}
 	}

@@ -12,7 +12,7 @@ Parallelism: `4`
 
 Harness elapsed seconds: `83.32`
 
-Reduced JSON artifact: `docs/agent-eval-results/oh-5yr-oh-967-smoke.json`
+Reduced JSON artifact: `docs/agent-eval-results/archive/oh-5yr-oh-967-smoke.json`
 
 Raw logs: not committed. They were retained under `<run-root>` during execution and are referenced below only with neutral placeholders.
 
@@ -37,7 +37,7 @@ Raw logs: not committed. They were retained under `<run-root>` during execution 
 
 ## Comparison
 
-Baseline: `docs/agent-eval-results/oh-5yr-oh-967-smoke.json`.
+Baseline: `docs/agent-eval-results/archive/oh-5yr-oh-967-smoke.json`.
 
 | Variant | Scenario | Result | Tools Δ | Assistant Calls Δ | Wall Seconds Δ | Non-cache Tokens Δ | Direct Generated Files | Broad Search | Generated From Broad | Module Cache | CLI Used | Direct SQLite |
 | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- |

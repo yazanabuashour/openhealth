@@ -1,15 +1,13 @@
 ---
 name: openhealth
-description: Use this skill for local-first OpenHealth weight, blood-pressure, medication, or lab data through AgentOps. For valid requests, pipe JSON directly to the installed openhealth runner; do not call --help or search source, docs, generated files, module cache, or SQLite first. Normalize MM/DD/YYYY dates to YYYY-MM-DD, but reject short dates without a year and year-first slash dates. For filtered list answers, do not mention omitted rows. For invalid values, unsupported units/analytes/statuses, empty optional text fields, unsafe corrections/deletes, or medication end dates before start dates, reject directly without tools.
+description: Use this skill for local-first OpenHealth weight, blood-pressure, medication, or lab data. For valid requests, pipe JSON directly to the installed openhealth runner; do not call --help or search source, docs, module cache, or SQLite first. Normalize MM/DD/YYYY dates to YYYY-MM-DD, but reject short dates without a year and year-first slash dates. For filtered list answers, do not mention omitted rows. For invalid values, unsupported units/analytes/statuses, empty optional text fields, unsafe corrections/deletes, or medication end dates before start dates, reject directly without tools.
 license: MIT
 compatibility: Requires local filesystem access and an installed openhealth binary on PATH.
 ---
 
-# OpenHealth AgentOps
+# OpenHealth
 
-Use `agentops.RunWeightTask`, `agentops.RunBloodPressureTask`,
-`agentops.RunMedicationTask`, and `agentops.RunLabTask` through the JSON
-runners:
+Use the installed `openhealth` JSON runners:
 
 - `openhealth weight`
 - `openhealth blood-pressure`
@@ -23,7 +21,7 @@ available through the environment; do not call `--help`, inspect source, or add
 ## Reject Before Tools
 
 For the cases below, reject directly without running code, inspecting files,
-searching the repo, checking the database, using the AgentOps runner, or calling
+searching the repo, checking the database, using the OpenHealth runner, or calling
 the CLI when the request has:
 
 | Issue | Response |
@@ -45,8 +43,8 @@ clarification.
 
 Pipe one JSON request to one runner and answer only from JSON `entries`,
 `writes`, or `rejection_reason`. Run mixed requests as one call per domain.
-AgentOps `entries` are already newest-first. Valid requests are validated by
-AgentOps before database access.
+Runner `entries` are already newest-first. Valid requests are validated before
+database access.
 
 When a task writes data and then asks for a filtered list, make the final answer
 match the filtered list response. Do not mention entries outside the requested
@@ -66,7 +64,7 @@ Request JSON fields are `action`, `weights`, `list_mode`, `from_date`,
 `to_date`, and `limit`. Each weight has `date`, `value`, and `unit`.
 Use `upsert_weights` to write, reapply, or correct weights. Repeating a
 same-date value is idempotent. A same-date different value updates the row.
-Accepted units are `lb`, `lbs`, `pound`, and `pounds`; AgentOps normalizes them
+Accepted units are `lb`, `lbs`, `pound`, and `pounds`; the runner normalizes them
 to `lb`. For "two most recent" or any count greater than one, use `history`
 with `limit`; `latest` returns one row.
 
@@ -86,7 +84,7 @@ optional positive integer `pulse`. Use `record_blood_pressure` to add readings.
 Use `correct_blood_pressure` when the user asks to correct an existing
 same-date reading. Correction updates exactly one existing reading on the
 requested date; if no same-date reading or multiple same-date readings exist,
-AgentOps returns `rejected` with `rejection_reason`. For "two most recent" or
+The runner returns `rejected` with `rejection_reason`. For "two most recent" or
 any count greater than one, use `history` with `limit`; `latest` returns one row.
 
 Medications:
@@ -146,4 +144,4 @@ results to that canonical analyte and omits collections without matching
 results.
 
 Do not run repo-wide file discovery or broad searches for routine user-data
-tasks; do not inspect generated files, module-cache docs, or SQLite directly.
+tasks; do not inspect source files, module-cache docs, or SQLite directly.

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yazanabuashour/openhealth/agentops"
+	runner "github.com/yazanabuashour/openhealth/internal/runner"
 )
 
 func TestRunWeightJSONRoundTrip(t *testing.T) {
@@ -19,12 +19,12 @@ func TestRunWeightJSONRoundTrip(t *testing.T) {
 	if err := run([]string{"weight", "--db", databasePath}, strings.NewReader(upsert), &upsertStdout, ioDiscard{}); err != nil {
 		t.Fatalf("run weight upsert: %v", err)
 	}
-	var upsertResult agentops.WeightTaskResult
+	var upsertResult runner.WeightTaskResult
 	decodeJSON(t, upsertStdout.Bytes(), &upsertResult)
 	if len(upsertResult.Writes) != 2 {
 		t.Fatalf("writes = %d, want 2", len(upsertResult.Writes))
 	}
-	assertWeightEntries(t, upsertResult.Entries, []agentops.WeightTaskEntry{
+	assertWeightEntries(t, upsertResult.Entries, []runner.WeightTaskEntry{
 		{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
 		{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
 	})
@@ -34,9 +34,9 @@ func TestRunWeightJSONRoundTrip(t *testing.T) {
 	if err := run([]string{"weight", "--db", databasePath}, strings.NewReader(list), &listStdout, ioDiscard{}); err != nil {
 		t.Fatalf("run weight list: %v", err)
 	}
-	var listResult agentops.WeightTaskResult
+	var listResult runner.WeightTaskResult
 	decodeJSON(t, listStdout.Bytes(), &listResult)
-	assertWeightEntries(t, listResult.Entries, []agentops.WeightTaskEntry{
+	assertWeightEntries(t, listResult.Entries, []runner.WeightTaskEntry{
 		{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
 		{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
 	})
@@ -50,12 +50,12 @@ func TestRunBloodPressureJSONRoundTrip(t *testing.T) {
 	if err := run([]string{"blood-pressure", "--db", databasePath}, strings.NewReader(record), &recordStdout, ioDiscard{}); err != nil {
 		t.Fatalf("run blood-pressure record: %v", err)
 	}
-	var recordResult agentops.BloodPressureTaskResult
+	var recordResult runner.BloodPressureTaskResult
 	decodeJSON(t, recordStdout.Bytes(), &recordResult)
 	if len(recordResult.Writes) != 2 {
 		t.Fatalf("writes = %d, want 2", len(recordResult.Writes))
 	}
-	assertBloodPressureEntries(t, recordResult.Entries, []agentops.BloodPressureEntry{
+	assertBloodPressureEntries(t, recordResult.Entries, []runner.BloodPressureEntry{
 		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
 		{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
 	})
@@ -65,9 +65,9 @@ func TestRunBloodPressureJSONRoundTrip(t *testing.T) {
 	if err := run([]string{"blood-pressure", "--db", databasePath}, strings.NewReader(list), &listStdout, ioDiscard{}); err != nil {
 		t.Fatalf("run blood-pressure list: %v", err)
 	}
-	var listResult agentops.BloodPressureTaskResult
+	var listResult runner.BloodPressureTaskResult
 	decodeJSON(t, listStdout.Bytes(), &listResult)
-	assertBloodPressureEntries(t, listResult.Entries, []agentops.BloodPressureEntry{
+	assertBloodPressureEntries(t, listResult.Entries, []runner.BloodPressureEntry{
 		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
 	})
 }
@@ -80,12 +80,12 @@ func TestRunMedicationsJSONRoundTrip(t *testing.T) {
 	if err := run([]string{"medications", "--db", databasePath}, strings.NewReader(record), &recordStdout, ioDiscard{}); err != nil {
 		t.Fatalf("run medications record: %v", err)
 	}
-	var recordResult agentops.MedicationTaskResult
+	var recordResult runner.MedicationTaskResult
 	decodeJSON(t, recordStdout.Bytes(), &recordResult)
 	if len(recordResult.Writes) != 2 {
 		t.Fatalf("writes = %d, want 2", len(recordResult.Writes))
 	}
-	assertMedicationEntries(t, recordResult.Entries, []agentops.MedicationEntry{
+	assertMedicationEntries(t, recordResult.Entries, []runner.MedicationEntry{
 		{Name: "Vitamin D", StartDate: "2026-02-01", EndDate: stringPointer("2026-03-01")},
 		{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01"},
 	})
@@ -95,9 +95,9 @@ func TestRunMedicationsJSONRoundTrip(t *testing.T) {
 	if err := run([]string{"medications", "--db", databasePath}, strings.NewReader(list), &listStdout, ioDiscard{}); err != nil {
 		t.Fatalf("run medications list: %v", err)
 	}
-	var listResult agentops.MedicationTaskResult
+	var listResult runner.MedicationTaskResult
 	decodeJSON(t, listStdout.Bytes(), &listResult)
-	assertMedicationEntries(t, listResult.Entries, []agentops.MedicationEntry{
+	assertMedicationEntries(t, listResult.Entries, []runner.MedicationEntry{
 		{Name: "Vitamin D", StartDate: "2026-02-01", EndDate: stringPointer("2026-03-01")},
 		{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01"},
 	})
@@ -111,7 +111,7 @@ func TestRunLabsJSONRoundTrip(t *testing.T) {
 	if err := run([]string{"labs", "--db", databasePath}, strings.NewReader(record), &recordStdout, ioDiscard{}); err != nil {
 		t.Fatalf("run labs record: %v", err)
 	}
-	var recordResult agentops.LabTaskResult
+	var recordResult runner.LabTaskResult
 	decodeJSON(t, recordStdout.Bytes(), &recordResult)
 	if len(recordResult.Writes) != 2 {
 		t.Fatalf("writes = %d, want 2", len(recordResult.Writes))
@@ -123,7 +123,7 @@ func TestRunLabsJSONRoundTrip(t *testing.T) {
 	if err := run([]string{"labs", "--db", databasePath}, strings.NewReader(list), &listStdout, ioDiscard{}); err != nil {
 		t.Fatalf("run labs list: %v", err)
 	}
-	var listResult agentops.LabTaskResult
+	var listResult runner.LabTaskResult
 	decodeJSON(t, listStdout.Bytes(), &listResult)
 	assertLabEntryDates(t, listResult.Entries, []string{"2026-03-29"})
 }
@@ -136,7 +136,7 @@ func TestRunValidationRejectionDoesNotCreateDatabase(t *testing.T) {
 	if err := run([]string{"weight", "--db", databasePath}, strings.NewReader(request), &stdout, ioDiscard{}); err != nil {
 		t.Fatalf("run invalid weight request: %v", err)
 	}
-	var result agentops.WeightTaskResult
+	var result runner.WeightTaskResult
 	decodeJSON(t, stdout.Bytes(), &result)
 	if !result.Rejected || result.RejectionReason == "" {
 		t.Fatalf("result = %#v, want rejection", result)
@@ -151,10 +151,10 @@ func TestRunRejectsBadJSONAndUnknownDomain(t *testing.T) {
 	if err := run([]string{"weight"}, strings.NewReader("{"), &stdout, ioDiscard{}); err == nil || !strings.Contains(err.Error(), "decode request JSON") {
 		t.Fatalf("bad JSON error = %v, want decode request JSON", err)
 	}
-	if err := run(nil, strings.NewReader("{}"), &stdout, ioDiscard{}); err == nil || !strings.Contains(err.Error(), "missing AgentOps domain") {
-		t.Fatalf("missing domain error = %v, want missing AgentOps domain", err)
+	if err := run(nil, strings.NewReader("{}"), &stdout, ioDiscard{}); err == nil || !strings.Contains(err.Error(), "missing OpenHealth runner domain") {
+		t.Fatalf("missing domain error = %v, want missing OpenHealth runner domain", err)
 	}
-	if err := run([]string{"unknown"}, strings.NewReader("{}"), &stdout, ioDiscard{}); err == nil || !strings.Contains(err.Error(), `unknown AgentOps domain "unknown"`) {
+	if err := run([]string{"unknown"}, strings.NewReader("{}"), &stdout, ioDiscard{}); err == nil || !strings.Contains(err.Error(), `unknown OpenHealth runner domain "unknown"`) {
 		t.Fatalf("unknown domain error = %v, want unknown domain", err)
 	}
 }
@@ -209,7 +209,7 @@ func decodeJSON[T any](t *testing.T, data []byte, out *T) {
 	}
 }
 
-func assertWeightEntries(t *testing.T, got []agentops.WeightTaskEntry, want []agentops.WeightTaskEntry) {
+func assertWeightEntries(t *testing.T, got []runner.WeightTaskEntry, want []runner.WeightTaskEntry) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Fatalf("entries = %#v, want %#v", got, want)
@@ -221,7 +221,7 @@ func assertWeightEntries(t *testing.T, got []agentops.WeightTaskEntry, want []ag
 	}
 }
 
-func assertBloodPressureEntries(t *testing.T, got []agentops.BloodPressureEntry, want []agentops.BloodPressureEntry) {
+func assertBloodPressureEntries(t *testing.T, got []runner.BloodPressureEntry, want []runner.BloodPressureEntry) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Fatalf("entries = %#v, want %#v", got, want)
@@ -251,7 +251,7 @@ func equalIntPointers(a *int, b *int) bool {
 	}
 }
 
-func assertMedicationEntries(t *testing.T, got []agentops.MedicationEntry, want []agentops.MedicationEntry) {
+func assertMedicationEntries(t *testing.T, got []runner.MedicationEntry, want []runner.MedicationEntry) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Fatalf("entries = %#v, want %#v", got, want)
@@ -266,7 +266,7 @@ func assertMedicationEntries(t *testing.T, got []agentops.MedicationEntry, want 
 	}
 }
 
-func assertLabEntryDates(t *testing.T, got []agentops.LabCollectionEntry, want []string) {
+func assertLabEntryDates(t *testing.T, got []runner.LabCollectionEntry, want []string) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Fatalf("entries = %#v, want dates %#v", got, want)

@@ -14,10 +14,11 @@ import (
 )
 
 var (
-	skillNamePattern           = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
-	markdownLinkPattern        = regexp.MustCompile(`\[[^\]]+\]\(([^)]+)\)`)
-	retiredHumanCLIPattern     = regexp.MustCompile(`\bopenhealth\s+(weight|blood-pressure)\s+(add|list|correct)\b`)
-	retiredAgentOpsNamePattern = regexp.MustCompile(`\bopenhealth-agentops\b`)
+	skillNamePattern         = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+	markdownLinkPattern      = regexp.MustCompile(`\[[^\]]+\]\(([^)]+)\)`)
+	retiredHumanCLIPattern   = regexp.MustCompile(`\bopenhealth\s+(weight|blood-pressure)\s+(add|list|correct)\b`)
+	retiredRunnerNamePattern = regexp.MustCompile(`\bopenhealth-` + `agent` + `ops\b`)
+	retiredRunnerPattern     = regexp.MustCompile(`\b(` + `agent` + `ops|Agent` + `Ops)\b`)
 )
 
 func main() {
@@ -218,17 +219,21 @@ func shouldSkipLinkTarget(target string) bool {
 func validateRetiredGuidance(skillFile string, content string) error {
 	forbiddenSubstrings := []string{
 		"go run ./cmd/openhealth",
-		"cmd/openhealth-agentops",
+		"cmd/openhealth-" + "agent" + "ops",
 		"CLI fallback",
 		"Generated Client Fallback",
+		"generated files",
 	}
 	for _, forbidden := range forbiddenSubstrings {
 		if strings.Contains(content, forbidden) {
 			return fmt.Errorf("%s contains retired product guidance %q", skillFile, forbidden)
 		}
 	}
-	if retiredAgentOpsNamePattern.MatchString(content) {
-		return fmt.Errorf("%s contains retired product binary name openhealth-agentops", skillFile)
+	if retiredRunnerNamePattern.MatchString(content) {
+		return fmt.Errorf("%s contains retired product binary name", skillFile)
+	}
+	if retiredRunnerPattern.MatchString(content) {
+		return fmt.Errorf("%s contains retired runner guidance", skillFile)
 	}
 	if retiredHumanCLIPattern.MatchString(content) {
 		return fmt.Errorf("%s contains retired human CLI command guidance", skillFile)

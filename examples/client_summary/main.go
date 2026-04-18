@@ -27,30 +27,22 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	summary, err := api.GetHealthSummaryWithResponse(ctx)
+	summary, err := api.Summary(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "summary request failed: %v\n", err)
 		os.Exit(1)
 	}
-	if summary.JSON200 == nil {
-		fmt.Fprintf(os.Stderr, "unexpected summary status: %s\n", summary.Status())
-		os.Exit(1)
-	}
 
-	weights, err := api.ListHealthWeightWithResponse(ctx, nil)
+	weights, err := api.ListWeights(ctx, client.WeightListOptions{})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "weight request failed: %v\n", err)
-		os.Exit(1)
-	}
-	if weights.JSON200 == nil {
-		fmt.Fprintf(os.Stderr, "unexpected weight status: %s\n", weights.Status())
 		os.Exit(1)
 	}
 
 	fmt.Printf(
 		"db=%s active medications=%d weights=%d\n",
 		api.Paths.DatabasePath,
-		summary.JSON200.ActiveMedicationCount,
-		len(weights.JSON200.Items),
+		summary.ActiveMedicationCount,
+		len(weights),
 	)
 }

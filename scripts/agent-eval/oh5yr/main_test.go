@@ -144,7 +144,7 @@ func TestVariantsProductionOnly(t *testing.T) {
 	if len(ids) != 1 || !ids["production"] {
 		t.Fatalf("variants() = %#v, want production only", variants())
 	}
-	for _, retired := range []string{"cli", "generated-client", "agentops-code"} {
+	for _, retired := range []string{"cli", "generated-client", "runner-code"} {
 		if ids[retired] {
 			t.Fatalf("variants() includes retired variant %q: %#v", retired, variants())
 		}
@@ -503,7 +503,7 @@ func TestCacheModeEnvPathSelectionAndPrewarmArgs(t *testing.T) {
 	}
 
 	args := strings.Join(prewarmCompileArgs(), " ")
-	for _, want := range []string{"test -run ^$", "./cmd/openhealth", "./agentops"} {
+	for _, want := range []string{"test -run ^$", "./cmd/openhealth", "./internal/runner"} {
 		if !strings.Contains(args, want) {
 			t.Fatalf("prewarm args = %q, want %q", args, want)
 		}
@@ -603,7 +603,7 @@ func TestGeneratedFileInspectionIgnoresBroadListings(t *testing.T) {
 		{
 			name:            "rg files listing",
 			command:         "/bin/zsh -lc rg --files",
-			output:          "client/client.gen.go\ninternal/api/generated/server.gen.go\n",
+			output:          "internal/storage/sqlite/sqlc/health.sql.go\ninternal/storage/sqlite/sqlc/db.go\n",
 			wantDirect:      false,
 			wantBroadSearch: true,
 			wantBroadGen:    true,
@@ -611,7 +611,7 @@ func TestGeneratedFileInspectionIgnoresBroadListings(t *testing.T) {
 		{
 			name:            "direct rg files listing",
 			command:         "rg --files",
-			output:          "client/client.gen.go\ninternal/api/generated/server.gen.go\n",
+			output:          "internal/storage/sqlite/sqlc/health.sql.go\ninternal/storage/sqlite/sqlc/db.go\n",
 			wantDirect:      false,
 			wantBroadSearch: true,
 			wantBroadGen:    true,
@@ -619,7 +619,7 @@ func TestGeneratedFileInspectionIgnoresBroadListings(t *testing.T) {
 		{
 			name:            "mixed targeted and root rg files listing",
 			command:         "rg --files .agents/skills/openhealth repo .",
-			output:          ".agents/skills/openhealth/SKILL.md\nclient/client.gen.go\n",
+			output:          ".agents/skills/openhealth/SKILL.md\ninternal/storage/sqlite/sqlc/health.sql.go\n",
 			wantDirect:      false,
 			wantBroadSearch: true,
 			wantBroadGen:    true,
@@ -627,7 +627,7 @@ func TestGeneratedFileInspectionIgnoresBroadListings(t *testing.T) {
 		{
 			name:            "find listing",
 			command:         "/bin/zsh -lc find . -type f",
-			output:          "./client/client.gen.go\n",
+			output:          "./internal/storage/sqlite/sqlc/health.sql.go\n",
 			wantDirect:      false,
 			wantBroadSearch: true,
 			wantBroadGen:    true,
@@ -642,42 +642,42 @@ func TestGeneratedFileInspectionIgnoresBroadListings(t *testing.T) {
 		},
 		{
 			name:       "direct read",
-			command:    "/bin/zsh -lc sed -n '1,40p' client/client.gen.go",
-			output:     "package client\n",
+			command:    "/bin/zsh -lc sed -n '1,40p' internal/storage/sqlite/sqlc/health.sql.go",
+			output:     "package sqlc\n",
 			wantDirect: true,
 		},
 		{
 			name:       "skill guidance mentions generated file",
 			command:    "/bin/zsh -lc sed -n '1,220p' .agents/skills/openhealth/SKILL.md",
-			output:     "Do not inspect client.gen.go\n",
+			output:     "Do not inspect generated database code\n",
 			wantDirect: false,
 		},
 		{
 			name:            "broad content search with generated output",
-			command:         "/bin/zsh -lc rg 'CreateHealthWeight' .",
-			output:          "client/client.gen.go:func (c *Client) CreateHealthWeight(...)\n",
+			command:         "/bin/zsh -lc rg 'ListWeightEntries' .",
+			output:          "internal/storage/sqlite/sqlc/health.sql.go:func (q *Queries) ListWeightEntries(...)\n",
 			wantDirect:      false,
 			wantBroadSearch: true,
 			wantBroadGen:    true,
 		},
 		{
 			name:            "implicit broad content search with generated output",
-			command:         "/bin/zsh -lc rg -n 'CreateHealthWeight'",
-			output:          "client/client.gen.go:func (c *Client) CreateHealthWeight(...)\n",
+			command:         "/bin/zsh -lc rg -n 'ListWeightEntries'",
+			output:          "internal/storage/sqlite/sqlc/health.sql.go:func (q *Queries) ListWeightEntries(...)\n",
 			wantDirect:      false,
 			wantBroadSearch: true,
 			wantBroadGen:    true,
 		},
 		{
 			name:       "targeted content search with generated output",
-			command:    "rg 'CreateHealthWeight' client",
-			output:     "client/client.gen.go:func (c *Client) CreateHealthWeight(...)\n",
+			command:    "rg 'ListWeightEntries' internal/storage/sqlite/sqlc",
+			output:     "internal/storage/sqlite/sqlc/health.sql.go:func (q *Queries) ListWeightEntries(...)\n",
 			wantDirect: true,
 		},
 		{
 			name:            "direct grep with generated output",
-			command:         "grep -R CreateHealthWeight .",
-			output:          "client/client.gen.go:func (c *Client) CreateHealthWeight(...)\n",
+			command:         "grep -R ListWeightEntries .",
+			output:          "internal/storage/sqlite/sqlc/health.sql.go:func (q *Queries) ListWeightEntries(...)\n",
 			wantDirect:      false,
 			wantBroadSearch: true,
 			wantBroadGen:    true,
@@ -740,7 +740,7 @@ func TestCLIAndDirectSQLiteMetrics(t *testing.T) {
 			command: `grep -R "openhealth weight" skills/openhealth`,
 		},
 		{
-			name: "agentops temp runner",
+			name: "temporary Go runner",
 			command: `tmp="$(mktemp -d)" && repo="$(pwd)" && cat > "$tmp/go.mod" <<EOF
 require github.com/yazanabuashour/openhealth v0.0.0
 replace github.com/yazanabuashour/openhealth => $repo
@@ -748,7 +748,7 @@ EOF
 (cd "$tmp" && GOPROXY=off GOSUMDB=off go run -mod=mod .)`,
 		},
 		{
-			name:    "agentops json runner",
+			name:    "openhealth json runner",
 			command: `openhealth weight <<'EOF'{"action":"list_weights"}EOF`,
 		},
 		{
@@ -1613,7 +1613,7 @@ func TestProductionStopLossIgnoresValidationBroadSearchForRoutineThreshold(t *te
 	if summary.Triggered {
 		t.Fatalf("stop loss triggered from validation broad search: %v", summary.Triggers)
 	}
-	if summary.Recommendation != "ship_agentops_production" {
+	if summary.Recommendation != "ship_openhealth_runner_production" {
 		t.Fatalf("recommendation = %q", summary.Recommendation)
 	}
 }

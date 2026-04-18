@@ -105,11 +105,18 @@ func TestRunRejectsInvalidSkillPayloads(t *testing.T) {
 			wantErr: "is not installed with the skill",
 		},
 		{
-			name: "retired agentops binary name",
+			name: "retired runner binary name",
 			files: map[string]string{
-				"SKILL.md": validSkillMarkdown("openhealth") + "\nRun `openhealth-agentops weight`.\n",
+				"SKILL.md": validSkillMarkdown("openhealth") + "\nRun `openhealth-" + "agent" + "ops weight`.\n",
 			},
 			wantErr: "retired product binary name",
+		},
+		{
+			name: "retired runner guidance",
+			files: map[string]string{
+				"SKILL.md": validSkillMarkdown("openhealth") + "\nUse Agent" + "Ops.\n",
+			},
+			wantErr: "retired runner guidance",
 		},
 		{
 			name: "retired human cli command",

@@ -46,7 +46,7 @@
     "candidate_variant": "production",
     "baseline_variant": "cli",
     "beats_cli": true,
-    "recommendation": "prefer_agentops_production_for_routine_openhealth_operations",
+    "recommendation": "prefer_openhealth_runner_for_routine_openhealth_operations",
     "criteria": [
       {
         "name": "candidate_passes_all_scenarios",
@@ -1696,7 +1696,7 @@
     }
   ],
   "comparison": {
-    "baseline_report": "docs/agent-eval-results/oh-5yr-oh-967-smoke.json",
+    "baseline_report": "docs/agent-eval-results/archive/oh-5yr-oh-967-smoke.json",
     "entries": [
       {
         "variant": "production",

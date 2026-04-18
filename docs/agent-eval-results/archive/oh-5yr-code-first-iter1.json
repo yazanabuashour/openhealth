@@ -854,7 +854,7 @@
     }
   ],
   "comparison": {
-    "baseline_report": "docs/agent-eval-results/oh-5yr-2026-04-17-production-hardening.json",
+    "baseline_report": "docs/agent-eval-results/archive/oh-5yr-2026-04-17-production-hardening.json",
     "entries": [
       {
         "variant": "agentops-code",

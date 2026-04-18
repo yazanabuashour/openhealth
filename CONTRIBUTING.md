@@ -4,11 +4,9 @@ Outside contributors do not need Beads to contribute to this repository.
 
 ## Current project shape
 
-This repository now exposes a production AgentOps runner binary in
-`cmd/openhealth-agentops`, a single-file OpenHealth skill in
-`skills/openhealth/SKILL.md`, and a generated Go client plus local in-process
-runtime bootstrap in `client`. The maintainer CLI in `cmd/openhealth` remains
-available for debugging, but it is not a product install surface.
+This repository exposes a production `openhealth` runner binary in
+`cmd/openhealth`, a single-file OpenHealth skill in `skills/openhealth/SKILL.md`,
+and an optional direct-local Go SDK in `client`.
 
 Changes to the Go surface must keep the runtime, setup instructions, and validation commands truthful in both docs and CI.
 
@@ -28,7 +26,7 @@ For the current Go surface, contributors should be able to run:
 
 ```bash
 OPENHEALTH_DATA_DIR="$(mktemp -d)" mise exec -- go run ./examples/client_summary
-mise exec -- go test ./cmd/openhealth-agentops
+mise exec -- go test ./cmd/openhealth
 ./scripts/validate-agent-skill.sh skills/openhealth
 mise exec -- gofmt -w .
 mise exec -- golangci-lint run
@@ -53,9 +51,11 @@ Pull requests that touch Go code are expected to leave the repository in a runna
 ## Support and compatibility
 
 Before `0.1.0`, compatibility is best effort and may change between releases.
-The current production install story is an `openhealth-agentops` binary plus the
-single-file OpenHealth skill. Go `1.26.2` is required for repository
-development and CI validation on `ubuntu-latest`; routine client-agent use
-should not require a Go toolchain. No hosted deployment target is promised.
+The current production install story is the `openhealth` runner plus the
+single-file OpenHealth skill. The optional Go SDK is direct-local only. Go
+`1.26.2` is required for repository development and CI validation on
+`ubuntu-latest`; routine client-agent use should not require a Go toolchain. No
+hosted deployment target, remote HTTP API, or generated API contract is
+promised.
 
 Maintainer workflow notes live in [docs/maintainers.md](docs/maintainers.md).

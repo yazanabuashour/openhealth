@@ -1,4 +1,4 @@
-package agentops_test
+package runner_test
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/yazanabuashour/openhealth/agentops"
-	"github.com/yazanabuashour/openhealth/client"
+	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	runner "github.com/yazanabuashour/openhealth/internal/runner"
 )
 
 func TestRunBloodPressureTaskRecordAndList(t *testing.T) {
@@ -18,9 +18,9 @@ func TestRunBloodPressureTaskRecordAndList(t *testing.T) {
 	config := client.LocalConfig{DatabasePath: dbPath}
 	pulse64 := 64
 
-	result, err := agentops.RunBloodPressureTask(ctx, config, agentops.BloodPressureTaskRequest{
-		Action: agentops.BloodPressureTaskActionRecord,
-		Readings: []agentops.BloodPressureInput{
+	result, err := runner.RunBloodPressureTask(ctx, config, runner.BloodPressureTaskRequest{
+		Action: runner.BloodPressureTaskActionRecord,
+		Readings: []runner.BloodPressureInput{
 			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: &pulse64},
 			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
 		},
@@ -34,19 +34,19 @@ func TestRunBloodPressureTaskRecordAndList(t *testing.T) {
 	if got := bloodPressureWriteStatuses(result.Writes); got != "created,created" {
 		t.Fatalf("write statuses = %q, want created,created", got)
 	}
-	assertBloodPressureEntries(t, result.Entries, []agentops.BloodPressureEntry{
+	assertBloodPressureEntries(t, result.Entries, []runner.BloodPressureEntry{
 		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
 		{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: &pulse64},
 	})
 
-	listed, err := agentops.RunBloodPressureTask(ctx, config, agentops.BloodPressureTaskRequest{
-		Action:   agentops.BloodPressureTaskActionList,
-		ListMode: agentops.BloodPressureListModeHistory,
+	listed, err := runner.RunBloodPressureTask(ctx, config, runner.BloodPressureTaskRequest{
+		Action:   runner.BloodPressureTaskActionList,
+		ListMode: runner.BloodPressureListModeHistory,
 	})
 	if err != nil {
 		t.Fatalf("run list task: %v", err)
 	}
-	assertBloodPressureEntries(t, listed.Entries, []agentops.BloodPressureEntry{
+	assertBloodPressureEntries(t, listed.Entries, []runner.BloodPressureEntry{
 		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
 		{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: &pulse64},
 	})
@@ -60,9 +60,9 @@ func TestRunBloodPressureTaskCorrectsExistingReading(t *testing.T) {
 	config := client.LocalConfig{DatabasePath: dbPath}
 	pulse64 := 64
 
-	_, err := agentops.RunBloodPressureTask(ctx, config, agentops.BloodPressureTaskRequest{
-		Action: agentops.BloodPressureTaskActionRecord,
-		Readings: []agentops.BloodPressureInput{
+	_, err := runner.RunBloodPressureTask(ctx, config, runner.BloodPressureTaskRequest{
+		Action: runner.BloodPressureTaskActionRecord,
+		Readings: []runner.BloodPressureInput{
 			{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
 			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: &pulse64},
 			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
@@ -72,9 +72,9 @@ func TestRunBloodPressureTaskCorrectsExistingReading(t *testing.T) {
 		t.Fatalf("seed blood pressure: %v", err)
 	}
 
-	corrected, err := agentops.RunBloodPressureTask(ctx, config, agentops.BloodPressureTaskRequest{
-		Action: agentops.BloodPressureTaskActionCorrect,
-		Readings: []agentops.BloodPressureInput{
+	corrected, err := runner.RunBloodPressureTask(ctx, config, runner.BloodPressureTaskRequest{
+		Action: runner.BloodPressureTaskActionCorrect,
+		Readings: []runner.BloodPressureInput{
 			{Date: "2026-03-29", Systolic: 121, Diastolic: 77},
 		},
 	})
@@ -87,7 +87,7 @@ func TestRunBloodPressureTaskCorrectsExistingReading(t *testing.T) {
 	if got := bloodPressureWriteStatuses(corrected.Writes); got != "updated" {
 		t.Fatalf("correction write statuses = %q, want updated", got)
 	}
-	assertBloodPressureEntries(t, corrected.Entries, []agentops.BloodPressureEntry{
+	assertBloodPressureEntries(t, corrected.Entries, []runner.BloodPressureEntry{
 		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
 		{Date: "2026-03-29", Systolic: 121, Diastolic: 77},
 		{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
@@ -101,9 +101,9 @@ func TestRunBloodPressureTaskCorrectRejectsMissingOrAmbiguousReading(t *testing.
 	ctx := context.Background()
 	config := client.LocalConfig{DatabasePath: dbPath}
 
-	missing, err := agentops.RunBloodPressureTask(ctx, config, agentops.BloodPressureTaskRequest{
-		Action: agentops.BloodPressureTaskActionCorrect,
-		Readings: []agentops.BloodPressureInput{
+	missing, err := runner.RunBloodPressureTask(ctx, config, runner.BloodPressureTaskRequest{
+		Action: runner.BloodPressureTaskActionCorrect,
+		Readings: []runner.BloodPressureInput{
 			{Date: "2026-03-29", Systolic: 121, Diastolic: 77},
 		},
 	})
@@ -114,9 +114,9 @@ func TestRunBloodPressureTaskCorrectRejectsMissingOrAmbiguousReading(t *testing.
 		t.Fatalf("missing result = %#v", missing)
 	}
 
-	_, err = agentops.RunBloodPressureTask(ctx, config, agentops.BloodPressureTaskRequest{
-		Action: agentops.BloodPressureTaskActionRecord,
-		Readings: []agentops.BloodPressureInput{
+	_, err = runner.RunBloodPressureTask(ctx, config, runner.BloodPressureTaskRequest{
+		Action: runner.BloodPressureTaskActionRecord,
+		Readings: []runner.BloodPressureInput{
 			{Date: "2026-03-29", Systolic: 122, Diastolic: 78},
 			{Date: "2026-03-29", Systolic: 120, Diastolic: 76},
 		},
@@ -125,9 +125,9 @@ func TestRunBloodPressureTaskCorrectRejectsMissingOrAmbiguousReading(t *testing.
 		t.Fatalf("seed ambiguous blood pressure: %v", err)
 	}
 
-	ambiguous, err := agentops.RunBloodPressureTask(ctx, config, agentops.BloodPressureTaskRequest{
-		Action: agentops.BloodPressureTaskActionCorrect,
-		Readings: []agentops.BloodPressureInput{
+	ambiguous, err := runner.RunBloodPressureTask(ctx, config, runner.BloodPressureTaskRequest{
+		Action: runner.BloodPressureTaskActionCorrect,
+		Readings: []runner.BloodPressureInput{
 			{Date: "2026-03-29", Systolic: 121, Diastolic: 77},
 		},
 	})
@@ -146,9 +146,9 @@ func TestRunBloodPressureTaskBoundedRangeLatestAndLimit(t *testing.T) {
 	ctx := context.Background()
 	config := client.LocalConfig{DatabasePath: dbPath}
 
-	_, err := agentops.RunBloodPressureTask(ctx, config, agentops.BloodPressureTaskRequest{
-		Action: agentops.BloodPressureTaskActionRecord,
-		Readings: []agentops.BloodPressureInput{
+	_, err := runner.RunBloodPressureTask(ctx, config, runner.BloodPressureTaskRequest{
+		Action: runner.BloodPressureTaskActionRecord,
+		Readings: []runner.BloodPressureInput{
 			{Date: "2026-03-27", Systolic: 126, Diastolic: 82},
 			{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
 			{Date: "2026-03-29", Systolic: 122, Diastolic: 78},
@@ -159,40 +159,40 @@ func TestRunBloodPressureTaskBoundedRangeLatestAndLimit(t *testing.T) {
 		t.Fatalf("seed blood pressure: %v", err)
 	}
 
-	bounded, err := agentops.RunBloodPressureTask(ctx, config, agentops.BloodPressureTaskRequest{
-		Action:   agentops.BloodPressureTaskActionList,
-		ListMode: agentops.BloodPressureListModeRange,
+	bounded, err := runner.RunBloodPressureTask(ctx, config, runner.BloodPressureTaskRequest{
+		Action:   runner.BloodPressureTaskActionList,
+		ListMode: runner.BloodPressureListModeRange,
 		FromDate: "2026-03-29",
 		ToDate:   "2026-03-30",
 	})
 	if err != nil {
 		t.Fatalf("bounded range task: %v", err)
 	}
-	assertBloodPressureEntries(t, bounded.Entries, []agentops.BloodPressureEntry{
+	assertBloodPressureEntries(t, bounded.Entries, []runner.BloodPressureEntry{
 		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
 		{Date: "2026-03-29", Systolic: 122, Diastolic: 78},
 	})
 
-	latest, err := agentops.RunBloodPressureTask(ctx, config, agentops.BloodPressureTaskRequest{
-		Action:   agentops.BloodPressureTaskActionList,
-		ListMode: agentops.BloodPressureListModeLatest,
+	latest, err := runner.RunBloodPressureTask(ctx, config, runner.BloodPressureTaskRequest{
+		Action:   runner.BloodPressureTaskActionList,
+		ListMode: runner.BloodPressureListModeLatest,
 	})
 	if err != nil {
 		t.Fatalf("latest task: %v", err)
 	}
-	assertBloodPressureEntries(t, latest.Entries, []agentops.BloodPressureEntry{
+	assertBloodPressureEntries(t, latest.Entries, []runner.BloodPressureEntry{
 		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
 	})
 
-	limited, err := agentops.RunBloodPressureTask(ctx, config, agentops.BloodPressureTaskRequest{
-		Action:   agentops.BloodPressureTaskActionList,
-		ListMode: agentops.BloodPressureListModeHistory,
+	limited, err := runner.RunBloodPressureTask(ctx, config, runner.BloodPressureTaskRequest{
+		Action:   runner.BloodPressureTaskActionList,
+		ListMode: runner.BloodPressureListModeHistory,
 		Limit:    2,
 	})
 	if err != nil {
 		t.Fatalf("limited history task: %v", err)
 	}
-	assertBloodPressureEntries(t, limited.Entries, []agentops.BloodPressureEntry{
+	assertBloodPressureEntries(t, limited.Entries, []runner.BloodPressureEntry{
 		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
 		{Date: "2026-03-29", Systolic: 122, Diastolic: 78},
 	})
@@ -203,37 +203,37 @@ func TestRunBloodPressureTaskRejectsInvalidInputBeforeOpeningDatabase(t *testing
 
 	tests := []struct {
 		name    string
-		reading agentops.BloodPressureInput
+		reading runner.BloodPressureInput
 		reason  string
 	}{
 		{
 			name:    "short date",
-			reading: agentops.BloodPressureInput{Date: "03/29", Systolic: 122, Diastolic: 78},
+			reading: runner.BloodPressureInput{Date: "03/29", Systolic: 122, Diastolic: 78},
 			reason:  "date must be YYYY-MM-DD",
 		},
 		{
 			name:    "missing date",
-			reading: agentops.BloodPressureInput{Systolic: 122, Diastolic: 78},
+			reading: runner.BloodPressureInput{Systolic: 122, Diastolic: 78},
 			reason:  "date must be YYYY-MM-DD",
 		},
 		{
 			name:    "nonpositive systolic",
-			reading: agentops.BloodPressureInput{Date: "2026-03-29", Systolic: 0, Diastolic: 78},
+			reading: runner.BloodPressureInput{Date: "2026-03-29", Systolic: 0, Diastolic: 78},
 			reason:  "systolic must be greater than 0",
 		},
 		{
 			name:    "nonpositive diastolic",
-			reading: agentops.BloodPressureInput{Date: "2026-03-29", Systolic: 122, Diastolic: -1},
+			reading: runner.BloodPressureInput{Date: "2026-03-29", Systolic: 122, Diastolic: -1},
 			reason:  "diastolic must be greater than 0",
 		},
 		{
 			name:    "nonpositive pulse",
-			reading: agentops.BloodPressureInput{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(0)},
+			reading: runner.BloodPressureInput{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(0)},
 			reason:  "pulse must be greater than 0",
 		},
 		{
 			name:    "duplicate correction date",
-			reading: agentops.BloodPressureInput{Date: "2026-03-29", Systolic: 122, Diastolic: 78},
+			reading: runner.BloodPressureInput{Date: "2026-03-29", Systolic: 122, Diastolic: 78},
 			reason:  "duplicate correction date 2026-03-29",
 		},
 	}
@@ -242,15 +242,15 @@ func TestRunBloodPressureTaskRejectsInvalidInputBeforeOpeningDatabase(t *testing
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			dbPath := filepath.Join(t.TempDir(), "openhealth.db")
-			request := agentops.BloodPressureTaskRequest{
-				Action:   agentops.BloodPressureTaskActionRecord,
-				Readings: []agentops.BloodPressureInput{tt.reading},
+			request := runner.BloodPressureTaskRequest{
+				Action:   runner.BloodPressureTaskActionRecord,
+				Readings: []runner.BloodPressureInput{tt.reading},
 			}
 			if tt.name == "duplicate correction date" {
-				request.Action = agentops.BloodPressureTaskActionCorrect
+				request.Action = runner.BloodPressureTaskActionCorrect
 				request.Readings = append(request.Readings, tt.reading)
 			}
-			result, err := agentops.RunBloodPressureTask(context.Background(), client.LocalConfig{DatabasePath: dbPath}, request)
+			result, err := runner.RunBloodPressureTask(context.Background(), client.LocalConfig{DatabasePath: dbPath}, request)
 			if err != nil {
 				t.Fatalf("run task: %v", err)
 			}
@@ -264,7 +264,7 @@ func TestRunBloodPressureTaskRejectsInvalidInputBeforeOpeningDatabase(t *testing
 	}
 }
 
-func bloodPressureWriteStatuses(writes []agentops.BloodPressureWrite) string {
+func bloodPressureWriteStatuses(writes []runner.BloodPressureWrite) string {
 	out := ""
 	for i, write := range writes {
 		if i > 0 {
@@ -275,7 +275,7 @@ func bloodPressureWriteStatuses(writes []agentops.BloodPressureWrite) string {
 	return out
 }
 
-func assertBloodPressureEntries(t *testing.T, got []agentops.BloodPressureEntry, want []agentops.BloodPressureEntry) {
+func assertBloodPressureEntries(t *testing.T, got []runner.BloodPressureEntry, want []runner.BloodPressureEntry) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Fatalf("entry count = %d (%#v), want %d (%#v)", len(got), got, len(want), want)

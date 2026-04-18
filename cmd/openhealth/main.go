@@ -9,8 +9,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/yazanabuashour/openhealth/agentops"
-	"github.com/yazanabuashour/openhealth/client"
+	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	runner "github.com/yazanabuashour/openhealth/internal/runner"
 )
 
 func main() {
@@ -23,7 +23,7 @@ func main() {
 func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) error {
 	if len(args) == 0 {
 		_ = writeUsage(stderr)
-		return errors.New("missing AgentOps domain")
+		return errors.New("missing OpenHealth runner domain")
 	}
 
 	switch args[0] {
@@ -39,7 +39,7 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) err
 		return runLabs(args[1:], stdin, stdout)
 	default:
 		_ = writeUsage(stderr)
-		return fmt.Errorf("unknown AgentOps domain %q", args[0])
+		return fmt.Errorf("unknown OpenHealth runner domain %q", args[0])
 	}
 }
 
@@ -49,12 +49,12 @@ func runWeight(args []string, stdin io.Reader, stdout io.Writer) error {
 		return err
 	}
 
-	var request agentops.WeightTaskRequest
+	var request runner.WeightTaskRequest
 	if err := decodeRequest(stdin, &request); err != nil {
 		return err
 	}
 
-	result, err := agentops.RunWeightTask(context.Background(), config, request)
+	result, err := runner.RunWeightTask(context.Background(), config, request)
 	if err != nil {
 		return err
 	}
@@ -67,12 +67,12 @@ func runBloodPressure(args []string, stdin io.Reader, stdout io.Writer) error {
 		return err
 	}
 
-	var request agentops.BloodPressureTaskRequest
+	var request runner.BloodPressureTaskRequest
 	if err := decodeRequest(stdin, &request); err != nil {
 		return err
 	}
 
-	result, err := agentops.RunBloodPressureTask(context.Background(), config, request)
+	result, err := runner.RunBloodPressureTask(context.Background(), config, request)
 	if err != nil {
 		return err
 	}
@@ -85,12 +85,12 @@ func runMedications(args []string, stdin io.Reader, stdout io.Writer) error {
 		return err
 	}
 
-	var request agentops.MedicationTaskRequest
+	var request runner.MedicationTaskRequest
 	if err := decodeRequest(stdin, &request); err != nil {
 		return err
 	}
 
-	result, err := agentops.RunMedicationTask(context.Background(), config, request)
+	result, err := runner.RunMedicationTask(context.Background(), config, request)
 	if err != nil {
 		return err
 	}
@@ -103,12 +103,12 @@ func runLabs(args []string, stdin io.Reader, stdout io.Writer) error {
 		return err
 	}
 
-	var request agentops.LabTaskRequest
+	var request runner.LabTaskRequest
 	if err := decodeRequest(stdin, &request); err != nil {
 		return err
 	}
 
-	result, err := agentops.RunLabTask(context.Background(), config, request)
+	result, err := runner.RunLabTask(context.Background(), config, request)
 	if err != nil {
 		return err
 	}

@@ -6,11 +6,11 @@ an instruction is needed, put it in the production skill first.
 
 ## Active Surface
 
-- `production`: the installed `skills/openhealth/SKILL.md` AgentOps skill plus
-  an installed `openhealth` binary on `PATH`.
+- `production`: the installed `skills/openhealth/SKILL.md` skill plus an
+  installed `openhealth` runner on `PATH`.
 
-The generated client and local SDK remain supported runtime/developer APIs, but
-they are not active agent-facing eval variants.
+The optional local SDK remains a developer API, but it is not an active
+agent-facing eval variant.
 
 ## Scenario Coverage
 
@@ -90,7 +90,7 @@ counted.
 
 ## Production Gate
 
-Production AgentOps is release-ready only when:
+The production OpenHealth runner is release-ready only when:
 
 - production passes every selected scenario
 - production has no direct generated-file inspection, module-cache inspection,

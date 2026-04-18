@@ -12,7 +12,7 @@ Parallelism: `4`
 
 Harness elapsed seconds: `342.76`
 
-Reduced JSON artifact: `docs/agent-eval-results/oh-5yr-oh-967-final-r2.json`
+Reduced JSON artifact: `docs/agent-eval-results/archive/oh-5yr-oh-967-final-r2.json`
 
 Raw logs: not committed. They were retained under `<run-root>` during execution and are referenced below only with neutral placeholders.
 

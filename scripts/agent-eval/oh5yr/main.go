@@ -33,7 +33,7 @@ const (
 	cacheModeIsolated     = "isolated"
 )
 
-var prewarmCompilePackages = []string{"./cmd/openhealth", "./agentops"}
+var prewarmCompilePackages = []string{"./cmd/openhealth", "./internal/runner"}
 
 type scenario struct {
 	ID     string         `json:"id"`
@@ -1147,7 +1147,7 @@ func prepareRunDir(runDir string, cache cacheConfig) error {
 
 func variants() []variant {
 	return []variant{
-		{ID: "production", Title: "Production AgentOps skill"},
+		{ID: "production", Title: "Production OpenHealth runner skill"},
 	}
 }
 
@@ -2449,26 +2449,6 @@ func copyDir(src string, dst string) error {
 	})
 }
 
-func normalizeSkillName(path string, name string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	lines := bytes.Split(data, []byte("\n"))
-	inFrontmatter := len(lines) > 0 && string(lines[0]) == "---"
-	for i := 1; i < len(lines); i++ {
-		line := string(lines[i])
-		if inFrontmatter && strings.HasPrefix(line, "name:") {
-			lines[i] = []byte("name: " + name)
-			break
-		}
-		if i > 0 && line == "---" {
-			break
-		}
-	}
-	return os.WriteFile(path, bytes.Join(lines, []byte("\n")), 0o644)
-}
-
 func writeJSON(path string, value any) error {
 	var data bytes.Buffer
 	encoder := json.NewEncoder(&data)
@@ -2607,7 +2587,7 @@ func metricNotes(reportDate string, results []runResult) []string {
 
 	notes := []string{}
 	if strings.Contains(reportDate, "oh-23a") {
-		notes = append(notes, "oh-23a intentionally keeps agent-facing readiness scoped to weight and blood pressure; labs and medications remain a separate AgentOps expansion tracked in oh-bng.")
+		notes = append(notes, "oh-23a intentionally keeps agent-facing readiness scoped to weight and blood pressure; labs and medications remain a separate runner expansion tracked in oh-bng.")
 	}
 	if len(productionGenerated) > 0 {
 		notes = append(notes, fmt.Sprintf("Production direct generated-file inspection remained in %s in the %s run.", strings.Join(productionGenerated, ", "), reportDate))
@@ -2698,35 +2678,16 @@ func productionStopLoss(results []runResult) *stopLossSummary {
 		}
 	}
 
-	recommendation := "ship_agentops_production"
+	recommendation := "ship_openhealth_runner_production"
 	if len(triggers) > 0 {
 		recommendation = "continue_production_hardening"
 	}
 	return &stopLossSummary{
-		Policy:         "Production AgentOps must pass every scenario without direct generated-file inspection, module-cache inspection, direct SQLite access, retired human OpenHealth CLI usage, broad repo search in more than one routine scenario, or excessive core tool counts.",
+		Policy:         "Production OpenHealth runner must pass every scenario without direct generated-file inspection, module-cache inspection, direct SQLite access, retired human OpenHealth CLI usage, broad repo search in more than one routine scenario, or excessive core tool counts.",
 		Triggered:      len(triggers) > 0,
 		Recommendation: recommendation,
 		Triggers:       triggers,
 	}
-}
-
-func isFinalAnswerOnlyValidationScenario(id string) bool {
-	switch id {
-	case "ambiguous-short-date", "invalid-input", "non-iso-date-reject",
-		"bp-invalid-input", "bp-non-iso-date-reject", "mixed-invalid-direct-reject",
-		"medication-invalid-date", "medication-end-before-start", "lab-invalid-slug":
-		return true
-	default:
-		return false
-	}
-}
-
-func scenarioIDs() []string {
-	ids := []string{}
-	for _, scenario := range scenarios() {
-		ids = append(ids, scenario.ID)
-	}
-	return ids
 }
 
 func isRoutineScenario(id string) bool {
@@ -3303,10 +3264,6 @@ func containsAll(value string, needles []string) bool {
 	return true
 }
 
-func mentionsDate(message string, date string) bool {
-	return dateMentionIndex(message, date) >= 0
-}
-
 func boundedRangeAssistantPass(message string) bool {
 	previous := -1
 	for _, date := range []string{"2026-03-30", "2026-03-29"} {
@@ -3822,19 +3779,14 @@ func isContentSearchCommand(command string) bool {
 }
 
 func mentionsGeneratedPath(text string) bool {
-	return strings.Contains(text, "client.gen.go") ||
-		strings.Contains(text, "internal/api/generated") ||
-		strings.Contains(text, "server.gen.go")
+	return strings.Contains(text, "internal/storage/sqlite/sqlc")
 }
 
 func outputHasGeneratedResultPath(text string) bool {
 	for _, line := range strings.Split(text, "\n") {
 		trimmed := strings.TrimSpace(line)
 		trimmed = strings.TrimPrefix(trimmed, "./")
-		if strings.HasPrefix(trimmed, "client/client.gen.go:") ||
-			strings.HasPrefix(trimmed, "client.gen.go:") ||
-			strings.HasPrefix(trimmed, "internal/api/generated/") ||
-			strings.HasPrefix(trimmed, "server.gen.go:") {
+		if strings.HasPrefix(trimmed, "internal/storage/sqlite/sqlc/") {
 			return true
 		}
 	}
@@ -4010,10 +3962,6 @@ func commandFields(command string) []string {
 	return strings.FieldsFunc(strings.ToLower(command), func(r rune) bool {
 		return unicode.IsSpace(r) || strings.ContainsRune("'\"`;&|()", r)
 	})
-}
-
-func normalizedCommandText(command string) string {
-	return " " + strings.Join(commandFields(command), " ") + " "
 }
 
 func roundWeight(value float64) float64 {

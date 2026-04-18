@@ -2,10 +2,10 @@
 
 ## Supported versions
 
-This project is pre-`1.0` and currently ships a production AgentOps binary,
-a single-file OpenHealth skill, a generated Go client, and a local in-process
-runtime. Until `0.1.0`, the only supported code line is the current default
-branch and the most recent `0.y.z` tag, if one exists.
+This project is pre-`1.0` and currently ships a production `openhealth` runner,
+a single-file OpenHealth skill, and an optional direct-local Go SDK. Until
+`0.1.0`, the only supported code line is the current default branch and the most
+recent `0.y.z` tag, if one exists.
 
 Older pre-`1.0` tags are not guaranteed to receive fixes or backports.
 
@@ -54,4 +54,4 @@ If a vulnerability affects the latest supported code line, maintainers may cut a
 
 Emergency fixes publish updated binary, skill, and source releases with
 checksums, SBOMs, and GitHub attestations. The repository does not publish a
-hosted service deployment.
+hosted service deployment, remote HTTP API, or generated API contract.

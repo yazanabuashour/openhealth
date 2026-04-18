@@ -26,7 +26,7 @@ agentops.RunWeightTask(context.Background(), client.LocalConfig{}, request)
 
 This report predates the blood-pressure expansion. Its conclusion remains
 narrowly scoped to weight. The combined weight and blood-pressure result is in
-`docs/agent-eval-results/oh-5yr-agentops-blood-pressure-expanded.md`.
+`docs/agent-eval-results/archive/oh-5yr-agentops-blood-pressure-expanded.md`.
 
 ## Protocol
 

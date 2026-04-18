@@ -1,25 +1,38 @@
 # openhealth
 
-OpenHealth is a local-first health runtime for agent-operated personal health
-data. The production agent surface is the `openhealth` binary plus the
-single-file `openhealth` skill. The Go client package remains available for
-developers who want to embed the local runtime directly.
+OpenHealth is a local-first health data runtime for agents. It ships a small
+`openhealth` runner, a single-file skill, and optionally a local Go SDK.
 
-Normal use does not require a daemon, bound port, hosted service, or Go
-toolchain on the client machine.
+Normal use does not require a daemon, bound port, hosted service, remote HTTP
+API, or Go toolchain on the client machine.
 
-## Install the agent app
+## Quickstart
 
-Download the `openhealth` archive for your platform from a tagged
-GitHub Release, unpack it, and put the binary on `PATH`.
+Agent install:
 
-Install the skill by placing the released `SKILL.md` at:
+Tell your agent:
+
+```text
+Install https://github.com/yazanabuashour/openhealth
+```
+
+Manual skill install:
+
+```bash
+npx skills add https://github.com/yazanabuashour/openhealth --skill openhealth
+```
+
+If you are installing from a GitHub Release archive instead, place the released
+`SKILL.md` at:
 
 ```text
 .agents/skills/openhealth/SKILL.md
 ```
 
-The skill calls these production runner domains:
+Install the matching `openhealth` binary for your platform from the tagged
+GitHub Release, unpack it, and put the binary on `PATH`.
+
+The skill calls these runner domains:
 
 ```bash
 openhealth weight
@@ -28,12 +41,13 @@ openhealth medications
 openhealth labs
 ```
 
-The runner reads JSON from stdin and writes JSON to stdout. The skill is the
-client-agent contract for validation, request shapes, and answer hygiene.
+The runner reads structured JSON from stdin, validates and normalizes the
+request, performs the local health operation, and writes structured JSON to
+stdout.
 
-## Install in your Go project
+## Local Go SDK
 
-Developers can also import the local runtime directly:
+Developers can import the optional direct-local SDK:
 
 ```bash
 go get github.com/yazanabuashour/openhealth@main
@@ -48,6 +62,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/yazanabuashour/openhealth/client"
 )
@@ -59,44 +74,38 @@ func main() {
 	}
 	defer api.Close()
 
-	summary, err := api.GetHealthSummaryWithResponse(context.Background())
+	recordedAt, err := time.Parse(time.DateOnly, "2026-03-29")
 	if err != nil {
 		log.Fatal(err)
 	}
-	if summary.JSON200 == nil {
-		log.Fatalf("unexpected status: %s", summary.Status())
+
+	result, err := api.UpsertWeight(context.Background(), client.WeightRecordInput{
+		RecordedAt: recordedAt,
+		Value:      152.2,
+		Unit:       client.WeightUnitLb,
+	})
+	if err != nil {
+		log.Fatal(err)
 	}
 
-	fmt.Printf("active medications=%d\n", summary.JSON200.ActiveMedicationCount)
+	summary, err := api.Summary(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("%s %.1f lb %s\n", result.Entry.RecordedAt.Format(time.DateOnly), result.Entry.Value, result.Status)
+	fmt.Printf("active medications=%d\n", summary.ActiveMedicationCount)
 }
 ```
 
-`client.OpenLocal(...)` opens SQLite locally, runs migrations, and routes requests to the generated handler in-process. Use `client.NewDefault(baseURL)` only when you intentionally want to talk to an explicit HTTP server.
+`client.OpenLocal(...)` opens SQLite locally, runs migrations, and calls the
+same local health service used by the runner. There is no hosted service, remote
+HTTP API, or generated API contract in the `0.1.0` release surface.
 
-For common local weight tasks, prefer the ergonomic helper methods on the local
-client over generated OpenAPI method names:
+## Local Storage
 
-```go
-recordedAt, err := time.Parse(time.DateOnly, "2026-03-29")
-if err != nil {
-	log.Fatal(err)
-}
-
-result, err := api.UpsertWeight(context.Background(), client.WeightRecordInput{
-	RecordedAt: recordedAt,
-	Value:      152.2,
-	Unit:       client.WeightUnitLb,
-})
-if err != nil {
-	log.Fatal(err)
-}
-
-fmt.Printf("%s %.1f lb %s\n", result.Entry.RecordedAt.Format(time.DateOnly), result.Entry.Value, result.Status)
-```
-
-## Local storage
-
-By default, the local runtime stores its SQLite database under `${XDG_DATA_HOME:-~/.local/share}/openhealth/openhealth.db`.
+By default, the local runtime stores its SQLite database under
+`${XDG_DATA_HOME:-~/.local/share}/openhealth/openhealth.db`.
 
 Override the default location with either:
 
@@ -107,9 +116,22 @@ Override the default location with either:
 
 The database path override wins over the data directory override.
 
-## Contributing and maintainer setup
+## Eval Evidence
 
-Repository development still uses the full local toolchain:
+The production runner passed the release eval gate. In the CLI comparison run
+documented in `docs/agent-eval-results/oh-5yr-maturity-throughput-final.md`,
+the runner matched or improved correctness while using fewer tools, fewer
+non-cached input tokens, and less wall time than CLI:
+
+| Metric | Runner | CLI |
+| --- | ---: | ---: |
+| Tools | 28 | 57 |
+| Non-cached input tokens | 105,247 | 121,774 |
+| Wall time | 247.25s | 285.82s |
+
+## Contributing and Maintainer Setup
+
+Repository development uses the full local toolchain:
 
 ```bash
 mise install
@@ -118,42 +140,41 @@ mise exec -- go generate ./...
 mise exec -- gofmt -w .
 mise exec -- golangci-lint run
 mise exec -- go test ./...
+./scripts/validate-agent-skill.sh skills/openhealth
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor expectations and [docs/maintainers.md](docs/maintainers.md) for maintainer-only workflow details.
+See `CONTRIBUTING.md` for contributor expectations and `docs/maintainers.md`
+for maintainer-only workflow details.
 
-## Repository contents
+## Repository Contents
 
-- [openapi/openapi.yaml](openapi/openapi.yaml) defines the API contract that generates the server and client bindings.
-- [client](client) contains the checked-in generated Go client plus local runtime bootstrap helpers.
-- [cmd/openhealth](cmd/openhealth) contains the production JSON runner binary used by the skill.
-- [examples/client_summary](examples/client_summary) shows a minimal no-daemon consumer program that imports the generated client.
-- [skills/openhealth/SKILL.md](skills/openhealth/SKILL.md) is the complete shipped OpenHealth skill payload.
-- [CONTRIBUTING.md](CONTRIBUTING.md) explains how outside contributors should propose changes.
-- [SECURITY.md](SECURITY.md) explains how to report vulnerabilities privately and what response timing to expect.
-- [docs/maintainers.md](docs/maintainers.md) documents Beads-based maintainer workflow and repo administration notes.
-- [docs/release-verification.md](docs/release-verification.md) explains how to verify published source releases.
-- [docs/agent-evals.md](docs/agent-evals.md) explains how to evaluate production agent workflows without mixing comparison variants into the production skill.
-- [LICENSE](LICENSE) defines the project license.
+- `CONTRIBUTING.md` explains how outside contributors should propose changes.
+- `SECURITY.md` explains how to report vulnerabilities privately and what
+  response timing to expect.
+- `docs/release-verification.md` explains how to verify published source
+  releases.
+- `docs/agent-evals.md` explains how to evaluate production agent workflows.
 
-## Release contract
+## Release Contract
 
-The production release deliverables are:
+The `0.1.0` release deliverables are:
 
 - platform archives for the `openhealth` binary
 - the single-file `openhealth` skill archive
 - the Go module import path rooted at `github.com/yazanabuashour/openhealth`
-- the generated client package at `github.com/yazanabuashour/openhealth/client`
-- the local in-process runtime surfaced through `client.OpenLocal(...)`
+- the optional direct-local SDK package at
+  `github.com/yazanabuashour/openhealth/client`
 
 The release workflow is built around semantic version tags in the `v0.y.z`
 range. Each tagged GitHub Release publishes binary archives, the skill archive,
 a canonical source archive, SHA256 checksums, an SPDX SBOM, and GitHub
-attestations for release verification. The repository does not publish a hosted
-service deployment target.
+attestations for release verification.
 
 ## Contributing
 
-Outside contributors can work entirely through GitHub issues and pull requests. Beads is maintainer-only workflow tooling and is not required for community contributions.
+Outside contributors can work entirely through GitHub issues and pull requests.
+Beads is maintainer-only workflow tooling and is not required for community
+contributions.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution expectations and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community standards.
+See `CONTRIBUTING.md` for contribution expectations and `CODE_OF_CONDUCT.md`
+for community standards.

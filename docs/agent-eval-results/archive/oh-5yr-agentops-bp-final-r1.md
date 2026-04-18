@@ -8,7 +8,7 @@ Model: `gpt-5.4-mini`, reasoning effort `medium`
 
 Codex CLI: `codex-cli 0.121.0`
 
-Reduced JSON artifact: `docs/agent-eval-results/oh-5yr-agentops-bp-final-r1.json`
+Reduced JSON artifact: `docs/agent-eval-results/archive/oh-5yr-agentops-bp-final-r1.json`
 
 Raw logs: not committed. They were retained under `<run-root>` during execution and are referenced below only with neutral placeholders.
 
@@ -61,7 +61,7 @@ Raw logs: not committed. They were retained under `<run-root>` during execution 
 
 ## Comparison
 
-Baseline: `docs/agent-eval-results/oh-5yr-agentops-bp-baseline-r1.json`.
+Baseline: `docs/agent-eval-results/archive/oh-5yr-agentops-bp-baseline-r1.json`.
 
 | Variant | Scenario | Result | Tools Δ | Assistant Calls Δ | Wall Seconds Δ | Non-cache Tokens Δ | Direct Generated Files | Broad Search | Generated From Broad | Module Cache | CLI Used | Direct SQLite |
 | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- |

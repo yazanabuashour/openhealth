@@ -6481,7 +6481,7 @@
     }
   ],
   "comparison": {
-    "baseline_report": "docs/agent-eval-results/oh-5yr-oh-967-smoke.json",
+    "baseline_report": "docs/agent-eval-results/archive/oh-5yr-oh-967-smoke.json",
     "entries": [
       {
         "variant": "production",

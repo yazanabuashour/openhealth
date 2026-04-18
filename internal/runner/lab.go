@@ -1,4 +1,4 @@
-package agentops
+package runner
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yazanabuashour/openhealth/client"
+	client "github.com/yazanabuashour/openhealth/internal/runclient"
 )
 
 const (

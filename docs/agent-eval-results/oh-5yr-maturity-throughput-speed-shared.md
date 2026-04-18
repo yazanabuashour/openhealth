@@ -65,7 +65,7 @@ Raw logs: not committed. They were retained under `<run-root>` during execution 
 
 ## Comparison
 
-Baseline: `docs/agent-eval-results/oh-5yr-oh-967-smoke.json`.
+Baseline: `docs/agent-eval-results/archive/oh-5yr-oh-967-smoke.json`.
 
 | Variant | Scenario | Result | Tools Δ | Assistant Calls Δ | Wall Seconds Δ | Non-cache Tokens Δ | Direct Generated Files | Broad Search | Generated From Broad | Module Cache | CLI Used | Direct SQLite |
 | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- | --- | --- | --- |
@@ -92,7 +92,7 @@ Baseline: `docs/agent-eval-results/oh-5yr-oh-967-smoke.json`.
 - Candidate: `production`
 - Baseline: `cli`
 - Beats CLI: `yes`
-- Recommendation: `prefer_agentops_production_for_routine_openhealth_operations`
+- Recommendation: `prefer_openhealth_runner_for_routine_openhealth_operations`
 
 | Criterion | Result | Details |
 | --- | --- | --- |

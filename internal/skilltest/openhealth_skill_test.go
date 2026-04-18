@@ -47,7 +47,7 @@ func TestOpenHealthSkillMarkdownLinksReferenceInstalledFiles(t *testing.T) {
 	}
 }
 
-func TestOpenHealthSkillUsesInstalledAgentOpsBinary(t *testing.T) {
+func TestOpenHealthSkillUsesInstalledRunner(t *testing.T) {
 	t.Parallel()
 
 	content, err := os.ReadFile(filepath.Join(openHealthSkillDir(t), "SKILL.md"))
@@ -56,10 +56,6 @@ func TestOpenHealthSkillUsesInstalledAgentOpsBinary(t *testing.T) {
 	}
 	text := string(content)
 	for _, want := range []string{
-		"agentops.RunWeightTask",
-		"agentops.RunBloodPressureTask",
-		"agentops.RunMedicationTask",
-		"agentops.RunLabTask",
 		"openhealth weight",
 		"openhealth blood-pressure",
 		"openhealth medications",
@@ -75,7 +71,7 @@ func TestOpenHealthSkillUsesInstalledAgentOpsBinary(t *testing.T) {
 		"delete_labs",
 		"Do not run repo-wide file discovery or broad searches",
 		"reject directly without running code",
-		"AgentOps `entries` are already newest-first",
+		"Runner `entries` are already newest-first",
 		"2026/03/31",
 	} {
 		if !strings.Contains(text, want) {
@@ -84,7 +80,9 @@ func TestOpenHealthSkillUsesInstalledAgentOpsBinary(t *testing.T) {
 	}
 	for _, forbidden := range []string{
 		"go run ./cmd/openhealth",
-		"openhealth-agentops",
+		"agent" + "ops",
+		"Agent" + "Ops",
+		"openhealth-" + "agent" + "ops",
 		"openhealth weight add",
 		"openhealth weight list",
 		"openhealth blood-pressure add",
@@ -96,6 +94,7 @@ func TestOpenHealthSkillUsesInstalledAgentOpsBinary(t *testing.T) {
 		"go run -mod=mod",
 		"CLI fallback",
 		"Generated Client Fallback",
+		"generated files",
 	} {
 		if strings.Contains(text, forbidden) {
 			t.Fatalf("skill contains forbidden text %q", forbidden)

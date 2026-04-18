@@ -40,9 +40,9 @@
     "multi turn: first turn uses codex exec without --ephemeral; later turns use codex exec -C \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/repo --add-dir \u003cwritable-eval-roots\u003e resume \u003cthread-id\u003e --json with per-turn logs"
   ],
   "stop_loss": {
-    "policy": "Production AgentOps must pass every scenario without direct generated-file inspection, module-cache inspection, direct SQLite access, retired human OpenHealth CLI usage, broad repo search in more than one routine scenario, or excessive core tool counts.",
+    "policy": "Production OpenHealth runner must pass every scenario without direct generated-file inspection, module-cache inspection, direct SQLite access, retired human OpenHealth CLI usage, broad repo search in more than one routine scenario, or excessive core tool counts.",
     "triggered": false,
-    "recommendation": "ship_agentops_production"
+    "recommendation": "ship_openhealth_runner_production"
   },
   "results": [
     {

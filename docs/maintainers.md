@@ -2,10 +2,9 @@
 
 This repository uses **Beads** (`bd`) in embedded mode for maintainer task tracking.
 
-This repository is public and now includes a production AgentOps runner binary,
-a single-file OpenHealth skill, a generated Go client, an in-process local
-runtime, and an OpenAPI contract. Keep maintainer docs honest about the actual
-supported surface.
+This repository is public and includes a production `openhealth` runner binary,
+a single-file OpenHealth skill, an optional direct-local Go SDK, and a local
+SQLite runtime. Keep maintainer docs honest about the actual supported surface.
 
 ## Initial Setup
 
@@ -67,7 +66,7 @@ Current readiness assumptions:
 
 - `main` is the protected default branch.
 - Pull requests run only untrusted-safe validation with read-only token scope.
-- Pull requests enforce codegen drift checks through `go generate ./...` plus `git diff --exit-code`.
+- Pull requests enforce storage codegen drift checks through `go generate ./...` plus `git diff --exit-code`.
 - GitHub Releases are created from version tags in the `v0.y.z` form.
 - Release publication runs in a protected `release` environment with narrowly scoped write permissions.
 - Security reports are expected through GitHub private vulnerability reporting.
@@ -89,10 +88,10 @@ When changing GitHub settings, keep the repo aligned with:
 
 The first public release tag should be `v0.1.0`. The release contract is a
 tagged agent-app release for the `openhealth` binary, the single-file
-OpenHealth skill, and the local in-process runtime. Tag a version like
-`v0.1.0`, push the tag, and let the release workflow:
+OpenHealth skill, and the direct local runtime. Tag a version like `v0.1.0`,
+push the tag, and let the release workflow:
 
-- validate codegen, formatting, and tests before publish
+- validate storage codegen, formatting, and tests before publish
 - create or reuse the GitHub Release
 - attach platform binary archives, the skill archive, the canonical source
   archive, SHA256 checksums, and SPDX SBOM

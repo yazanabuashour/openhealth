@@ -111,10 +111,10 @@ func (c *LocalClient) LatestWeight(ctx context.Context) (*WeightEntry, error) {
 }
 
 func (c *LocalClient) localService() (health.Service, error) {
-	if c == nil || c.service == nil {
+	if c == nil || c.session == nil || c.session.Service == nil {
 		return nil, fmt.Errorf("local OpenHealth client is required")
 	}
-	return c.service, nil
+	return c.session.Service, nil
 }
 
 func toHealthWeightRecordInput(input WeightRecordInput) health.WeightRecordInput {

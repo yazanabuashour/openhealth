@@ -55,15 +55,12 @@ func main() {
 	}
 	defer api.Close()
 
-	summary, err := api.GetHealthSummaryWithResponse(context.Background())
+	summary, err := api.Summary(context.Background())
 	if err != nil {
 		log.Fatal(err)
 	}
-	if summary.JSON200 == nil {
-		log.Fatalf("unexpected status: %s", summary.Status())
-	}
 
-	fmt.Println("ok")
+	fmt.Printf("ok %d\n", summary.ActiveMedicationCount)
 }
 `,
 	)
@@ -83,10 +80,7 @@ func main() {
 	runCommand(t, moduleDir, nil, "go", "mod", "tidy")
 
 	modules := runCommand(t, moduleDir, nil, "go", "list", "-m", "all")
-	for _, toolModule := range []string{
-		"github.com/oapi-codegen/oapi-codegen/v2",
-		"github.com/sqlc-dev/sqlc",
-	} {
+	for _, toolModule := range []string{"github.com/sqlc-dev/sqlc"} {
 		if strings.Contains(modules, toolModule) {
 			t.Fatalf("tool module %q leaked into external consumer module graph\n%s", toolModule, modules)
 		}
@@ -100,8 +94,8 @@ func main() {
 		"run",
 		".",
 	)
-	if strings.TrimSpace(output) != "ok" {
-		t.Fatalf("external consumer output = %q, want %q", strings.TrimSpace(output), "ok")
+	if strings.TrimSpace(output) != "ok 0" {
+		t.Fatalf("external consumer output = %q, want %q", strings.TrimSpace(output), "ok 0")
 	}
 }
 

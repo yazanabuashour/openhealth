@@ -41,23 +41,22 @@ func run(args []string) error {
 		*databasePath = defaultPaths.DatabasePath
 	}
 
-	params := client.ListHealthWeightParams{}
+	options := client.WeightListOptions{}
 	if *fromRaw != "" {
 		from, err := time.Parse(time.RFC3339, *fromRaw)
 		if err != nil {
 			return fmt.Errorf("parse -from: %w", err)
 		}
-		params.From = &from
+		options.From = &from
 	}
 	if *toRaw != "" {
 		to, err := time.Parse(time.RFC3339, *toRaw)
 		if err != nil {
 			return fmt.Errorf("parse -to: %w", err)
 		}
-		params.To = &to
+		options.To = &to
 	}
-	limit := client.Limit(*limitRaw)
-	params.Limit = &limit
+	options.Limit = *limitRaw
 
 	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: *databasePath})
 	if err != nil {
@@ -72,50 +71,41 @@ func run(args []string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	weights, err := api.ListHealthWeightWithResponse(ctx, &params)
+	weights, err := api.ListWeights(ctx, options)
 	if err != nil {
 		return fmt.Errorf("list weight history: %w", err)
 	}
-	if weights.JSON200 == nil {
-		return fmt.Errorf("list weight history returned %s", weights.Status())
-	}
 
 	fmt.Printf("db=%s\n", api.Paths.DatabasePath)
-	if len(weights.JSON200.Items) == 0 {
+	if len(weights) == 0 {
 		fmt.Printf("no weight history found in %s\n", api.Paths.DatabasePath)
 	} else {
-		latest := weights.JSON200.Items[0]
+		latest := weights[0]
 		fmt.Printf("latest=%.1f %s recorded_at=%s\n", latest.Value, latest.Unit, latest.RecordedAt.Format(time.RFC3339))
-		fmt.Printf("weight_history count=%d\n", len(weights.JSON200.Items))
-		for _, item := range weights.JSON200.Items {
+		fmt.Printf("weight_history count=%d\n", len(weights))
+		for _, item := range weights {
 			fmt.Printf(
 				"%s %.1f %s source=%s id=%d\n",
 				item.RecordedAt.Format(time.RFC3339),
 				item.Value,
 				item.Unit,
 				item.Source,
-				item.Id,
+				item.ID,
 			)
 		}
 	}
 
 	if *includeTrend {
-		weightRange := client.HealthWeightRangeAll
-		trend, err := api.GetHealthWeightTrendWithResponse(ctx, &client.GetHealthWeightTrendParams{
-			Range: &weightRange,
-		})
+		trend, err := api.WeightTrend(ctx, client.WeightTrendOptions{Range: client.WeightRangeAll})
 		if err != nil {
 			return fmt.Errorf("get weight trend: %w", err)
 		}
-		if trend.JSON200 == nil {
-			return fmt.Errorf("get weight trend returned %s", trend.Status())
-		}
 		fmt.Printf(
 			"trend range=%s raw_points=%d moving_average_points=%d monthly_average_buckets=%d\n",
-			trend.JSON200.Range,
-			len(trend.JSON200.RawPoints),
-			len(trend.JSON200.MovingAveragePoints),
-			len(trend.JSON200.MonthlyAverageBuckets),
+			trend.Range,
+			len(trend.RawPoints),
+			len(trend.MovingAveragePoints),
+			len(trend.MonthlyAverageBuckets),
 		)
 	}
 

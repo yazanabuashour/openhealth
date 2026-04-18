@@ -3,10 +3,10 @@
 This report documents the code-first pivot for the `oh-5yr` eval after the
 production SDK variant reached the hardening stop-loss. Reduced artifacts:
 
-- Iteration 1: `docs/agent-eval-results/oh-5yr-code-first-iter1.json` and `docs/agent-eval-results/oh-5yr-code-first-iter1.md`
-- Iteration 2: `docs/agent-eval-results/oh-5yr-code-first-iter2.json` and `docs/agent-eval-results/oh-5yr-code-first-iter2.md`
-- Iteration 3: `docs/agent-eval-results/oh-5yr-code-first-iter3.json` and `docs/agent-eval-results/oh-5yr-code-first-iter3.md`
-- Prior production hardening: `docs/agent-eval-results/oh-5yr-2026-04-17-production-hardening.json` and `docs/agent-eval-results/oh-5yr-2026-04-17-production-hardening.md`
+- Iteration 1: `docs/agent-eval-results/archive/oh-5yr-code-first-iter1.json` and `docs/agent-eval-results/archive/oh-5yr-code-first-iter1.md`
+- Iteration 2: `docs/agent-eval-results/archive/oh-5yr-code-first-iter2.json` and `docs/agent-eval-results/archive/oh-5yr-code-first-iter2.md`
+- Iteration 3: `docs/agent-eval-results/archive/oh-5yr-code-first-iter3.json` and `docs/agent-eval-results/archive/oh-5yr-code-first-iter3.md`
+- Prior production hardening: `docs/agent-eval-results/archive/oh-5yr-2026-04-17-production-hardening.json` and `docs/agent-eval-results/archive/oh-5yr-2026-04-17-production-hardening.md`
 
 Raw logs are not committed. Raw event references in reduced reports use
 `<run-root>` placeholders.

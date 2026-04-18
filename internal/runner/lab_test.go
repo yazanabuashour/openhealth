@@ -1,4 +1,4 @@
-package agentops_test
+package runner_test
 
 import (
 	"context"
@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yazanabuashour/openhealth/agentops"
-	"github.com/yazanabuashour/openhealth/client"
+	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	runner "github.com/yazanabuashour/openhealth/internal/runner"
 )
 
 func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
@@ -18,9 +18,9 @@ func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
 	ctx := context.Background()
 	config := client.LocalConfig{DatabasePath: dbPath}
 
-	result, err := agentops.RunLabTask(ctx, config, agentops.LabTaskRequest{
-		Action: agentops.LabTaskActionRecord,
-		Collections: []agentops.LabCollectionInput{
+	result, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action: runner.LabTaskActionRecord,
+		Collections: []runner.LabCollectionInput{
 			metabolicCollection("2026-03-29", 89),
 			thyroidCollection("2026-03-30", "3.1"),
 		},
@@ -36,9 +36,9 @@ func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
 	}
 	assertLabCollectionDates(t, result.Entries, []string{"2026-03-30", "2026-03-29"})
 
-	again, err := agentops.RunLabTask(ctx, config, agentops.LabTaskRequest{
-		Action:      agentops.LabTaskActionRecord,
-		Collections: []agentops.LabCollectionInput{metabolicCollection("2026-03-29", 89)},
+	again, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action:      runner.LabTaskActionRecord,
+		Collections: []runner.LabCollectionInput{metabolicCollection("2026-03-29", 89)},
 	})
 	if err != nil {
 		t.Fatalf("repeat lab task: %v", err)
@@ -47,9 +47,9 @@ func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
 		t.Fatalf("repeat write statuses = %q, want already_exists", got)
 	}
 
-	conflict, err := agentops.RunLabTask(ctx, config, agentops.LabTaskRequest{
-		Action:      agentops.LabTaskActionRecord,
-		Collections: []agentops.LabCollectionInput{metabolicCollection("2026-03-29", 90)},
+	conflict, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action:      runner.LabTaskActionRecord,
+		Collections: []runner.LabCollectionInput{metabolicCollection("2026-03-29", 90)},
 	})
 	if err != nil {
 		t.Fatalf("conflict lab task: %v", err)
@@ -58,9 +58,9 @@ func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
 		t.Fatalf("conflict result = %#v", conflict)
 	}
 
-	latestGlucose, err := agentops.RunLabTask(ctx, config, agentops.LabTaskRequest{
-		Action:      agentops.LabTaskActionList,
-		ListMode:    agentops.LabListModeLatest,
+	latestGlucose, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action:      runner.LabTaskActionList,
+		ListMode:    runner.LabListModeLatest,
 		AnalyteSlug: "glucose",
 	})
 	if err != nil {
@@ -71,9 +71,9 @@ func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
 		t.Fatalf("glucose value = %q, want 89", got)
 	}
 
-	bounded, err := agentops.RunLabTask(ctx, config, agentops.LabTaskRequest{
-		Action:   agentops.LabTaskActionList,
-		ListMode: agentops.LabListModeRange,
+	bounded, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action:   runner.LabTaskActionList,
+		ListMode: runner.LabListModeRange,
 		FromDate: "2026-03-29",
 		ToDate:   "2026-03-29",
 	})
@@ -82,10 +82,10 @@ func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
 	}
 	assertLabCollectionDates(t, bounded.Entries, []string{"2026-03-29"})
 
-	corrected, err := agentops.RunLabTask(ctx, config, agentops.LabTaskRequest{
-		Action:     agentops.LabTaskActionCorrect,
-		Target:     &agentops.LabTarget{Date: "2026-03-29"},
-		Collection: &agentops.LabCollectionInput{Date: "2026-03-29", Panels: []agentops.LabPanelInput{{PanelName: "Thyroid", Results: []agentops.LabResultInput{{TestName: "TSH", CanonicalSlug: stringPointer("tsh"), ValueText: "2.8", ValueNumeric: floatPointer(2.8), Units: stringPointer("uIU/mL")}}}}},
+	corrected, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action:     runner.LabTaskActionCorrect,
+		Target:     &runner.LabTarget{Date: "2026-03-29"},
+		Collection: &runner.LabCollectionInput{Date: "2026-03-29", Panels: []runner.LabPanelInput{{PanelName: "Thyroid", Results: []runner.LabResultInput{{TestName: "TSH", CanonicalSlug: stringPointer("tsh"), ValueText: "2.8", ValueNumeric: floatPointer(2.8), Units: stringPointer("uIU/mL")}}}}},
 	})
 	if err != nil {
 		t.Fatalf("correct lab task: %v", err)
@@ -96,9 +96,9 @@ func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
 	if got := labWriteStatuses(corrected.Writes); got != "updated" {
 		t.Fatalf("correction write statuses = %q, want updated", got)
 	}
-	correctedLatest, err := agentops.RunLabTask(ctx, config, agentops.LabTaskRequest{
-		Action:      agentops.LabTaskActionList,
-		ListMode:    agentops.LabListModeLatest,
+	correctedLatest, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action:      runner.LabTaskActionList,
+		ListMode:    runner.LabListModeLatest,
 		AnalyteSlug: "tsh",
 	})
 	if err != nil {
@@ -106,9 +106,9 @@ func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
 	}
 	assertLabCollectionDates(t, correctedLatest.Entries, []string{"2026-03-30"})
 
-	deleted, err := agentops.RunLabTask(ctx, config, agentops.LabTaskRequest{
-		Action: agentops.LabTaskActionDelete,
-		Target: &agentops.LabTarget{Date: "2026-03-29"},
+	deleted, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action: runner.LabTaskActionDelete,
+		Target: &runner.LabTarget{Date: "2026-03-29"},
 	})
 	if err != nil {
 		t.Fatalf("delete lab task: %v", err)
@@ -129,10 +129,10 @@ func TestRunLabTaskRejectsMissingOrAmbiguousTarget(t *testing.T) {
 	ctx := context.Background()
 	config := client.LocalConfig{DatabasePath: dbPath}
 
-	missing, err := agentops.RunLabTask(ctx, config, agentops.LabTaskRequest{
-		Action:     agentops.LabTaskActionCorrect,
-		Target:     &agentops.LabTarget{Date: "2026-03-29"},
-		Collection: &agentops.LabCollectionInput{Date: "2026-03-29", Panels: []agentops.LabPanelInput{{PanelName: "Metabolic", Results: []agentops.LabResultInput{{TestName: "Glucose", ValueText: "89"}}}}},
+	missing, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action:     runner.LabTaskActionCorrect,
+		Target:     &runner.LabTarget{Date: "2026-03-29"},
+		Collection: &runner.LabCollectionInput{Date: "2026-03-29", Panels: []runner.LabPanelInput{{PanelName: "Metabolic", Results: []runner.LabResultInput{{TestName: "Glucose", ValueText: "89"}}}}},
 	})
 	if err != nil {
 		t.Fatalf("missing correction: %v", err)
@@ -163,9 +163,9 @@ func TestRunLabTaskRejectsMissingOrAmbiguousTarget(t *testing.T) {
 		t.Fatalf("close local client: %v", err)
 	}
 
-	ambiguous, err := agentops.RunLabTask(ctx, config, agentops.LabTaskRequest{
-		Action: agentops.LabTaskActionDelete,
-		Target: &agentops.LabTarget{Date: "2026-03-29"},
+	ambiguous, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action: runner.LabTaskActionDelete,
+		Target: &runner.LabTarget{Date: "2026-03-29"},
 	})
 	if err != nil {
 		t.Fatalf("ambiguous delete: %v", err)
@@ -180,47 +180,47 @@ func TestRunLabTaskRejectsInvalidInputBeforeOpeningDatabase(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		request agentops.LabTaskRequest
+		request runner.LabTaskRequest
 		reason  string
 	}{
 		{
 			name: "short date",
-			request: agentops.LabTaskRequest{
-				Action:      agentops.LabTaskActionRecord,
-				Collections: []agentops.LabCollectionInput{{Date: "03/29", Panels: []agentops.LabPanelInput{{PanelName: "Metabolic", Results: []agentops.LabResultInput{{TestName: "Glucose", ValueText: "89"}}}}}},
+			request: runner.LabTaskRequest{
+				Action:      runner.LabTaskActionRecord,
+				Collections: []runner.LabCollectionInput{{Date: "03/29", Panels: []runner.LabPanelInput{{PanelName: "Metabolic", Results: []runner.LabResultInput{{TestName: "Glucose", ValueText: "89"}}}}}},
 			},
 			reason: "date must be YYYY-MM-DD",
 		},
 		{
 			name: "unsupported slug",
-			request: agentops.LabTaskRequest{
-				Action:      agentops.LabTaskActionRecord,
-				Collections: []agentops.LabCollectionInput{{Date: "2026-03-29", Panels: []agentops.LabPanelInput{{PanelName: "Metabolic", Results: []agentops.LabResultInput{{TestName: "Unknown", CanonicalSlug: stringPointer("unsupported"), ValueText: "1"}}}}}},
+			request: runner.LabTaskRequest{
+				Action:      runner.LabTaskActionRecord,
+				Collections: []runner.LabCollectionInput{{Date: "2026-03-29", Panels: []runner.LabPanelInput{{PanelName: "Metabolic", Results: []runner.LabResultInput{{TestName: "Unknown", CanonicalSlug: stringPointer("unsupported"), ValueText: "1"}}}}}},
 			},
 			reason: "canonical_slug must be a supported analyte",
 		},
 		{
 			name: "empty units",
-			request: agentops.LabTaskRequest{
-				Action:      agentops.LabTaskActionRecord,
-				Collections: []agentops.LabCollectionInput{{Date: "2026-03-29", Panels: []agentops.LabPanelInput{{PanelName: "Metabolic", Results: []agentops.LabResultInput{{TestName: "Glucose", ValueText: "89", Units: stringPointer(" ")}}}}}},
+			request: runner.LabTaskRequest{
+				Action:      runner.LabTaskActionRecord,
+				Collections: []runner.LabCollectionInput{{Date: "2026-03-29", Panels: []runner.LabPanelInput{{PanelName: "Metabolic", Results: []runner.LabResultInput{{TestName: "Glucose", ValueText: "89", Units: stringPointer(" ")}}}}}},
 			},
 			reason: "units must not be empty",
 		},
 		{
 			name: "unsupported list analyte",
-			request: agentops.LabTaskRequest{
-				Action:      agentops.LabTaskActionList,
-				ListMode:    agentops.LabListModeLatest,
+			request: runner.LabTaskRequest{
+				Action:      runner.LabTaskActionList,
+				ListMode:    runner.LabListModeLatest,
 				AnalyteSlug: "unsupported",
 			},
 			reason: "analyte_slug must be a supported analyte",
 		},
 		{
 			name: "missing target date",
-			request: agentops.LabTaskRequest{
-				Action: agentops.LabTaskActionDelete,
-				Target: &agentops.LabTarget{},
+			request: runner.LabTaskRequest{
+				Action: runner.LabTaskActionDelete,
+				Target: &runner.LabTarget{},
 			},
 			reason: "target id or date is required",
 		},
@@ -230,7 +230,7 @@ func TestRunLabTaskRejectsInvalidInputBeforeOpeningDatabase(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			dbPath := filepath.Join(t.TempDir(), "openhealth.db")
-			result, err := agentops.RunLabTask(context.Background(), client.LocalConfig{DatabasePath: dbPath}, tt.request)
+			result, err := runner.RunLabTask(context.Background(), client.LocalConfig{DatabasePath: dbPath}, tt.request)
 			if err != nil {
 				t.Fatalf("run task: %v", err)
 			}
@@ -244,13 +244,13 @@ func TestRunLabTaskRejectsInvalidInputBeforeOpeningDatabase(t *testing.T) {
 	}
 }
 
-func metabolicCollection(date string, value float64) agentops.LabCollectionInput {
-	return agentops.LabCollectionInput{
+func metabolicCollection(date string, value float64) runner.LabCollectionInput {
+	return runner.LabCollectionInput{
 		Date: date,
-		Panels: []agentops.LabPanelInput{
+		Panels: []runner.LabPanelInput{
 			{
 				PanelName: "Metabolic",
-				Results: []agentops.LabResultInput{
+				Results: []runner.LabResultInput{
 					{
 						TestName:      "Glucose",
 						CanonicalSlug: stringPointer("glucose"),
@@ -265,13 +265,13 @@ func metabolicCollection(date string, value float64) agentops.LabCollectionInput
 	}
 }
 
-func thyroidCollection(date string, value string) agentops.LabCollectionInput {
-	return agentops.LabCollectionInput{
+func thyroidCollection(date string, value string) runner.LabCollectionInput {
+	return runner.LabCollectionInput{
 		Date: date,
-		Panels: []agentops.LabPanelInput{
+		Panels: []runner.LabPanelInput{
 			{
 				PanelName: "Thyroid",
-				Results: []agentops.LabResultInput{
+				Results: []runner.LabResultInput{
 					{
 						TestName:      "TSH",
 						CanonicalSlug: stringPointer("tsh"),
@@ -284,7 +284,7 @@ func thyroidCollection(date string, value string) agentops.LabCollectionInput {
 	}
 }
 
-func labWriteStatuses(writes []agentops.LabCollectionWrite) string {
+func labWriteStatuses(writes []runner.LabCollectionWrite) string {
 	out := ""
 	for i, write := range writes {
 		if i > 0 {
@@ -295,7 +295,7 @@ func labWriteStatuses(writes []agentops.LabCollectionWrite) string {
 	return out
 }
 
-func assertLabCollectionDates(t *testing.T, got []agentops.LabCollectionEntry, want []string) {
+func assertLabCollectionDates(t *testing.T, got []runner.LabCollectionEntry, want []string) {
 	t.Helper()
 	if len(got) != len(want) {
 		t.Fatalf("entry count = %d (%#v), want %d dates %#v", len(got), got, len(want), want)

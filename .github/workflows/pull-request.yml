@@ -68,7 +68,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Check generated code is current
+      - name: Check generated storage code is current
         run: |
           go generate ./...
           git diff --exit-code

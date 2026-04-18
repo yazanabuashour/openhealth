@@ -1,0 +1,760 @@
+{
+  "issue": "oh-5yr",
+  "date": "maturity-throughput-validation-smoke",
+  "model": "gpt-5.4-mini",
+  "reasoning_effort": "medium",
+  "harness": "codex exec --json --full-auto from throwaway run directories; single-turn scenarios use --ephemeral, multi-turn scenarios resume a persisted eval session with explicit writable eval roots",
+  "parallelism": 4,
+  "cache_mode": "shared",
+  "cache_prewarm_seconds": 21.43,
+  "harness_elapsed_seconds": 11.32,
+  "phase_totals": {
+    "copy_repo_seconds": 0.2,
+    "seed_db_seconds": 0.04,
+    "agent_run_seconds": 31.15,
+    "total_seconds": 31.43
+  },
+  "effective_parallel_speedup": 2.75,
+  "parallel_efficiency": 0.69,
+  "codex_version": "codex-cli 0.121.0",
+  "history_isolation": {
+    "status": "passed",
+    "ephemeral_flag_required": true,
+    "run_directory_outside_repo": true,
+    "new_session_files_after_run": 0,
+    "single_turn_ephemeral_runs": 6,
+    "multi_turn_persisted_sessions": 0,
+    "multi_turn_persisted_turns": 0,
+    "openhealth_workspace_used": false,
+    "desktop_app_used": false,
+    "verification_method": "Single-turn scenarios use codex exec --ephemeral from \u003crun-root\u003e/.../repo. Multi-turn scenarios create one persisted Codex exec session per variant/scenario and resume it for later turns; all raw logs stay under \u003crun-root\u003e."
+  },
+  "command_template": [
+    "OPENHEALTH_DATABASE_PATH=\u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/repo/openhealth.db",
+    "GOCACHE=\u003crun-root\u003e/shared-cache/gocache when --cache-mode shared; otherwise \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/gocache",
+    "GOMODCACHE=\u003crun-root\u003e/shared-cache/gomodcache when --cache-mode shared; otherwise \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/gomodcache",
+    "single turn: codex exec --json --ephemeral --full-auto --skip-git-repo-check --add-dir \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e --add-dir \u003crun-root\u003e/shared-cache when --cache-mode shared -C \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/repo -m gpt-5.4-mini -c model_reasoning_effort=\"medium\" -c shell_environment_policy.inherit=all \u003cnatural user prompt\u003e",
+    "multi turn: first turn uses codex exec without --ephemeral; later turns use codex exec -C \u003crun-root\u003e/\u003cvariant\u003e/\u003cscenario\u003e/repo --add-dir \u003cwritable-eval-roots\u003e resume \u003cthread-id\u003e --json with per-turn logs"
+  ],
+  "cli_status": "runnable: cli variant uses go run ./cmd/openhealth weight and blood-pressure commands with the configured Go cache mode",
+  "stop_loss": {
+    "policy": "After production hardening, keep CLI as the baseline recommendation if production loses correctness, directly inspects generated files, inspects the module cache, uses broad repo search in more than one routine scenario, uses the openhealth CLI, uses direct SQLite access, exceeds core tool thresholds, or uses more than 2x CLI tools in at least three comparable scenarios.",
+    "triggered": false,
+    "recommendation": "continue_production_hardening"
+  },
+  "code_first": {
+    "candidate_variant": "production",
+    "baseline_variant": "cli",
+    "beats_cli": false,
+    "recommendation": "continue_cli_for_routine_openhealth_operations",
+    "criteria": [
+      {
+        "name": "candidate_passes_all_scenarios",
+        "passed": true,
+        "details": "6/6 candidate scenarios passed"
+      },
+      {
+        "name": "no_direct_generated_file_inspection",
+        "passed": true,
+        "details": "production must not directly inspect generated files"
+      },
+      {
+        "name": "no_module_cache_inspection",
+        "passed": true,
+        "details": "production must not inspect the Go module cache"
+      },
+      {
+        "name": "no_routine_broad_repo_search",
+        "passed": true,
+        "details": "production must not use broad repo search in routine scenarios"
+      },
+      {
+        "name": "no_openhealth_cli_usage",
+        "passed": true,
+        "details": "production must not use the openhealth CLI"
+      },
+      {
+        "name": "no_direct_sqlite_access",
+        "passed": true,
+        "details": "production must not use direct SQLite access"
+      },
+      {
+        "name": "validation_scenarios_are_final_answer_only",
+        "passed": true,
+        "details": "validation scenarios used no tools, no command executions, and at most one assistant answer"
+      },
+      {
+        "name": "total_tools_less_than_or_equal_cli",
+        "passed": false,
+        "details": "production tools 0 vs cli tools 0"
+      },
+      {
+        "name": "minimum_scenarios_at_or_below_cli",
+        "passed": false,
+        "details": "0 scenarios at or below CLI tools; required 5 of 6"
+      },
+      {
+        "name": "no_routine_scenario_exceeds_cli_by_more_than_one_tool",
+        "passed": false,
+        "details": "missing cli scenarios: ambiguous-short-date, bp-invalid-input, bp-non-iso-date-reject, invalid-input, mixed-invalid-direct-reject, non-iso-date-reject"
+      },
+      {
+        "name": "non_cached_token_majority",
+        "passed": false,
+        "details": "0 scenarios with lower non-cached input tokens; required 1 of 0; missing usage: none"
+      },
+      {
+        "name": "non_cached_token_total_less_than_or_equal_cli",
+        "passed": false,
+        "details": "production non-cached input tokens 0 vs cli 0; missing usage: none"
+      }
+    ],
+    "entries": [
+      {
+        "scenario": "ambiguous-short-date",
+        "candidate_pass": true,
+        "cli_pass": false,
+        "candidate_tools": 0,
+        "cli_tools": 0
+      },
+      {
+        "scenario": "invalid-input",
+        "candidate_pass": true,
+        "cli_pass": false,
+        "candidate_tools": 0,
+        "cli_tools": 0
+      },
+      {
+        "scenario": "non-iso-date-reject",
+        "candidate_pass": true,
+        "cli_pass": false,
+        "candidate_tools": 0,
+        "cli_tools": 0
+      },
+      {
+        "scenario": "bp-invalid-input",
+        "candidate_pass": true,
+        "cli_pass": false,
+        "candidate_tools": 0,
+        "cli_tools": 0
+      },
+      {
+        "scenario": "bp-non-iso-date-reject",
+        "candidate_pass": true,
+        "cli_pass": false,
+        "candidate_tools": 0,
+        "cli_tools": 0
+      },
+      {
+        "scenario": "mixed-invalid-direct-reject",
+        "candidate_pass": true,
+        "cli_pass": false,
+        "candidate_tools": 0,
+        "cli_tools": 0
+      }
+    ]
+  },
+  "results": [
+    {
+      "variant": "production",
+      "scenario": "ambiguous-short-date",
+      "scenario_title": "Clarify an ambiguous short date without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 4.42,
+      "phase_timings": {
+        "copy_repo_seconds": 0.04,
+        "seed_db_seconds": 0.01,
+        "agent_run_seconds": 4.42,
+        "total_seconds": 4.48
+      },
+      "metrics": {
+        "assistant_calls": 1,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "file_inspection_commands": 0,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 22398,
+        "cached_input_tokens": 18816,
+        "non_cached_input_tokens": 3582,
+        "output_tokens": 142,
+        "event_type_counts": {
+          "item.completed": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no write and a year clarification; observed []"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 4.42,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 1,
+            "tool_calls": 0,
+            "command_executions": 0,
+            "file_inspection_commands": 0,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 22398,
+            "cached_input_tokens": 18816,
+            "non_cached_input_tokens": 3582,
+            "output_tokens": 142,
+            "event_type_counts": {
+              "item.completed": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no write and a year clarification; observed []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/ambiguous-short-date/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "ask for year before writing 03/29 152.2 lb",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/ambiguous-short-date/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "invalid-input",
+      "scenario_title": "Reject invalid unit and value without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 4.69,
+      "phase_timings": {
+        "copy_repo_seconds": 0.04,
+        "seed_db_seconds": 0.01,
+        "agent_run_seconds": 4.69,
+        "total_seconds": 4.74
+      },
+      "metrics": {
+        "assistant_calls": 1,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "file_inspection_commands": 0,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 22376,
+        "cached_input_tokens": 18816,
+        "non_cached_input_tokens": 3560,
+        "output_tokens": 180,
+        "event_type_counts": {
+          "item.completed": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no write and an invalid input rejection; observed []"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 4.69,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 1,
+            "tool_calls": 0,
+            "command_executions": 0,
+            "file_inspection_commands": 0,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 22376,
+            "cached_input_tokens": 18816,
+            "non_cached_input_tokens": 3560,
+            "output_tokens": 180,
+            "event_type_counts": {
+              "item.completed": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no write and an invalid input rejection; observed []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/invalid-input/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reject -5 stone for 2026-03-31",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/invalid-input/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "non-iso-date-reject",
+      "scenario_title": "Reject non-ISO full date without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 4.88,
+      "phase_timings": {
+        "copy_repo_seconds": 0.04,
+        "seed_db_seconds": 0.01,
+        "agent_run_seconds": 4.88,
+        "total_seconds": 4.94
+      },
+      "metrics": {
+        "assistant_calls": 1,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "file_inspection_commands": 0,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 22414,
+        "cached_input_tokens": 19328,
+        "non_cached_input_tokens": 3086,
+        "output_tokens": 190,
+        "event_type_counts": {
+          "item.completed": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no write and a strict YYYY-MM-DD date rejection; observed []"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 4.88,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 1,
+            "tool_calls": 0,
+            "command_executions": 0,
+            "file_inspection_commands": 0,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 22414,
+            "cached_input_tokens": 19328,
+            "non_cached_input_tokens": 3086,
+            "output_tokens": 190,
+            "event_type_counts": {
+              "item.completed": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no write and a strict YYYY-MM-DD date rejection; observed []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/non-iso-date-reject/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reject non-ISO date 2026/03/31",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/non-iso-date-reject/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bp-invalid-input",
+      "scenario_title": "Reject invalid blood-pressure values without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 6.2,
+      "phase_timings": {
+        "copy_repo_seconds": 0.04,
+        "seed_db_seconds": 0.01,
+        "agent_run_seconds": 6.2,
+        "total_seconds": 6.26
+      },
+      "metrics": {
+        "assistant_calls": 1,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "file_inspection_commands": 0,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 22387,
+        "cached_input_tokens": 18816,
+        "non_cached_input_tokens": 3571,
+        "output_tokens": 250,
+        "event_type_counts": {
+          "item.completed": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no write and an invalid blood-pressure rejection; observed []"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 6.2,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 1,
+            "tool_calls": 0,
+            "command_executions": 0,
+            "file_inspection_commands": 0,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 22387,
+            "cached_input_tokens": 18816,
+            "non_cached_input_tokens": 3571,
+            "output_tokens": 250,
+            "event_type_counts": {
+              "item.completed": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no write and an invalid blood-pressure rejection; observed []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-invalid-input/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reject invalid 0/-5 pulse 0 blood-pressure reading",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-invalid-input/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "bp-non-iso-date-reject",
+      "scenario_title": "Reject non-ISO blood-pressure date without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 4.41,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "agent_run_seconds": 4.41,
+        "total_seconds": 4.43
+      },
+      "metrics": {
+        "assistant_calls": 1,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "file_inspection_commands": 0,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 22432,
+        "cached_input_tokens": 18816,
+        "non_cached_input_tokens": 3616,
+        "output_tokens": 204,
+        "event_type_counts": {
+          "item.completed": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no write and a strict YYYY-MM-DD date rejection; observed []"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 4.41,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 1,
+            "tool_calls": 0,
+            "command_executions": 0,
+            "file_inspection_commands": 0,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 22432,
+            "cached_input_tokens": 18816,
+            "non_cached_input_tokens": 3616,
+            "output_tokens": 204,
+            "event_type_counts": {
+              "item.completed": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no write and a strict YYYY-MM-DD date rejection; observed []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-non-iso-date-reject/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reject non-ISO blood-pressure date 2026/03/31",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/bp-non-iso-date-reject/turn-1/events.jsonl"
+    },
+    {
+      "variant": "production",
+      "scenario": "mixed-invalid-direct-reject",
+      "scenario_title": "Reject invalid mixed-domain values without writing",
+      "passed": true,
+      "exit_code": 0,
+      "wall_seconds": 6.55,
+      "phase_timings": {
+        "copy_repo_seconds": 0.02,
+        "agent_run_seconds": 6.55,
+        "total_seconds": 6.58
+      },
+      "metrics": {
+        "assistant_calls": 1,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "file_inspection_commands": 0,
+        "generated_file_inspected": false,
+        "generated_path_from_broad_search": false,
+        "broad_repo_search": false,
+        "module_cache_inspected": false,
+        "cli_used": false,
+        "direct_sqlite_access": false,
+        "usage_exposed": true,
+        "input_tokens": 22411,
+        "cached_input_tokens": 18816,
+        "non_cached_input_tokens": 3595,
+        "output_tokens": 223,
+        "event_type_counts": {
+          "item.completed": 1,
+          "thread.started": 1,
+          "turn.completed": 1,
+          "turn.started": 1
+        },
+        "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true,
+        "details": "turn 1: expected no mixed-domain writes and a direct invalid input rejection; observed weights [] and blood pressures []"
+      },
+      "turns": [
+        {
+          "turn_index": 1,
+          "wall_seconds": 6.55,
+          "exit_code": 0,
+          "metrics": {
+            "assistant_calls": 1,
+            "tool_calls": 0,
+            "command_executions": 0,
+            "file_inspection_commands": 0,
+            "generated_file_inspected": false,
+            "generated_path_from_broad_search": false,
+            "broad_repo_search": false,
+            "module_cache_inspected": false,
+            "cli_used": false,
+            "direct_sqlite_access": false,
+            "usage_exposed": true,
+            "input_tokens": 22411,
+            "cached_input_tokens": 18816,
+            "non_cached_input_tokens": 3595,
+            "output_tokens": 223,
+            "event_type_counts": {
+              "item.completed": 1,
+              "thread.started": 1,
+              "turn.completed": 1,
+              "turn.started": 1
+            },
+            "command_metric_limitations": "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing."
+          },
+          "verification": {
+            "passed": true,
+            "database_pass": true,
+            "assistant_pass": true,
+            "details": "expected no mixed-domain writes and a direct invalid input rejection; observed weights [] and blood pressures []"
+          },
+          "raw_log_artifact_reference": "\u003crun-root\u003e/production/mixed-invalid-direct-reject/turn-1/events.jsonl"
+        }
+      ],
+      "prompt_summary": "reject invalid mixed weight and blood-pressure values without tools",
+      "raw_log_artifact_reference": "\u003crun-root\u003e/production/mixed-invalid-direct-reject/turn-1/events.jsonl"
+    }
+  ],
+  "comparison": {
+    "baseline_report": "docs/agent-eval-results/oh-5yr-maturity-throughput-validation-smoke.json",
+    "entries": [
+      {
+        "variant": "production",
+        "scenario": "ambiguous-short-date",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -0.5,
+        "non_cached_input_tokens_delta": 167,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "invalid-input",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -0.58,
+        "non_cached_input_tokens_delta": 167,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "non-iso-date-reject",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -2.99,
+        "non_cached_input_tokens_delta": -345,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bp-invalid-input",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 1.87,
+        "non_cached_input_tokens_delta": 167,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "bp-non-iso-date-reject",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": -0.55,
+        "non_cached_input_tokens_delta": 167,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      },
+      {
+        "variant": "production",
+        "scenario": "mixed-invalid-direct-reject",
+        "result": "same_pass",
+        "tool_calls_delta": 0,
+        "assistant_calls_delta": 0,
+        "wall_seconds_delta": 1.77,
+        "non_cached_input_tokens_delta": 167,
+        "generated_file_inspection_change": "same_no",
+        "generated_path_from_broad_search_change": "same_no",
+        "broad_repo_search_change": "same_no",
+        "module_cache_inspection_change": "same_no",
+        "cli_usage_change": "same_no",
+        "direct_sqlite_access_change": "same_no"
+      }
+    ]
+  },
+  "raw_logs_committed": false,
+  "raw_logs_note": "Raw codex exec event logs and stderr files were retained under \u003crun-root\u003e during execution and intentionally not committed.",
+  "token_usage_caveat": "Token metrics come from codex exec turn.completed usage events when exposed; unavailable usage must be recorded as not_exposed.",
+  "app_server_fallback": "not used: codex exec --json exposed enough event detail for this run"
+}

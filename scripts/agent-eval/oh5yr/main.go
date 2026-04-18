@@ -29,12 +29,21 @@ const (
 	modelName             = "gpt-5.4-mini"
 	reasoningEffort       = "medium"
 	defaultRunParallelism = 4
+	cacheModeShared       = "shared"
+	cacheModeIsolated     = "isolated"
 )
 
+var prewarmCompilePackages = []string{"./cmd/openhealth-agentops", "./cmd/openhealth", "./agentops"}
+
 type scenario struct {
-	ID     string
-	Title  string
-	Prompt string
+	ID     string         `json:"id"`
+	Title  string         `json:"title"`
+	Prompt string         `json:"prompt,omitempty"`
+	Turns  []scenarioTurn `json:"turns,omitempty"`
+}
+
+type scenarioTurn struct {
+	Prompt string `json:"prompt"`
 }
 
 type variant struct {
@@ -49,7 +58,12 @@ type report struct {
 	ReasoningEffort       string                  `json:"reasoning_effort"`
 	Harness               string                  `json:"harness"`
 	Parallelism           int                     `json:"parallelism"`
+	CacheMode             string                  `json:"cache_mode"`
+	CachePrewarmSeconds   float64                 `json:"cache_prewarm_seconds,omitempty"`
 	HarnessElapsedSeconds float64                 `json:"harness_elapsed_seconds"`
+	PhaseTotals           phaseTimings            `json:"phase_totals"`
+	EffectiveSpeedup      float64                 `json:"effective_parallel_speedup,omitempty"`
+	ParallelEfficiency    float64                 `json:"parallel_efficiency,omitempty"`
 	CodexVersion          string                  `json:"codex_version"`
 	HistoryIsolation      historyIsolationSummary `json:"history_isolation"`
 	CommandTemplate       []string                `json:"command_template"`
@@ -66,14 +80,17 @@ type report struct {
 }
 
 type historyIsolationSummary struct {
-	Status                  string `json:"status"`
-	EphemeralFlagRequired   bool   `json:"ephemeral_flag_required"`
-	RunDirectoryOutsideRepo bool   `json:"run_directory_outside_repo"`
-	NewSessionFilesAfterRun int    `json:"new_session_files_after_run"`
-	OpenHealthWorkspaceUsed bool   `json:"openhealth_workspace_used"`
-	DesktopAppUsed          bool   `json:"desktop_app_used"`
-	VerificationMethod      string `json:"verification_method"`
-	VerificationLimitation  string `json:"verification_limitation,omitempty"`
+	Status                     string `json:"status"`
+	EphemeralFlagRequired      bool   `json:"ephemeral_flag_required"`
+	RunDirectoryOutsideRepo    bool   `json:"run_directory_outside_repo"`
+	NewSessionFilesAfterRun    int    `json:"new_session_files_after_run"`
+	SingleTurnEphemeralRuns    int    `json:"single_turn_ephemeral_runs"`
+	MultiTurnPersistedSessions int    `json:"multi_turn_persisted_sessions"`
+	MultiTurnPersistedTurns    int    `json:"multi_turn_persisted_turns"`
+	OpenHealthWorkspaceUsed    bool   `json:"openhealth_workspace_used"`
+	DesktopAppUsed             bool   `json:"desktop_app_used"`
+	VerificationMethod         string `json:"verification_method"`
+	VerificationLimitation     string `json:"verification_limitation,omitempty"`
 }
 
 type runResult struct {
@@ -83,10 +100,33 @@ type runResult struct {
 	Passed                  bool               `json:"passed"`
 	ExitCode                int                `json:"exit_code"`
 	WallSeconds             float64            `json:"wall_seconds"`
+	PhaseTimings            phaseTimings       `json:"phase_timings"`
 	Metrics                 metrics            `json:"metrics"`
 	Verification            verificationResult `json:"verification"`
+	Turns                   []turnResult       `json:"turns,omitempty"`
 	PromptSummary           string             `json:"prompt_summary"`
 	RawLogArtifactReference string             `json:"raw_log_artifact_reference"`
+}
+
+type turnResult struct {
+	Index                   int                `json:"turn_index"`
+	WallSeconds             float64            `json:"wall_seconds"`
+	ExitCode                int                `json:"exit_code"`
+	Metrics                 metrics            `json:"metrics"`
+	Verification            verificationResult `json:"verification"`
+	RawLogArtifactReference string             `json:"raw_log_artifact_reference"`
+}
+
+type phaseTimings struct {
+	PrepareRunDir  float64 `json:"prepare_run_dir_seconds,omitempty"`
+	CopyRepo       float64 `json:"copy_repo_seconds,omitempty"`
+	InstallVariant float64 `json:"install_variant_seconds,omitempty"`
+	WarmCache      float64 `json:"warm_cache_seconds,omitempty"`
+	SeedDB         float64 `json:"seed_db_seconds,omitempty"`
+	AgentRun       float64 `json:"agent_run_seconds,omitempty"`
+	ParseMetrics   float64 `json:"parse_metrics_seconds,omitempty"`
+	Verify         float64 `json:"verify_seconds,omitempty"`
+	Total          float64 `json:"total_seconds,omitempty"`
 }
 
 type metrics struct {
@@ -190,9 +230,10 @@ type bloodPressureState struct {
 }
 
 type codexEvent struct {
-	Type  string `json:"type"`
-	Item  item   `json:"item"`
-	Usage *usage `json:"usage"`
+	Type     string `json:"type"`
+	ThreadID string `json:"thread_id"`
+	Item     item   `json:"item"`
+	Usage    *usage `json:"usage"`
 }
 
 type item struct {
@@ -217,6 +258,7 @@ type runOptions struct {
 	ScenarioFilter   string
 	CandidateVariant string
 	Parallelism      int
+	CacheMode        string
 }
 
 func main() {
@@ -241,6 +283,7 @@ func parseRunOptions(args []string) (runOptions, error) {
 		Date:             time.Now().Format(time.DateOnly),
 		CandidateVariant: "production",
 		Parallelism:      defaultRunParallelism,
+		CacheMode:        cacheModeShared,
 	}
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -251,6 +294,7 @@ func parseRunOptions(args []string) (runOptions, error) {
 	fs.StringVar(&options.ScenarioFilter, "scenario", options.ScenarioFilter, "optional comma-separated scenario ids to run")
 	fs.StringVar(&options.CandidateVariant, "candidate", options.CandidateVariant, "candidate variant id to compare directly with cli")
 	fs.IntVar(&options.Parallelism, "parallel", options.Parallelism, "number of scenario jobs to run concurrently")
+	fs.StringVar(&options.CacheMode, "cache-mode", options.CacheMode, "Go cache mode: shared or isolated")
 	if err := fs.Parse(args); err != nil {
 		return runOptions{}, err
 	}
@@ -259,6 +303,11 @@ func parseRunOptions(args []string) (runOptions, error) {
 	}
 	if options.Parallelism < 1 {
 		return runOptions{}, errors.New("parallel must be greater than or equal to 1")
+	}
+	switch options.CacheMode {
+	case cacheModeShared, cacheModeIsolated:
+	default:
+		return runOptions{}, fmt.Errorf("cache-mode must be %q or %q", cacheModeShared, cacheModeIsolated)
 	}
 	return options, nil
 }
@@ -298,6 +347,10 @@ func runCommand(args []string) {
 	if err != nil {
 		failf("select scenarios: %v", err)
 	}
+	cacheConfig := cacheConfig{
+		Mode:    options.CacheMode,
+		RunRoot: runRoot,
+	}
 
 	marker := filepath.Join(runRoot, "history-marker")
 	if err := os.WriteFile(marker, []byte(time.Now().Format(time.RFC3339Nano)), 0o644); err != nil {
@@ -309,17 +362,31 @@ func runCommand(args []string) {
 	}
 
 	codexVersion := commandOutput("codex", "--version")
+	cachePrewarmSeconds := 0.0
+	if options.CacheMode == cacheModeShared {
+		start := time.Now()
+		if err := prewarmSharedCache(repoRoot, cacheConfig); err != nil {
+			failf("prewarm shared Go cache: %v", err)
+		}
+		cachePrewarmSeconds = roundSeconds(time.Since(start).Seconds())
+	}
 	harnessStart := time.Now()
-	results := runEvalJobs(repoRoot, runRoot, evalJobsFor(selectedVariants, selectedScenarios), options.Parallelism, runOne)
+	jobs := evalJobsFor(selectedVariants, selectedScenarios)
+	results := runEvalJobs(repoRoot, runRoot, jobs, options.Parallelism, cacheConfig, runOne)
 	harnessElapsedSeconds := roundSeconds(time.Since(harnessStart).Seconds())
+	phaseTotals := aggregatePhaseTimings(results)
+	effectiveSpeedup := 0.0
+	parallelEfficiency := 0.0
+	if harnessElapsedSeconds > 0 {
+		effectiveSpeedup = roundSeconds(totalAgentWallSeconds(results) / harnessElapsedSeconds)
+		if options.Parallelism > 0 {
+			parallelEfficiency = roundSeconds(effectiveSpeedup / float64(options.Parallelism))
+		}
+	}
 
 	newSessionFiles := countNewSessionFiles(markerInfo.ModTime(), runRoot)
-	historyStatus := "passed"
-	limitation := ""
-	if newSessionFiles != 0 {
-		historyStatus = "review"
-		limitation = "A session-file count changed while evals ran; this may be from another Codex process, because the harness uses --ephemeral and a throwaway cwd."
-	}
+	multiTurnJobs := countMultiTurnJobs(jobs)
+	historyStatus, limitation := historyIsolationStatus(newSessionFiles, multiTurnJobs)
 
 	outDir := filepath.Join(repoRoot, "docs", "agent-eval-results")
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
@@ -333,27 +400,36 @@ func runCommand(args []string) {
 		Date:                  options.Date,
 		Model:                 modelName,
 		ReasoningEffort:       reasoningEffort,
-		Harness:               "codex exec --json --ephemeral --full-auto from throwaway run directories",
+		Harness:               "codex exec --json --full-auto from throwaway run directories; single-turn scenarios use --ephemeral, multi-turn scenarios resume a persisted eval session with explicit writable eval roots",
 		Parallelism:           options.Parallelism,
+		CacheMode:             options.CacheMode,
+		CachePrewarmSeconds:   cachePrewarmSeconds,
 		HarnessElapsedSeconds: harnessElapsedSeconds,
+		PhaseTotals:           phaseTotals,
+		EffectiveSpeedup:      effectiveSpeedup,
+		ParallelEfficiency:    parallelEfficiency,
 		CodexVersion:          codexVersion,
 		HistoryIsolation: historyIsolationSummary{
-			Status:                  historyStatus,
-			EphemeralFlagRequired:   true,
-			RunDirectoryOutsideRepo: true,
-			NewSessionFilesAfterRun: newSessionFiles,
-			OpenHealthWorkspaceUsed: false,
-			DesktopAppUsed:          false,
-			VerificationMethod:      "The runner required --ephemeral, used -C <run-root>/.../repo, kept raw logs under <run-root>, and counted new Codex session files that referenced the throwaway run root.",
-			VerificationLimitation:  limitation,
+			Status:                     historyStatus,
+			EphemeralFlagRequired:      true,
+			RunDirectoryOutsideRepo:    true,
+			NewSessionFilesAfterRun:    newSessionFiles,
+			SingleTurnEphemeralRuns:    countSingleTurnJobs(jobs),
+			MultiTurnPersistedSessions: countMultiTurnJobs(jobs),
+			MultiTurnPersistedTurns:    countMultiTurnPersistedTurns(jobs),
+			OpenHealthWorkspaceUsed:    false,
+			DesktopAppUsed:             false,
+			VerificationMethod:         "Single-turn scenarios use codex exec --ephemeral from <run-root>/.../repo. Multi-turn scenarios create one persisted Codex exec session per variant/scenario and resume it for later turns; all raw logs stay under <run-root>.",
+			VerificationLimitation:     limitation,
 		},
 		CommandTemplate: []string{
-			"OPENHEALTH_DATABASE_PATH=<run-root>/<variant>/<scenario>/openhealth.db",
-			"GOCACHE=<run-root>/<variant>/<scenario>/gocache",
-			"GOMODCACHE=<run-root>/<variant>/<scenario>/gomodcache (prewarmed with go mod download before agent execution)",
-			"codex exec --json --ephemeral --full-auto --skip-git-repo-check --add-dir <run-root>/<variant>/<scenario> -C <run-root>/<variant>/<scenario>/repo -m gpt-5.4-mini -c model_reasoning_effort=\"medium\" -c shell_environment_policy.inherit=all <natural user prompt>",
+			"OPENHEALTH_DATABASE_PATH=<run-root>/<variant>/<scenario>/repo/openhealth.db",
+			"GOCACHE=<run-root>/shared-cache/gocache when --cache-mode shared; otherwise <run-root>/<variant>/<scenario>/gocache",
+			"GOMODCACHE=<run-root>/shared-cache/gomodcache when --cache-mode shared; otherwise <run-root>/<variant>/<scenario>/gomodcache",
+			"single turn: codex exec --json --ephemeral --full-auto --skip-git-repo-check --add-dir <run-root>/<variant>/<scenario> --add-dir <run-root>/shared-cache when --cache-mode shared -C <run-root>/<variant>/<scenario>/repo -m gpt-5.4-mini -c model_reasoning_effort=\"medium\" -c shell_environment_policy.inherit=all <natural user prompt>",
+			"multi turn: first turn uses codex exec without --ephemeral; later turns use codex exec -C <run-root>/<variant>/<scenario>/repo --add-dir <writable-eval-roots> resume <thread-id> --json with per-turn logs",
 		},
-		CLIStatus:         "runnable: cli variant uses go run ./cmd/openhealth weight and blood-pressure commands with a prewarmed per-scenario module cache",
+		CLIStatus:         "runnable: cli variant uses go run ./cmd/openhealth weight and blood-pressure commands with the configured Go cache mode",
 		MetricNotes:       metricNotes(options.Date, results),
 		StopLoss:          productionStopLoss(results),
 		CodeFirst:         codeFirstSummaryFor(results, options.CandidateVariant),
@@ -449,7 +525,12 @@ type evalJobResult struct {
 	Result runResult
 }
 
-type runOneFunc func(repoRoot string, runRoot string, currentVariant variant, currentScenario scenario) (runResult, error)
+type cacheConfig struct {
+	Mode    string
+	RunRoot string
+}
+
+type runOneFunc func(repoRoot string, runRoot string, currentVariant variant, currentScenario scenario, cache cacheConfig) (runResult, error)
 
 func evalJobsFor(selectedVariants []variant, selectedScenarios []scenario) []evalJob {
 	jobs := make([]evalJob, 0, len(selectedVariants)*len(selectedScenarios))
@@ -465,7 +546,7 @@ func evalJobsFor(selectedVariants []variant, selectedScenarios []scenario) []eva
 	return jobs
 }
 
-func runEvalJobs(repoRoot string, runRoot string, jobs []evalJob, parallelism int, runOne runOneFunc) []runResult {
+func runEvalJobs(repoRoot string, runRoot string, jobs []evalJob, parallelism int, cache cacheConfig, runOne runOneFunc) []runResult {
 	if parallelism < 1 {
 		parallelism = 1
 	}
@@ -486,7 +567,7 @@ func runEvalJobs(repoRoot string, runRoot string, jobs []evalJob, parallelism in
 		go func() {
 			defer wg.Done()
 			for job := range jobsCh {
-				result, err := runOne(repoRoot, runRoot, job.Variant, job.Scenario)
+				result, err := runOne(repoRoot, runRoot, job.Variant, job.Scenario, cache)
 				if err != nil {
 					result = harnessErrorResult(job.Variant, job.Scenario, err)
 				}
@@ -524,106 +605,426 @@ func harnessErrorResult(currentVariant variant, currentScenario scenario, err er
 	}
 }
 
-func runOne(repoRoot string, runRoot string, currentVariant variant, currentScenario scenario) (runResult, error) {
+func runOne(repoRoot string, runRoot string, currentVariant variant, currentScenario scenario, cache cacheConfig) (runResult, error) {
+	totalStart := time.Now()
 	runDir := filepath.Join(runRoot, currentVariant.ID, currentScenario.ID)
 	runRepo := filepath.Join(runDir, "repo")
-	dbPath := filepath.Join(runDir, "openhealth.db")
-	eventsPath := filepath.Join(runDir, "events.jsonl")
-	stderrPath := filepath.Join(runDir, "stderr.log")
+	dbPath := evalDatabasePath(runRepo)
+	timings := phaseTimings{}
 
-	if err := prepareRunDir(runDir); err != nil {
+	if err := timedPhase(&timings.PrepareRunDir, func() error { return prepareRunDir(runDir, cache) }); err != nil {
 		return runResult{}, fmt.Errorf("prepare run dir: %w", err)
 	}
-	if err := copyRepo(repoRoot, runRepo); err != nil {
+	if err := timedPhase(&timings.CopyRepo, func() error { return copyRepo(repoRoot, runRepo) }); err != nil {
 		return runResult{}, fmt.Errorf("copy repo: %w", err)
 	}
-	if err := installVariant(repoRoot, runRepo, currentVariant); err != nil {
+	if err := timedPhase(&timings.InstallVariant, func() error { return installVariant(repoRoot, runRepo, currentVariant) }); err != nil {
 		return runResult{}, fmt.Errorf("install variant: %w", err)
 	}
-	if err := warmGoModules(runRepo, runDir, dbPath); err != nil {
-		return runResult{}, fmt.Errorf("warm go modules: %w", err)
+	if cache.Mode == cacheModeIsolated {
+		if err := timedPhase(&timings.WarmCache, func() error { return warmGoModules(runRepo, runDir, dbPath, cache) }); err != nil {
+			return runResult{}, fmt.Errorf("warm go modules: %w", err)
+		}
 	}
-	if err := seedScenario(dbPath, currentScenario); err != nil {
+	if err := timedPhase(&timings.SeedDB, func() error { return seedScenario(dbPath, currentScenario) }); err != nil {
 		return runResult{}, fmt.Errorf("seed scenario: %w", err)
 	}
 
-	stdoutFile, err := os.Create(eventsPath)
-	if err != nil {
-		return runResult{}, err
-	}
-	defer func() {
-		_ = stdoutFile.Close()
-	}()
-	stderrFile, err := os.Create(stderrPath)
-	if err != nil {
-		return runResult{}, err
-	}
-	defer func() {
-		_ = stderrFile.Close()
-	}()
+	turns := scenarioTurns(currentScenario)
+	turnResults := make([]turnResult, 0, len(turns))
+	sessionID := ""
+	var agentErr error
+	for i, turn := range turns {
+		turnIndex := i + 1
+		result, parsed, err := runScenarioTurn(runRepo, runDir, dbPath, currentVariant, currentScenario, turn, turnIndex, sessionID, cache)
+		timings.AgentRun += result.WallSeconds
 
-	args := []string{
-		"exec",
-		"--json",
-		"--ephemeral",
-		"--full-auto",
-		"--skip-git-repo-check",
-		"--add-dir", runDir,
-		"-C", runRepo,
-		"-m", modelName,
-		"-c", fmt.Sprintf("model_reasoning_effort=%q", reasoningEffort),
-		"-c", "shell_environment_policy.inherit=all",
-		currentScenario.Prompt,
-	}
+		timings.ParseMetrics += parsed.parseSeconds
+		if parsed.parseError != nil {
+			result.Metrics.CommandMetricLimitations = fmt.Sprintf("failed to parse event log: %v", parsed.parseError)
+		}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 7*time.Minute)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "codex", args...)
-	cmd.Stdout = stdoutFile
-	cmd.Stderr = stderrFile
-	cmd.Stdin = strings.NewReader("")
-	cmd.Env = evalEnv(runDir, dbPath)
-
-	start := time.Now()
-	err = cmd.Run()
-	wallSeconds := time.Since(start).Seconds()
-	exitCode := commandExitCode(err)
-	if ctx.Err() == context.DeadlineExceeded {
-		exitCode = -1
-	}
-
-	parsedMetrics, parseErr := parseMetrics(eventsPath)
-	if parseErr != nil {
-		parsedMetrics.metrics.CommandMetricLimitations = fmt.Sprintf("failed to parse event log: %v", parseErr)
-	}
-	verification, verifyErr := verifyScenario(dbPath, currentScenario, parsedMetrics.finalMessage)
-	if verifyErr != nil {
-		verification = verificationResult{
-			Passed:  false,
-			Details: fmt.Sprintf("verification error: %v", verifyErr),
+		verifyStart := time.Now()
+		verification, verifyErr := verifyScenarioTurn(dbPath, currentScenario, turnIndex, parsed.finalMessage)
+		timings.Verify += roundSeconds(time.Since(verifyStart).Seconds())
+		if verifyErr != nil {
+			verification = verificationResult{
+				Passed:  false,
+				Details: fmt.Sprintf("verification error: %v", verifyErr),
+			}
+		}
+		result.Verification = verification
+		turnResults = append(turnResults, result)
+		if err != nil && agentErr == nil {
+			agentErr = err
+		}
+		if verifyErr != nil && agentErr == nil {
+			agentErr = verifyErr
+		}
+		if i == 0 && len(turns) > 1 {
+			sessionID = parsed.sessionID
+			if sessionID == "" && agentErr == nil {
+				agentErr = errors.New("multi-turn first turn did not expose a thread id")
+			}
 		}
 	}
 
+	metrics := aggregateMetrics(turnResults)
+	verification := aggregateVerification(currentScenario, turnResults)
+	timings.Total = roundSeconds(time.Since(totalStart).Seconds())
+	exitCode := aggregateExitCode(turnResults)
+	rawLogRef := ""
+	if len(turnResults) > 0 {
+		rawLogRef = turnResults[len(turnResults)-1].RawLogArtifactReference
+	}
 	result := runResult{
 		Variant:                 currentVariant.ID,
 		Scenario:                currentScenario.ID,
 		ScenarioTitle:           currentScenario.Title,
-		Passed:                  err == nil && verifyErr == nil && verification.Passed,
+		Passed:                  agentErr == nil && verification.Passed,
 		ExitCode:                exitCode,
-		WallSeconds:             roundSeconds(wallSeconds),
-		Metrics:                 parsedMetrics.metrics,
+		WallSeconds:             roundSeconds(sumTurnWallSeconds(turnResults)),
+		PhaseTimings:            timings.rounded(),
+		Metrics:                 metrics,
 		Verification:            verification,
+		Turns:                   turnResults,
 		PromptSummary:           promptSummary(currentScenario),
-		RawLogArtifactReference: fmt.Sprintf("<run-root>/%s/%s/events.jsonl", currentVariant.ID, currentScenario.ID),
+		RawLogArtifactReference: rawLogRef,
 	}
 	runSummaryPath := filepath.Join(runDir, "run-summary.json")
 	_ = writeJSON(runSummaryPath, result)
 	return result, nil
 }
 
-func evalEnv(runDir string, dbPath string) []string {
+func timedPhase(target *float64, fn func() error) error {
+	start := time.Now()
+	err := fn()
+	*target += roundSeconds(time.Since(start).Seconds())
+	return err
+}
+
+func evalDatabasePath(runRepo string) string {
+	return filepath.Join(runRepo, "openhealth.db")
+}
+
+func (p phaseTimings) rounded() phaseTimings {
+	return phaseTimings{
+		PrepareRunDir:  roundSeconds(p.PrepareRunDir),
+		CopyRepo:       roundSeconds(p.CopyRepo),
+		InstallVariant: roundSeconds(p.InstallVariant),
+		WarmCache:      roundSeconds(p.WarmCache),
+		SeedDB:         roundSeconds(p.SeedDB),
+		AgentRun:       roundSeconds(p.AgentRun),
+		ParseMetrics:   roundSeconds(p.ParseMetrics),
+		Verify:         roundSeconds(p.Verify),
+		Total:          roundSeconds(p.Total),
+	}
+}
+
+func aggregatePhaseTimings(results []runResult) phaseTimings {
+	total := phaseTimings{}
+	for _, result := range results {
+		total.PrepareRunDir += result.PhaseTimings.PrepareRunDir
+		total.CopyRepo += result.PhaseTimings.CopyRepo
+		total.InstallVariant += result.PhaseTimings.InstallVariant
+		total.WarmCache += result.PhaseTimings.WarmCache
+		total.SeedDB += result.PhaseTimings.SeedDB
+		total.AgentRun += result.PhaseTimings.AgentRun
+		total.ParseMetrics += result.PhaseTimings.ParseMetrics
+		total.Verify += result.PhaseTimings.Verify
+		total.Total += result.PhaseTimings.Total
+	}
+	return total.rounded()
+}
+
+func totalAgentWallSeconds(results []runResult) float64 {
+	total := 0.0
+	for _, result := range results {
+		total += result.WallSeconds
+	}
+	return total
+}
+
+func sumTurnWallSeconds(turns []turnResult) float64 {
+	total := 0.0
+	for _, turn := range turns {
+		total += turn.WallSeconds
+	}
+	return total
+}
+
+func aggregateExitCode(turns []turnResult) int {
+	for _, turn := range turns {
+		if turn.ExitCode != 0 {
+			return turn.ExitCode
+		}
+	}
+	return 0
+}
+
+func aggregateMetrics(turns []turnResult) metrics {
+	out := metrics{
+		EventTypeCounts:          map[string]int{},
+		CommandMetricLimitations: "Command/file inspection metrics are inferred from codex exec JSON command events, not from OS-level tracing.",
+	}
+	allUsageExposed := len(turns) > 0
+	inputTotal := 0
+	cachedTotal := 0
+	nonCachedTotal := 0
+	outputTotal := 0
+	for _, turn := range turns {
+		current := turn.Metrics
+		out.AssistantCalls += current.AssistantCalls
+		out.ToolCalls += current.ToolCalls
+		out.CommandExecutions += current.CommandExecutions
+		out.FileInspectionCommands += current.FileInspectionCommands
+		out.GeneratedFileInspected = out.GeneratedFileInspected || current.GeneratedFileInspected
+		out.GeneratedPathFromBroadSearch = out.GeneratedPathFromBroadSearch || current.GeneratedPathFromBroadSearch
+		out.BroadRepoSearch = out.BroadRepoSearch || current.BroadRepoSearch
+		out.ModuleCacheInspected = out.ModuleCacheInspected || current.ModuleCacheInspected
+		out.CLIUsed = out.CLIUsed || current.CLIUsed
+		out.DirectSQLiteAccess = out.DirectSQLiteAccess || current.DirectSQLiteAccess
+		out.GeneratedFileEvidence = append(out.GeneratedFileEvidence, current.GeneratedFileEvidence...)
+		out.GeneratedPathFromBroadSearchEvidence = append(out.GeneratedPathFromBroadSearchEvidence, current.GeneratedPathFromBroadSearchEvidence...)
+		out.BroadRepoSearchEvidence = append(out.BroadRepoSearchEvidence, current.BroadRepoSearchEvidence...)
+		out.ModuleCacheEvidence = append(out.ModuleCacheEvidence, current.ModuleCacheEvidence...)
+		out.CLIUsageEvidence = append(out.CLIUsageEvidence, current.CLIUsageEvidence...)
+		out.DirectSQLiteEvidence = append(out.DirectSQLiteEvidence, current.DirectSQLiteEvidence...)
+		for eventType, count := range current.EventTypeCounts {
+			out.EventTypeCounts[eventType] += count
+		}
+		if !current.UsageExposed || current.InputTokens == nil || current.CachedInputTokens == nil || current.NonCachedInputTokens == nil || current.OutputTokens == nil {
+			allUsageExposed = false
+			continue
+		}
+		inputTotal += *current.InputTokens
+		cachedTotal += *current.CachedInputTokens
+		nonCachedTotal += *current.NonCachedInputTokens
+		outputTotal += *current.OutputTokens
+	}
+	if allUsageExposed {
+		out.UsageExposed = true
+		out.InputTokens = &inputTotal
+		out.CachedInputTokens = &cachedTotal
+		out.NonCachedInputTokens = &nonCachedTotal
+		out.OutputTokens = &outputTotal
+	}
+	return out
+}
+
+func aggregateVerification(sc scenario, turns []turnResult) verificationResult {
+	out := verificationResult{
+		DatabasePass:  true,
+		AssistantPass: true,
+		Passed:        true,
+	}
+	details := []string{}
+	for _, turn := range turns {
+		verification := turn.Verification
+		if !verification.DatabasePass {
+			out.DatabasePass = false
+		}
+		if !verification.AssistantPass {
+			out.AssistantPass = false
+		}
+		if !verification.Passed {
+			out.Passed = false
+		}
+		if verification.Details != "" {
+			details = append(details, fmt.Sprintf("turn %d: %s", turn.Index, verification.Details))
+		}
+		out.Weights = verification.Weights
+		out.BloodPressures = verification.BloodPressures
+	}
+	if len(details) > 0 {
+		out.Details = strings.Join(details, "; ")
+	}
+	if len(turns) == 0 {
+		out.Passed = false
+		out.DatabasePass = false
+		out.AssistantPass = false
+		out.Details = fmt.Sprintf("scenario %s did not run any turns", sc.ID)
+	}
+	return out
+}
+
+func countSingleTurnJobs(jobs []evalJob) int {
+	count := 0
+	for _, job := range jobs {
+		if !isMultiTurnScenario(job.Scenario) {
+			count++
+		}
+	}
+	return count
+}
+
+func countMultiTurnJobs(jobs []evalJob) int {
+	count := 0
+	for _, job := range jobs {
+		if isMultiTurnScenario(job.Scenario) {
+			count++
+		}
+	}
+	return count
+}
+
+func countMultiTurnPersistedTurns(jobs []evalJob) int {
+	count := 0
+	for _, job := range jobs {
+		if isMultiTurnScenario(job.Scenario) {
+			count += len(scenarioTurns(job.Scenario))
+		}
+	}
+	return count
+}
+
+func historyIsolationStatus(newSessionFiles int, expectedPersistedSessions int) (string, string) {
+	if newSessionFiles == expectedPersistedSessions {
+		return "passed", ""
+	}
+	if expectedPersistedSessions == 0 {
+		return "review", "Session-file count changed even though only single-turn ephemeral scenarios ran; this may be from another Codex process."
+	}
+	if newSessionFiles < expectedPersistedSessions {
+		return "review", "Fewer session files referenced <run-root> than expected for persisted multi-turn eval sessions."
+	}
+	return "review", "More session files referenced <run-root> than expected for persisted multi-turn eval sessions."
+}
+
+type parsedTurn struct {
+	metrics      metrics
+	finalMessage string
+	sessionID    string
+	parseError   error
+	parseSeconds float64
+}
+
+func runScenarioTurn(runRepo string, runDir string, dbPath string, currentVariant variant, currentScenario scenario, turn scenarioTurn, turnIndex int, sessionID string, cache cacheConfig) (turnResult, parsedTurn, error) {
+	turnDir := filepath.Join(runDir, fmt.Sprintf("turn-%d", turnIndex))
+	if err := os.MkdirAll(turnDir, 0o755); err != nil {
+		return turnResult{}, parsedTurn{}, err
+	}
+	eventsPath := filepath.Join(turnDir, "events.jsonl")
+	stderrPath := filepath.Join(turnDir, "stderr.log")
+	stdoutFile, err := os.Create(eventsPath)
+	if err != nil {
+		return turnResult{}, parsedTurn{}, err
+	}
+	defer func() {
+		_ = stdoutFile.Close()
+	}()
+	stderrFile, err := os.Create(stderrPath)
+	if err != nil {
+		return turnResult{}, parsedTurn{}, err
+	}
+	defer func() {
+		_ = stderrFile.Close()
+	}()
+
+	args := codexArgsForTurn(runRepo, runDir, currentScenario, turn, turnIndex, sessionID, cache)
+	ctx, cancel := context.WithTimeout(context.Background(), 7*time.Minute)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "codex", args...)
+	cmd.Dir = runRepo
+	cmd.Stdout = stdoutFile
+	cmd.Stderr = stderrFile
+	cmd.Stdin = strings.NewReader("")
+	cmd.Env = evalEnv(runDir, dbPath, cache)
+
+	start := time.Now()
+	err = cmd.Run()
+	wallSeconds := roundSeconds(time.Since(start).Seconds())
+	exitCode := commandExitCode(err)
+	if ctx.Err() == context.DeadlineExceeded {
+		exitCode = -1
+	}
+
+	parseStart := time.Now()
+	parsedMetrics, parseErr := parseMetrics(eventsPath)
+	parseSeconds := roundSeconds(time.Since(parseStart).Seconds())
+	parsed := parsedTurn{
+		metrics:      parsedMetrics.metrics,
+		finalMessage: parsedMetrics.finalMessage,
+		sessionID:    parsedMetrics.sessionID,
+		parseError:   parseErr,
+		parseSeconds: parseSeconds,
+	}
+	result := turnResult{
+		Index:                   turnIndex,
+		WallSeconds:             wallSeconds,
+		ExitCode:                exitCode,
+		Metrics:                 parsedMetrics.metrics,
+		RawLogArtifactReference: fmt.Sprintf("<run-root>/%s/%s/turn-%d/events.jsonl", currentVariant.ID, currentScenario.ID, turnIndex),
+	}
+	return result, parsed, err
+}
+
+func codexArgsForTurn(runRepo string, runDir string, currentScenario scenario, turn scenarioTurn, turnIndex int, sessionID string, cache cacheConfig) []string {
+	baseConfig := []string{
+		"-m", modelName,
+		"-c", fmt.Sprintf("model_reasoning_effort=%q", reasoningEffort),
+		"-c", "shell_environment_policy.inherit=all",
+	}
+	writableRoots := codexWritableRoots(runDir, cache)
+	if len(scenarioTurns(currentScenario)) == 1 {
+		args := []string{
+			"exec",
+			"--json",
+			"--ephemeral",
+			"--full-auto",
+			"--skip-git-repo-check",
+			"-C", runRepo,
+		}
+		args = appendAddDirs(args, writableRoots)
+		args = append(args, baseConfig...)
+		return append(args, turn.Prompt)
+	}
+	if turnIndex == 1 {
+		args := []string{
+			"exec",
+			"--json",
+			"--full-auto",
+			"--skip-git-repo-check",
+			"-C", runRepo,
+		}
+		args = appendAddDirs(args, writableRoots)
+		args = append(args, baseConfig...)
+		return append(args, turn.Prompt)
+	}
+	args := []string{
+		"exec",
+		"-C", runRepo,
+	}
+	args = appendAddDirs(args, writableRoots)
+	args = append(args,
+		"resume",
+		"--json",
+		"--full-auto",
+		"--skip-git-repo-check",
+	)
+	args = append(args, baseConfig...)
+	args = append(args, sessionID, turn.Prompt)
+	return args
+}
+
+func codexWritableRoots(runDir string, cache cacheConfig) []string {
+	roots := []string{runDir}
+	if cache.Mode == cacheModeShared {
+		roots = append(roots, filepath.Join(cache.RunRoot, "shared-cache"))
+	}
+	return roots
+}
+
+func appendAddDirs(args []string, roots []string) []string {
+	for _, root := range roots {
+		args = append(args, "--add-dir", root)
+	}
+	return args
+}
+
+func evalEnv(runDir string, dbPath string, cache cacheConfig) []string {
 	env := os.Environ()
-	paths := evalPathsFor(runDir)
+	paths := evalPathsFor(runDir, cache)
 	env = append(env,
 		"OPENHEALTH_DATABASE_PATH="+dbPath,
 		"OPENHEALTH_DATA_DIR=",
@@ -634,15 +1035,41 @@ func evalEnv(runDir string, dbPath string) []string {
 	return env
 }
 
-func warmGoModules(runRepo string, runDir string, dbPath string) error {
+func warmGoModules(runRepo string, runDir string, dbPath string, cache cacheConfig) error {
 	cmd := exec.Command("go", "mod", "download")
 	cmd.Dir = runRepo
-	cmd.Env = evalEnv(runDir, dbPath)
+	cmd.Env = evalEnv(runDir, dbPath, cache)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
 	}
 	return nil
+}
+
+func prewarmSharedCache(repoRoot string, cache cacheConfig) error {
+	paths := sharedEvalPaths(cache)
+	for _, dir := range []string{paths.GoCache, paths.GoModCache, paths.Temp} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+	dbPath := filepath.Join(filepath.Dir(paths.Temp), "prewarm.db")
+	if err := warmGoModules(repoRoot, filepath.Dir(paths.Temp), dbPath, cache); err != nil {
+		return err
+	}
+	cmd := exec.Command("go", prewarmCompileArgs()...)
+	cmd.Dir = repoRoot
+	cmd.Env = evalEnv(filepath.Dir(paths.Temp), dbPath, cache)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
+}
+
+func prewarmCompileArgs() []string {
+	args := []string{"test", "-run", "^$"}
+	return append(args, prewarmCompilePackages...)
 }
 
 type evalPaths struct {
@@ -651,7 +1078,12 @@ type evalPaths struct {
 	Temp       string
 }
 
-func evalPathsFor(runDir string) evalPaths {
+func evalPathsFor(runDir string, cache cacheConfig) evalPaths {
+	if cache.Mode == cacheModeShared {
+		paths := sharedEvalPaths(cache)
+		paths.Temp = filepath.Join(runDir, "tmp")
+		return paths
+	}
 	return evalPaths{
 		GoCache:    filepath.Join(runDir, "gocache"),
 		GoModCache: filepath.Join(runDir, "gomodcache"),
@@ -659,7 +1091,16 @@ func evalPathsFor(runDir string) evalPaths {
 	}
 }
 
-func prepareRunDir(runDir string) error {
+func sharedEvalPaths(cache cacheConfig) evalPaths {
+	root := filepath.Join(cache.RunRoot, "shared-cache")
+	return evalPaths{
+		GoCache:    filepath.Join(root, "gocache"),
+		GoModCache: filepath.Join(root, "gomodcache"),
+		Temp:       filepath.Join(root, "tmp"),
+	}
+}
+
+func prepareRunDir(runDir string, cache cacheConfig) error {
 	_ = filepath.WalkDir(runDir, func(path string, entry fs.DirEntry, err error) error {
 		if err == nil {
 			_ = os.Chmod(path, 0o755)
@@ -672,8 +1113,12 @@ func prepareRunDir(runDir string) error {
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		return err
 	}
-	paths := evalPathsFor(runDir)
-	for _, dir := range []string{paths.GoCache, paths.GoModCache, paths.Temp} {
+	paths := evalPathsFor(runDir, cache)
+	dirs := []string{paths.Temp}
+	if cache.Mode == cacheModeIsolated {
+		dirs = append(dirs, paths.GoCache, paths.GoModCache)
+	}
+	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
@@ -775,6 +1220,37 @@ func scenarios() []scenario {
 			Title:  "Reject non-ISO blood-pressure date without writing",
 			Prompt: "Please add this local OpenHealth blood pressure reading exactly as written: 2026/03/31 122/78. Do not normalize or rewrite the date if OpenHealth requires another date format.",
 		},
+		{
+			ID:     "mixed-add-latest",
+			Title:  "Record weight and blood-pressure readings, then report latest for both",
+			Prompt: "Use the configured local OpenHealth data path. Record weight 150.8 lbs and blood pressure 119/77 pulse 62 for 03/31/2026. Then tell me the latest weight and latest blood-pressure entries.",
+		},
+		{
+			ID:     "mixed-bounded-range",
+			Title:  "List bounded weight and blood-pressure ranges newest-first",
+			Prompt: "Use the configured local OpenHealth data path. Show my OpenHealth weights and blood pressure readings for Mar 29 and Mar 30, 2026 only, newest first in each domain. Do not mention entries outside that requested range.",
+		},
+		{
+			ID:     "mixed-invalid-direct-reject",
+			Title:  "Reject invalid mixed-domain values without writing",
+			Prompt: "Please add these local OpenHealth entries: weight 03/31/2026 -5 stone and blood pressure 03/31/2026 0/-5 pulse 0.",
+		},
+		{
+			ID:    "mt-weight-clarify-then-add",
+			Title: "Clarify missing year, then add weight in a resumed turn",
+			Turns: []scenarioTurn{
+				{Prompt: "Please add this local OpenHealth weight: 03/29 152.2 lbs. There is no year context in this conversation or my request."},
+				{Prompt: "Use 2026 as the year for that weight entry."},
+			},
+		},
+		{
+			ID:    "mt-mixed-latest-then-correct",
+			Title: "Read latest mixed-domain entries, then correct both in a resumed turn",
+			Turns: []scenarioTurn{
+				{Prompt: "Use the configured local OpenHealth data path. What are my latest weight and blood-pressure entries? Mention only the latest row from each domain."},
+				{Prompt: "Correct both latest entries for that same date: weight should be 151.0 lbs and blood pressure should be 117/75 pulse 63. Tell me what is stored now."},
+			},
+		},
 	}
 }
 
@@ -833,6 +1309,17 @@ func splitFilterIDs(filter string) []string {
 	return ids
 }
 
+func scenarioTurns(sc scenario) []scenarioTurn {
+	if len(sc.Turns) > 0 {
+		return sc.Turns
+	}
+	return []scenarioTurn{{Prompt: sc.Prompt}}
+}
+
+func isMultiTurnScenario(sc scenario) bool {
+	return len(scenarioTurns(sc)) > 1
+}
+
 func scenarioByID(id string) (scenario, bool) {
 	for _, sc := range scenarios() {
 		if sc.ID == id {
@@ -853,6 +1340,30 @@ func seedScenario(dbPath string, sc scenario) error {
 
 	ctx := context.Background()
 	switch sc.ID {
+	case "mixed-bounded-range":
+		if err := upsertWeights(ctx, api, []weightState{
+			{Date: "2026-03-28", Value: 153.0, Unit: "lb"},
+			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
+			{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
+		}); err != nil {
+			return err
+		}
+		return recordBloodPressures(ctx, api, []bloodPressureState{
+			{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+		})
+	case "mt-mixed-latest-then-correct":
+		if err := upsertWeights(ctx, api, []weightState{
+			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
+			{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
+		}); err != nil {
+			return err
+		}
+		return recordBloodPressures(ctx, api, []bloodPressureState{
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+		})
 	case "repeat-add":
 		return upsertWeights(ctx, api, []weightState{
 			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
@@ -929,6 +1440,13 @@ func recordBloodPressures(ctx context.Context, api *client.LocalClient, readings
 }
 
 func verifyScenario(dbPath string, sc scenario, finalMessage string) (verificationResult, error) {
+	return verifyScenarioTurn(dbPath, sc, len(scenarioTurns(sc)), finalMessage)
+}
+
+func verifyScenarioTurn(dbPath string, sc scenario, turnIndex int, finalMessage string) (verificationResult, error) {
+	if isMixedScenario(sc.ID) || strings.HasPrefix(sc.ID, "mt-") {
+		return verifyMixedOrMultiTurnScenario(dbPath, sc, turnIndex, finalMessage)
+	}
 	if isBloodPressureScenario(sc.ID) {
 		return verifyBloodPressureScenario(dbPath, sc, finalMessage)
 	}
@@ -1008,6 +1526,91 @@ func verifyScenario(dbPath string, sc scenario, finalMessage string) (verificati
 		result.Details = fmt.Sprintf("expected no write and a strict YYYY-MM-DD date rejection; observed %s%s", describeWeights(states), listErrorDetail)
 	default:
 		return verificationResult{}, fmt.Errorf("unknown scenario %q", sc.ID)
+	}
+	result.Passed = result.DatabasePass && result.AssistantPass
+	return result, nil
+}
+
+func verifyMixedOrMultiTurnScenario(dbPath string, sc scenario, turnIndex int, finalMessage string) (verificationResult, error) {
+	weights, err := listWeights(dbPath)
+	if err != nil {
+		return verificationResult{}, fmt.Errorf("list weights: %w", err)
+	}
+	bloodPressures, err := listBloodPressures(dbPath)
+	if err != nil {
+		return verificationResult{}, fmt.Errorf("list blood pressures: %w", err)
+	}
+	weightStates := weightStates(weights)
+	bloodPressureStates := bloodPressureStates(bloodPressures)
+	result := verificationResult{
+		Weights:        weightStates,
+		BloodPressures: bloodPressureStates,
+	}
+
+	switch sc.ID {
+	case "mixed-add-latest":
+		expectedWeights := []weightState{{Date: "2026-03-31", Value: 150.8, Unit: "lb"}}
+		expectedReadings := []bloodPressureState{{Date: "2026-03-31", Systolic: 119, Diastolic: 77, Pulse: intPointer(62)}}
+		result.DatabasePass = weightsEqual(weightStates, expectedWeights) && bloodPressuresEqual(bloodPressureStates, expectedReadings)
+		result.AssistantPass = mixedLatestAssistantPass(finalMessage)
+		result.Details = fmt.Sprintf("expected latest weight and blood-pressure rows for 2026-03-31; observed weights %s and blood pressures %s", describeWeights(weightStates), describeBloodPressures(bloodPressureStates))
+	case "mixed-bounded-range":
+		expectedWeights := []weightState{
+			{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
+			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
+			{Date: "2026-03-28", Value: 153.0, Unit: "lb"},
+		}
+		expectedReadings := []bloodPressureState{
+			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
+		}
+		result.DatabasePass = weightsEqual(weightStates, expectedWeights) && bloodPressuresEqual(bloodPressureStates, expectedReadings)
+		result.AssistantPass = mixedBoundedRangeAssistantPass(finalMessage)
+		result.Details = fmt.Sprintf("expected unchanged mixed seed rows and output limited to 2026-03-29..2026-03-30; observed weights %s and blood pressures %s", describeWeights(weightStates), describeBloodPressures(bloodPressureStates))
+	case "mixed-invalid-direct-reject":
+		result.DatabasePass = len(weightStates) == 0 && len(bloodPressureStates) == 0
+		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"invalid", "positive", "unsupported", "cannot", "can't", "reject", "stone", "systolic", "diastolic"})
+		result.Details = fmt.Sprintf("expected no mixed-domain writes and a direct invalid input rejection; observed weights %s and blood pressures %s", describeWeights(weightStates), describeBloodPressures(bloodPressureStates))
+	case "mt-weight-clarify-then-add":
+		if turnIndex == 1 {
+			result.DatabasePass = len(weightStates) == 0 && len(bloodPressureStates) == 0
+			result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"year", "which year", "clarify", "ambiguous"})
+			result.Details = fmt.Sprintf("expected no first-turn writes and a year clarification; observed weights %s and blood pressures %s", describeWeights(weightStates), describeBloodPressures(bloodPressureStates))
+			break
+		}
+		expectedWeights := []weightState{{Date: "2026-03-29", Value: 152.2, Unit: "lb"}}
+		result.DatabasePass = weightsEqual(weightStates, expectedWeights) && len(bloodPressureStates) == 0
+		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "152.2"})
+		result.Details = fmt.Sprintf("expected second-turn weight write after year clarification with no blood-pressure writes; observed weights %s and blood pressures %s", describeWeights(weightStates), describeBloodPressures(bloodPressureStates))
+	case "mt-mixed-latest-then-correct":
+		if turnIndex == 1 {
+			expectedWeights := []weightState{
+				{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
+				{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
+			}
+			expectedReadings := []bloodPressureState{
+				{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+				{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			}
+			result.DatabasePass = weightsEqual(weightStates, expectedWeights) && bloodPressuresEqual(bloodPressureStates, expectedReadings)
+			result.AssistantPass = mixedLatestSeedAssistantPass(finalMessage)
+			result.Details = fmt.Sprintf("expected unchanged seed rows and latest mixed-domain answer; observed weights %s and blood pressures %s", describeWeights(weightStates), describeBloodPressures(bloodPressureStates))
+			break
+		}
+		expectedWeights := []weightState{
+			{Date: "2026-03-30", Value: 151.0, Unit: "lb"},
+			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
+		}
+		expectedReadings := []bloodPressureState{
+			{Date: "2026-03-30", Systolic: 117, Diastolic: 75, Pulse: intPointer(63)},
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+		}
+		result.DatabasePass = weightsEqual(weightStates, expectedWeights) && bloodPressuresEqual(bloodPressureStates, expectedReadings)
+		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-30", "151", "117/75"})
+		result.Details = fmt.Sprintf("expected latest mixed-domain corrections on 2026-03-30; observed weights %s and blood pressures %s", describeWeights(weightStates), describeBloodPressures(bloodPressureStates))
+	default:
+		return verificationResult{}, fmt.Errorf("unknown mixed or multi-turn scenario %q", sc.ID)
 	}
 	result.Passed = result.DatabasePass && result.AssistantPass
 	return result, nil
@@ -1160,6 +1763,7 @@ func bloodPressureStates(readings []client.BloodPressureEntry) []bloodPressureSt
 type parsedMetrics struct {
 	metrics      metrics
 	finalMessage string
+	sessionID    string
 }
 
 func parseMetrics(path string) (parsedMetrics, error) {
@@ -1190,6 +1794,9 @@ func parseMetrics(path string) (parsedMetrics, error) {
 			continue
 		}
 		out.metrics.EventTypeCounts[event.Type]++
+		if event.Type == "thread.started" && event.ThreadID != "" && out.sessionID == "" {
+			out.sessionID = event.ThreadID
+		}
 		switch event.Item.Type {
 		case "agent_message":
 			if event.Type == "item.completed" {
@@ -1361,7 +1968,45 @@ func installVariant(repoRoot string, runRepo string, currentVariant variant) err
 			return err
 		}
 	}
-	return nil
+	return installVariantAgentsFile(runRepo, currentVariant)
+}
+
+func installVariantAgentsFile(runRepo string, currentVariant variant) error {
+	var content string
+	switch currentVariant.ID {
+	case "production":
+		content = `# OpenHealth Eval Instructions
+
+For direct local OpenHealth weight or blood-pressure requests, act as a product data agent, not a repo maintainer. Do not inspect .agents, source/generated files, go.mod, the Go module cache, or SQLite, or search the repo before the first runner call.
+
+Reject final-answer-only, with exactly one assistant answer and no tools or DB check, for ambiguous short dates with no year, year-first slash dates like 2026/03/31, non-positive values, or unsupported units. Do not first announce skill use or process. 03/29/2026 may become 2026-03-29.
+
+For valid tasks, pipe JSON to go run ./cmd/openhealth-agentops weight or go run ./cmd/openhealth-agentops blood-pressure. Use one call per domain for mixed requests and answer from JSON only; entries are newest-first. Use history with limit:2 for "two most recent"; latest returns one row.
+
+Every request JSON must include action. Exact one-line shapes:
+{"action":"upsert_weights","weights":[{"date":"2026-03-29","value":152.2,"unit":"lb"}]}
+{"action":"list_weights","list_mode":"latest"}
+{"action":"list_weights","list_mode":"history","limit":2}
+{"action":"list_weights","list_mode":"range","from_date":"2026-03-29","to_date":"2026-03-30"}
+{"action":"record_blood_pressure","readings":[{"date":"2026-03-29","systolic":122,"diastolic":78,"pulse":64}]}
+{"action":"correct_blood_pressure","readings":[{"date":"2026-03-29","systolic":121,"diastolic":77,"pulse":63}]}
+{"action":"list_blood_pressure","list_mode":"latest"}
+{"action":"list_blood_pressure","list_mode":"history","limit":2}
+{"action":"list_blood_pressure","list_mode":"range","from_date":"2026-03-29","to_date":"2026-03-30"}
+`
+	case "cli":
+		content = `# OpenHealth CLI Eval Instructions
+
+For direct local OpenHealth weight or blood-pressure data requests, use the installed OpenHealth CLI baseline skill contract.
+
+Reject ambiguous short dates with no year context, year-first slash dates such as 2026/03/31, non-positive values, and unsupported units directly in the final answer when the request is clearly invalid. Do not inspect files or run commands for those clearly invalid requests.
+
+For valid supported tasks, use go run ./cmd/openhealth weight or go run ./cmd/openhealth blood-pressure commands. Results are newest-first.
+`
+	default:
+		return fmt.Errorf("unknown variant %q", currentVariant.ID)
+	}
+	return os.WriteFile(filepath.Join(runRepo, "AGENTS.md"), []byte(content), 0o644)
 }
 
 func copyDir(src string, dst string) error {
@@ -1692,8 +2337,16 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 	noRoutineBroadSearch := true
 	noCLIUsage := true
 	noDirectSQLite := true
+	validationFinalAnswerOnly := true
+	validationFinalAnswerFailures := []string{}
 	totalCandidateTools := 0
 	totalCLITools := 0
+	totalCandidateNonCached := 0
+	totalCLINonCached := 0
+	tokenTotalComparable := true
+	tokenMajorityWins := 0
+	tokenMajorityScenarios := 0
+	tokenMissing := []string{}
 	scenariosAtOrBelowCLI := 0
 	routineExceedsCLIByMoreThanOne := []string{}
 	missingCLI := []string{}
@@ -1727,6 +2380,11 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 		if candidate.Metrics.DirectSQLiteAccess {
 			noDirectSQLite = false
 		}
+		if isFinalAnswerOnlyValidationScenario(candidate.Scenario) &&
+			(candidate.Metrics.ToolCalls != 0 || candidate.Metrics.CommandExecutions != 0 || candidate.Metrics.AssistantCalls > 1) {
+			validationFinalAnswerOnly = false
+			validationFinalAnswerFailures = append(validationFinalAnswerFailures, candidate.Scenario)
+		}
 		totalCandidateTools += candidate.Metrics.ToolCalls
 		row := codeFirstComparisonRow{
 			Scenario:       scenario,
@@ -1742,6 +2400,19 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 			if candidate.Metrics.ToolCalls <= cli.Metrics.ToolCalls {
 				scenariosAtOrBelowCLI++
 			}
+			tokenMajorityScenarios++
+			candidateTokens, candidateHasTokens := nonCachedTokens(candidate)
+			cliTokens, cliHasTokens := nonCachedTokens(cli)
+			if !candidateHasTokens || !cliHasTokens {
+				tokenTotalComparable = false
+				tokenMissing = append(tokenMissing, scenario)
+			} else {
+				totalCandidateNonCached += candidateTokens
+				totalCLINonCached += cliTokens
+				if candidateTokens < cliTokens {
+					tokenMajorityWins++
+				}
+			}
 			if isRoutineScenario(scenario) && candidate.Metrics.ToolCalls > cli.Metrics.ToolCalls+1 {
 				routineExceedsCLIByMoreThanOne = append(routineExceedsCLIByMoreThanOne, scenario)
 			}
@@ -1749,6 +2420,7 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 		entries = append(entries, row)
 	}
 	requiredAtOrBelowCLI := requiredScenariosAtOrBelowCLI(len(candidateScenarioIDs))
+	requiredTokenWins := strictMajority(tokenMajorityScenarios)
 
 	criteria := []codeFirstCriterion{
 		{
@@ -1782,6 +2454,11 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 			Details: fmt.Sprintf("%s must not use direct SQLite access", candidateVariant),
 		},
 		{
+			Name:    "validation_scenarios_are_final_answer_only",
+			Passed:  validationFinalAnswerOnly,
+			Details: validationFinalAnswerDetails(validationFinalAnswerFailures),
+		},
+		{
 			Name:    "total_tools_less_than_or_equal_cli",
 			Passed:  len(missingCLI) == 0 && totalCandidateTools <= totalCLITools,
 			Details: fmt.Sprintf("%s tools %d vs cli tools %d", candidateVariant, totalCandidateTools, totalCLITools),
@@ -1795,6 +2472,16 @@ func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirs
 			Name:    "no_routine_scenario_exceeds_cli_by_more_than_one_tool",
 			Passed:  len(missingCLI) == 0 && len(routineExceedsCLIByMoreThanOne) == 0,
 			Details: missingAwareDetails(missingCLI, routineExceedsCLIByMoreThanOne),
+		},
+		{
+			Name:    "non_cached_token_majority",
+			Passed:  len(missingCLI) == 0 && tokenMajorityWins >= requiredTokenWins,
+			Details: fmt.Sprintf("%d scenarios with lower non-cached input tokens; required %d of %d; missing usage: %s", tokenMajorityWins, requiredTokenWins, tokenMajorityScenarios, missingTokenDetails(tokenMissing)),
+		},
+		{
+			Name:    "non_cached_token_total_less_than_or_equal_cli",
+			Passed:  len(missingCLI) == 0 && tokenTotalComparable && totalCandidateNonCached <= totalCLINonCached,
+			Details: fmt.Sprintf("%s non-cached input tokens %d vs cli %d; missing usage: %s", candidateVariant, totalCandidateNonCached, totalCLINonCached, missingTokenDetails(tokenMissing)),
 		},
 	}
 
@@ -1844,6 +2531,41 @@ func requiredScenariosAtOrBelowCLI(candidateScenarios int) int {
 	return int(math.Ceil(float64(candidateScenarios) * 0.8))
 }
 
+func strictMajority(count int) int {
+	return count/2 + 1
+}
+
+func nonCachedTokens(result runResult) (int, bool) {
+	if result.Metrics.NonCachedInputTokens == nil {
+		return 0, false
+	}
+	return *result.Metrics.NonCachedInputTokens, true
+}
+
+func isFinalAnswerOnlyValidationScenario(id string) bool {
+	switch id {
+	case "ambiguous-short-date", "invalid-input", "non-iso-date-reject",
+		"bp-invalid-input", "bp-non-iso-date-reject", "mixed-invalid-direct-reject":
+		return true
+	default:
+		return false
+	}
+}
+
+func validationFinalAnswerDetails(failures []string) string {
+	if len(failures) == 0 {
+		return "validation scenarios used no tools, no command executions, and at most one assistant answer"
+	}
+	return fmt.Sprintf("validation scenarios were not final-answer-only: %s", sortedJoin(failures))
+}
+
+func missingTokenDetails(missing []string) string {
+	if len(missing) == 0 {
+		return "none"
+	}
+	return sortedJoin(missing)
+}
+
 func recommendationForCandidate(candidateVariant string) string {
 	if candidateVariant == "production" {
 		return "prefer_agentops_production_for_routine_openhealth_operations"
@@ -1862,11 +2584,16 @@ func scenarioIDs() []string {
 func isRoutineScenario(id string) bool {
 	switch id {
 	case "add-two", "repeat-add", "update-existing", "bounded-range", "bounded-range-natural", "latest-only", "history-limit-two",
-		"bp-add-two", "bp-latest-only", "bp-history-limit-two", "bp-bounded-range", "bp-bounded-range-natural":
+		"bp-add-two", "bp-latest-only", "bp-history-limit-two", "bp-bounded-range", "bp-bounded-range-natural",
+		"mixed-add-latest", "mixed-bounded-range", "mt-mixed-latest-then-correct":
 		return true
 	default:
 		return false
 	}
+}
+
+func isMixedScenario(id string) bool {
+	return strings.HasPrefix(id, "mixed-")
 }
 
 func isBloodPressureScenario(id string) bool {
@@ -1949,15 +2676,28 @@ func writeMarkdown(path string, value report) error {
 	if value.Parallelism > 0 {
 		fmt.Fprintf(&b, "Parallelism: `%d`\n\n", value.Parallelism)
 	}
+	if value.CacheMode != "" {
+		fmt.Fprintf(&b, "Cache mode: `%s`\n\n", value.CacheMode)
+	}
+	if value.CachePrewarmSeconds > 0 {
+		fmt.Fprintf(&b, "Cache prewarm seconds: `%.2f`\n\n", value.CachePrewarmSeconds)
+	}
 	if value.HarnessElapsedSeconds > 0 {
 		fmt.Fprintf(&b, "Harness elapsed seconds: `%.2f`\n\n", value.HarnessElapsedSeconds)
+	}
+	if value.EffectiveSpeedup > 0 {
+		fmt.Fprintf(&b, "Effective parallel speedup: `%.2fx`\n\n", value.EffectiveSpeedup)
+	}
+	if value.ParallelEfficiency > 0 {
+		fmt.Fprintf(&b, "Parallel efficiency: `%.2f`\n\n", value.ParallelEfficiency)
 	}
 	fmt.Fprintf(&b, "Reduced JSON artifact: `docs/agent-eval-results/%s-%s.json`\n\n", value.Issue, value.Date)
 	fmt.Fprintf(&b, "Raw logs: not committed. They were retained under `<run-root>` during execution and are referenced below only with neutral placeholders.\n\n")
 
 	fmt.Fprintf(&b, "## History Isolation\n\n")
 	fmt.Fprintf(&b, "- Status: `%s`\n", value.HistoryIsolation.Status)
-	fmt.Fprintf(&b, "- Every agent run used `codex exec --ephemeral` from `<run-root>/<variant>/<scenario>/repo`.\n")
+	fmt.Fprintf(&b, "- Single-turn ephemeral runs: `%d`.\n", value.HistoryIsolation.SingleTurnEphemeralRuns)
+	fmt.Fprintf(&b, "- Multi-turn persisted sessions: `%d` sessions / `%d` turns.\n", value.HistoryIsolation.MultiTurnPersistedSessions, value.HistoryIsolation.MultiTurnPersistedTurns)
 	fmt.Fprintf(&b, "- The Codex desktop app was not used for eval prompts.\n")
 	fmt.Fprintf(&b, "- New Codex session files referencing `<run-root>`: `%d`.\n", value.HistoryIsolation.NewSessionFilesAfterRun)
 	if value.HistoryIsolation.VerificationLimitation != "" {
@@ -1993,6 +2733,19 @@ func writeMarkdown(path string, value report) error {
 			yesNo(result.Metrics.DirectSQLiteAccess),
 		)
 	}
+
+	fmt.Fprintf(&b, "\n## Phase Timings\n\n")
+	fmt.Fprintf(&b, "| Phase | Seconds |\n")
+	fmt.Fprintf(&b, "| --- | ---: |\n")
+	fmt.Fprintf(&b, "| prepare_run_dir | %.2f |\n", value.PhaseTotals.PrepareRunDir)
+	fmt.Fprintf(&b, "| copy_repo | %.2f |\n", value.PhaseTotals.CopyRepo)
+	fmt.Fprintf(&b, "| install_variant | %.2f |\n", value.PhaseTotals.InstallVariant)
+	fmt.Fprintf(&b, "| warm_cache | %.2f |\n", value.PhaseTotals.WarmCache)
+	fmt.Fprintf(&b, "| seed_db | %.2f |\n", value.PhaseTotals.SeedDB)
+	fmt.Fprintf(&b, "| agent_run | %.2f |\n", value.PhaseTotals.AgentRun)
+	fmt.Fprintf(&b, "| parse_metrics | %.2f |\n", value.PhaseTotals.ParseMetrics)
+	fmt.Fprintf(&b, "| verify | %.2f |\n", value.PhaseTotals.Verify)
+	fmt.Fprintf(&b, "| total_job_time | %.2f |\n", value.PhaseTotals.Total)
 
 	if value.Comparison != nil {
 		fmt.Fprintf(&b, "\n## Comparison\n\n")
@@ -2063,6 +2816,18 @@ func writeMarkdown(path string, value report) error {
 		}
 	}
 
+	if hasMultiTurnResults(value.Results) {
+		fmt.Fprintf(&b, "\n## Turn Details\n\n")
+		for _, result := range value.Results {
+			if len(result.Turns) <= 1 {
+				continue
+			}
+			for _, turn := range result.Turns {
+				fmt.Fprintf(&b, "- `%s/%s` turn %d: exit `%d`, tools `%d`, assistant calls `%d`, wall `%.2f`, raw `%s`.\n", result.Variant, result.Scenario, turn.Index, turn.ExitCode, turn.Metrics.ToolCalls, turn.Metrics.AssistantCalls, turn.WallSeconds, turn.RawLogArtifactReference)
+			}
+		}
+	}
+
 	fmt.Fprintf(&b, "\n## Scenario Notes\n\n")
 	for _, result := range value.Results {
 		fmt.Fprintf(&b, "- `%s/%s`: %s Raw event reference: `%s`.\n", result.Variant, result.Scenario, result.Verification.Details, result.RawLogArtifactReference)
@@ -2085,6 +2850,15 @@ func hasMetricEvidence(results []runResult) bool {
 			len(result.Metrics.ModuleCacheEvidence) > 0 ||
 			len(result.Metrics.CLIUsageEvidence) > 0 ||
 			len(result.Metrics.DirectSQLiteEvidence) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func hasMultiTurnResults(results []runResult) bool {
+	for _, result := range results {
+		if len(result.Turns) > 1 {
 			return true
 		}
 	}
@@ -2279,6 +3053,16 @@ func containsAny(value string, needles []string) bool {
 	return false
 }
 
+func containsAll(value string, needles []string) bool {
+	normalized := strings.ToLower(value)
+	for _, needle := range needles {
+		if !strings.Contains(normalized, strings.ToLower(needle)) {
+			return false
+		}
+	}
+	return true
+}
+
 func mentionsDate(message string, date string) bool {
 	return dateMentionIndex(message, date) >= 0
 }
@@ -2349,6 +3133,26 @@ func bloodPressureHistoryLimitTwoAssistantPass(message string) bool {
 	}
 	return !mentionsIncludedBloodPressureDate(message, "2026-03-28") &&
 		!mentionsIncludedBloodPressureDate(message, "2026-03-27")
+}
+
+func mixedLatestAssistantPass(message string) bool {
+	return mentionsIncludedDate(message, "2026-03-31") &&
+		containsAll(message, []string{"150.8", "119/77"}) &&
+		containsAny(strings.ToLower(message), []string{"pulse 62", "62"})
+}
+
+func mixedLatestSeedAssistantPass(message string) bool {
+	return mentionsIncludedDate(message, "2026-03-30") &&
+		containsAll(message, []string{"151.6", "118/76"}) &&
+		!mentionsIncludedDate(message, "2026-03-29")
+}
+
+func mixedBoundedRangeAssistantPass(message string) bool {
+	return boundedRangeAssistantPass(message) &&
+		bloodPressureBoundedRangeAssistantPass(message) &&
+		containsAll(message, []string{"151.6", "152.2"}) &&
+		!mentionsIncludedDate(message, "2026-03-28") &&
+		!mentionsIncludedBloodPressureDate(message, "2026-03-28")
 }
 
 func nonISODateRejectAssistantPass(message string) bool {
@@ -2542,6 +3346,16 @@ func promptSummary(sc scenario) string {
 		return "reject invalid 0/-5 pulse 0 blood-pressure reading"
 	case "bp-non-iso-date-reject":
 		return "reject non-ISO blood-pressure date 2026/03/31"
+	case "mixed-add-latest":
+		return "record one weight and one blood-pressure reading, then report latest for both"
+	case "mixed-bounded-range":
+		return "list only 2026-03-29 through 2026-03-30 for both domains"
+	case "mixed-invalid-direct-reject":
+		return "reject invalid mixed weight and blood-pressure values without tools"
+	case "mt-weight-clarify-then-add":
+		return "ask for missing year, then add 2026-03-29 152.2 lb in a resumed turn"
+	case "mt-mixed-latest-then-correct":
+		return "read latest weight and blood pressure, then correct both in a resumed turn"
 	default:
 		return sc.Title
 	}

@@ -5,19 +5,21 @@ OpenHealth is a local-first health data runtime for agents. It ships a small
 
 ## Quickstart
 
-Agent install:
+### Agent Install
 
-Tell your agent:
+#### Tell Your Agent
 
 ```text
 Install https://github.com/yazanabuashour/openhealth
 ```
 
-Manual skill install:
+### Manual Skill Install
 
 ```bash
 npx skills add https://github.com/yazanabuashour/openhealth --skill openhealth
 ```
+
+### Release Archive Install
 
 If you are installing from a GitHub Release archive instead, place the released
 `SKILL.md` at:
@@ -28,6 +30,8 @@ If you are installing from a GitHub Release archive instead, place the released
 
 Install the matching `openhealth` binary for your platform from the tagged
 GitHub Release, unpack it, and put the binary on `PATH`.
+
+### Runner Interface
 
 The skill calls these runner domains:
 

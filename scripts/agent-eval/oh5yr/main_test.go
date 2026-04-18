@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -28,13 +29,6 @@ func testMetrics(toolCalls int, nonCachedTokens int) metrics {
 		OutputTokens:         &output,
 		EventTypeCounts:      map[string]int{},
 	}
-}
-
-func codeFirstProductionMetrics(scenarioID string) metrics {
-	if isFinalAnswerOnlyValidationScenario(scenarioID) {
-		return testMetrics(0, 50)
-	}
-	return testMetrics(1, 50)
 }
 
 func containsArg(args []string, want string) bool {
@@ -140,50 +134,62 @@ func TestCopyRepoSkipsVariantContaminatingInstructions(t *testing.T) {
 	}
 }
 
-func TestVariantsIncludeCLI(t *testing.T) {
+func TestVariantsProductionOnly(t *testing.T) {
 	t.Parallel()
 
 	ids := map[string]bool{}
 	for _, variant := range variants() {
 		ids[variant.ID] = true
 	}
-	for _, want := range []string{"production", "cli"} {
-		if !ids[want] {
-			t.Fatalf("variants() missing %q: %#v", want, variants())
-		}
+	if len(ids) != 1 || !ids["production"] {
+		t.Fatalf("variants() = %#v, want production only", variants())
 	}
-	for _, retired := range []string{"generated-client", "agentops-code"} {
+	for _, retired := range []string{"cli", "generated-client", "agentops-code"} {
 		if ids[retired] {
 			t.Fatalf("variants() includes retired variant %q: %#v", retired, variants())
 		}
 	}
 }
 
-func TestInstallVariantAgentsFileIncludesProductionOnlyDomains(t *testing.T) {
+func TestInstallVariantInstallsExactProductionSkillWithoutAgentsFile(t *testing.T) {
 	t.Parallel()
 
-	runRepo := t.TempDir()
-	if err := installVariantAgentsFile(runRepo, variant{ID: "production"}); err != nil {
-		t.Fatalf("installVariantAgentsFile: %v", err)
+	temp := t.TempDir()
+	repoRoot := filepath.Join(temp, "src")
+	runRepo := filepath.Join(temp, "run")
+	sourceSkillDir := filepath.Join(repoRoot, "skills", "openhealth")
+	if err := os.MkdirAll(sourceSkillDir, 0o755); err != nil {
+		t.Fatal(err)
 	}
-	content, err := os.ReadFile(filepath.Join(runRepo, "AGENTS.md"))
+	sourceSkill := []byte("---\nname: openhealth\ndescription: test\n---\n# Skill\n")
+	if err := os.WriteFile(filepath.Join(sourceSkillDir, "SKILL.md"), sourceSkill, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := installVariant(repoRoot, runRepo, variant{ID: "production"}); err != nil {
+		t.Fatalf("installVariant: %v", err)
+	}
+	installed, err := os.ReadFile(filepath.Join(runRepo, ".agents", "skills", "openhealth", "SKILL.md"))
 	if err != nil {
-		t.Fatalf("read AGENTS.md: %v", err)
+		t.Fatalf("read installed skill: %v", err)
 	}
-	text := string(content)
-	for _, want := range []string{
-		"medication, or lab requests",
-		"go run ./cmd/openhealth-agentops medications",
-		"go run ./cmd/openhealth-agentops labs",
-		"record_medications",
-		"list_medications",
-		"record_labs",
-		"list_labs",
-		"unsupported lab analyte slugs",
-	} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("production AGENTS missing %q in %s", want, text)
-		}
+	if !bytes.Equal(installed, sourceSkill) {
+		t.Fatalf("installed skill = %q, want exact source skill", installed)
+	}
+	if _, err := os.Stat(filepath.Join(runRepo, "AGENTS.md")); !os.IsNotExist(err) {
+		t.Fatalf("AGENTS.md stat error = %v, want not exist", err)
+	}
+}
+
+func TestPromptInputPreflightFlagsOpenHealthAgentsInstructions(t *testing.T) {
+	t.Parallel()
+
+	clean := `{"text":"<skills_instructions>- openhealth: Use this skill. (file: /tmp/run/repo/.agents/skills/openhealth/SKILL.md)</skills_instructions>"}`
+	if containsOpenHealthAgentsInstructions(clean) {
+		t.Fatalf("clean rendered prompt flagged as contaminated")
+	}
+	contaminated := `{"text":"# AGENTS.md instructions for /tmp/run/repo\n\n<INSTRUCTIONS>\nFor valid tasks, pipe JSON to openhealth-agentops weight.\n{\"action\":\"upsert_weights\"}\n</INSTRUCTIONS>"}`
+	if !containsOpenHealthAgentsInstructions(contaminated) {
+		t.Fatalf("contaminated rendered prompt was not flagged")
 	}
 }
 
@@ -200,7 +206,7 @@ func TestSanitizeMetricEvidenceRedactsCustomRunRoots(t *testing.T) {
 	}
 }
 
-func TestWriteMarkdownReportsRunnableCLIStatus(t *testing.T) {
+func TestWriteMarkdownOmitsCLIVariantSection(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), "report.md")
@@ -211,7 +217,6 @@ func TestWriteMarkdownReportsRunnableCLIStatus(t *testing.T) {
 		Model:           modelName,
 		ReasoningEffort: reasoningEffort,
 		CodexVersion:    "test",
-		CLIStatus:       "runnable: cli variant uses go run ./cmd/openhealth weight and blood-pressure commands",
 	}); err != nil {
 		t.Fatalf("writeMarkdown: %v", err)
 	}
@@ -220,11 +225,8 @@ func TestWriteMarkdownReportsRunnableCLIStatus(t *testing.T) {
 		t.Fatalf("read markdown: %v", err)
 	}
 	text := string(content)
-	if !strings.Contains(text, "Status: `runnable: cli variant uses go run ./cmd/openhealth weight and blood-pressure commands`.") {
-		t.Fatalf("markdown = %q, want runnable CLI status", text)
-	}
-	if strings.Contains(text, "not run because") {
-		t.Fatalf("markdown = %q, should not report CLI as skipped", text)
+	if strings.Contains(text, "CLI-Oriented Variant") || strings.Contains(text, "Code-First CLI Comparison") {
+		t.Fatalf("markdown = %q, should not include retired CLI sections", text)
 	}
 }
 
@@ -301,7 +303,6 @@ func TestRunEvalJobsPreservesOrderAndHarnessErrors(t *testing.T) {
 
 	selectedVariants := []variant{
 		{ID: "production", Title: "Production"},
-		{ID: "cli", Title: "CLI"},
 	}
 	selectedScenarios := []scenario{
 		{ID: "slow", Title: "Slow scenario", Prompt: "slow prompt"},
@@ -312,7 +313,7 @@ func TestRunEvalJobsPreservesOrderAndHarnessErrors(t *testing.T) {
 		if currentScenario.ID == "slow" {
 			time.Sleep(20 * time.Millisecond)
 		}
-		if currentVariant.ID == "cli" && currentScenario.ID == "fast" {
+		if currentVariant.ID == "production" && currentScenario.ID == "fast" {
 			return runResult{}, errors.New("boom")
 		}
 		return runResult{
@@ -323,7 +324,7 @@ func TestRunEvalJobsPreservesOrderAndHarnessErrors(t *testing.T) {
 		}, nil
 	})
 
-	wantKeys := []string{"production/slow", "production/fast", "cli/slow", "cli/fast"}
+	wantKeys := []string{"production/slow", "production/fast"}
 	if len(results) != len(wantKeys) {
 		t.Fatalf("results = %d, want %d", len(results), len(wantKeys))
 	}
@@ -332,7 +333,7 @@ func TestRunEvalJobsPreservesOrderAndHarnessErrors(t *testing.T) {
 			t.Fatalf("result %d key = %q, want %q; results = %#v", i, got, want, results)
 		}
 	}
-	failed := results[3]
+	failed := results[1]
 	if failed.ExitCode != -1 || failed.Verification.Passed || !strings.Contains(failed.Verification.Details, "harness error: boom") {
 		t.Fatalf("failed result = %#v, want harness error", failed)
 	}
@@ -341,18 +342,17 @@ func TestRunEvalJobsPreservesOrderAndHarnessErrors(t *testing.T) {
 	}
 }
 
-func TestEvalJobsSkipsCLIBaselineForProductionOnlyScenarios(t *testing.T) {
+func TestEvalJobsProductionOnly(t *testing.T) {
 	t.Parallel()
 
 	jobs := evalJobsFor([]variant{
 		{ID: "production", Title: "Production"},
-		{ID: "cli", Title: "CLI"},
 	}, []scenario{
 		{ID: "medication-add-list", Title: "Medication", Prompt: "prompt"},
 	})
 
 	if len(jobs) != 1 {
-		t.Fatalf("jobs = %#v, want only production job", jobs)
+		t.Fatalf("jobs = %#v, want one production job", jobs)
 	}
 	if jobs[0].Variant.ID != "production" || jobs[0].Scenario.ID != "medication-add-list" {
 		t.Fatalf("job = %#v, want production medication-add-list", jobs[0])
@@ -484,6 +484,7 @@ func TestCacheModeEnvPathSelectionAndPrewarmArgs(t *testing.T) {
 		"GOCACHE=" + filepath.Join(runRoot, "shared-cache", "gocache"),
 		"GOMODCACHE=" + filepath.Join(runRoot, "shared-cache", "gomodcache"),
 		"TMPDIR=" + filepath.Join(runDir, "tmp"),
+		"PATH=" + filepath.Join(runDir, "bin"),
 	} {
 		if !strings.Contains(sharedEnv, want) {
 			t.Fatalf("shared env missing %q in %s", want, sharedEnv)
@@ -502,9 +503,14 @@ func TestCacheModeEnvPathSelectionAndPrewarmArgs(t *testing.T) {
 	}
 
 	args := strings.Join(prewarmCompileArgs(), " ")
-	for _, want := range []string{"test -run ^$", "./cmd/openhealth-agentops", "./cmd/openhealth", "./agentops"} {
+	for _, want := range []string{"test -run ^$", "./cmd/openhealth-agentops", "./agentops"} {
 		if !strings.Contains(args, want) {
 			t.Fatalf("prewarm args = %q, want %q", args, want)
+		}
+	}
+	for _, arg := range prewarmCompileArgs() {
+		if arg == "./cmd/openhealth" {
+			t.Fatalf("prewarm args = %q, should not include retired CLI", args)
 		}
 	}
 }
@@ -560,51 +566,13 @@ func TestWriteMarkdownIncludesTurnDetails(t *testing.T) {
 	}
 }
 
-func TestWriteMarkdownIncludesCodeFirstSummary(t *testing.T) {
-	t.Parallel()
-
-	path := filepath.Join(t.TempDir(), "report.md")
-	if err := writeMarkdown(path, report{
-		Issue:           issueID,
-		Date:            "code-first-test",
-		Harness:         "test",
-		Model:           modelName,
-		ReasoningEffort: reasoningEffort,
-		CodexVersion:    "test",
-		CodeFirst: &codeFirstSummary{
-			CandidateVariant: "production",
-			BaselineVariant:  "cli",
-			BeatsCLI:         true,
-			Recommendation:   "prefer_agentops_production_for_routine_openhealth_operations",
-			Criteria: []codeFirstCriterion{
-				{Name: "candidate_passes_all_scenarios", Passed: true, Details: "ok"},
-			},
-			Entries: []codeFirstComparisonRow{
-				{Scenario: "add-two", CandidateTools: 1, CLITools: 2, ToolDelta: intPointer(1)},
-			},
-		},
-	}); err != nil {
-		t.Fatalf("writeMarkdown: %v", err)
-	}
-	content, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read markdown: %v", err)
-	}
-	text := string(content)
-	for _, want := range []string{"## Code-First CLI Comparison", "Candidate: `production`", "Beats CLI: `yes`", "`candidate_passes_all_scenarios`"} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("markdown = %q, want %q", text, want)
-		}
-	}
-}
-
 func TestShouldSkipEvalPath(t *testing.T) {
 	t.Parallel()
 
 	for _, path := range []string{
 		"docs/agent-evals.md",
 		"docs/agent-eval-assets",
-		"docs/agent-eval-assets/variants/cli/SKILL.md",
+		"docs/agent-eval-assets/legacy/old.md",
 		"docs/agent-eval-results",
 		"docs/agent-eval-results/oh-5yr-2026-04-16.md",
 		"scripts/agent-eval",
@@ -786,7 +754,7 @@ EOF
 		},
 		{
 			name:    "agentops json runner",
-			command: `go run ./cmd/openhealth-agentops weight <<'EOF'{"action":"list_weights"}EOF`,
+			command: `openhealth-agentops weight <<'EOF'{"action":"list_weights"}EOF`,
 		},
 		{
 			name:       "sqlite executable",
@@ -859,12 +827,15 @@ func TestNonISODateRejectAssistantPass(t *testing.T) {
 func TestSelectVariantsAndScenarios(t *testing.T) {
 	t.Parallel()
 
-	selectedVariants, err := selectVariants("production,cli")
+	selectedVariants, err := selectVariants("production")
 	if err != nil {
 		t.Fatalf("selectVariants: %v", err)
 	}
-	if got := []string{selectedVariants[0].ID, selectedVariants[1].ID}; strings.Join(got, ",") != "production,cli" {
+	if got := []string{selectedVariants[0].ID}; strings.Join(got, ",") != "production" {
 		t.Fatalf("selected variants = %v", got)
+	}
+	if _, err := selectVariants("cli"); err == nil || !strings.Contains(err.Error(), `unknown variant "cli"`) {
+		t.Fatalf("selectVariants(cli) error = %v, want unknown variant", err)
 	}
 	selectedScenarios, err := selectScenarios("add-two,bounded-range,latest-only")
 	if err != nil {
@@ -1590,7 +1561,7 @@ func TestProductionStopLossTriggersPivot(t *testing.T) {
 	if !summary.Triggered {
 		t.Fatal("stop loss did not trigger")
 	}
-	if summary.Recommendation != "continue_cli_baseline_for_agent_operations" {
+	if summary.Recommendation != "continue_production_hardening" {
 		t.Fatalf("recommendation = %q", summary.Recommendation)
 	}
 	joined := strings.Join(summary.Triggers, "\n")
@@ -1638,206 +1609,7 @@ func TestProductionStopLossIgnoresValidationBroadSearchForRoutineThreshold(t *te
 	if summary.Triggered {
 		t.Fatalf("stop loss triggered from validation broad search: %v", summary.Triggers)
 	}
-	if summary.Recommendation != "continue_production_hardening" {
+	if summary.Recommendation != "ship_agentops_production" {
 		t.Fatalf("recommendation = %q", summary.Recommendation)
 	}
-}
-
-func TestCodeFirstSummaryBeatsCLI(t *testing.T) {
-	t.Parallel()
-
-	results := []runResult{}
-	for _, sc := range scenarios() {
-		results = append(results,
-			runResult{
-				Variant:  "production",
-				Scenario: sc.ID,
-				Passed:   true,
-				Metrics:  codeFirstProductionMetrics(sc.ID),
-			},
-			runResult{
-				Variant:  "cli",
-				Scenario: sc.ID,
-				Passed:   true,
-				Metrics:  testMetrics(2, 100),
-			},
-		)
-	}
-
-	summary := codeFirstSummaryFor(results, "production")
-	if summary == nil {
-		t.Fatal("codeFirstSummaryFor returned nil")
-	}
-	if !summary.BeatsCLI {
-		t.Fatalf("beats_cli = false, criteria = %#v", summary.Criteria)
-	}
-	if summary.Recommendation != "prefer_agentops_production_for_routine_openhealth_operations" {
-		t.Fatalf("recommendation = %q", summary.Recommendation)
-	}
-}
-
-func TestCodeFirstSummarySupportsProductionCandidate(t *testing.T) {
-	t.Parallel()
-
-	results := []runResult{}
-	for _, sc := range scenarios() {
-		results = append(results,
-			runResult{
-				Variant:  "production",
-				Scenario: sc.ID,
-				Passed:   true,
-				Metrics:  codeFirstProductionMetrics(sc.ID),
-			},
-			runResult{
-				Variant:  "cli",
-				Scenario: sc.ID,
-				Passed:   true,
-				Metrics:  testMetrics(2, 100),
-			},
-		)
-	}
-
-	summary := codeFirstSummaryFor(results, "production")
-	if summary == nil {
-		t.Fatal("codeFirstSummaryFor returned nil")
-	}
-	if !summary.BeatsCLI {
-		t.Fatalf("beats_cli = false, criteria = %#v", summary.Criteria)
-	}
-	if summary.CandidateVariant != "production" {
-		t.Fatalf("candidate = %q, want production", summary.CandidateVariant)
-	}
-	if summary.Recommendation != "prefer_agentops_production_for_routine_openhealth_operations" {
-		t.Fatalf("recommendation = %q", summary.Recommendation)
-	}
-}
-
-func TestCodeFirstSummaryFailsWhenRoutineScenarioExceedsCLI(t *testing.T) {
-	t.Parallel()
-
-	results := []runResult{}
-	for _, sc := range scenarios() {
-		candidateTools := 1
-		cliTools := 1
-		if sc.ID == "update-existing" {
-			candidateTools = 4
-		}
-		candidateMetrics := testMetrics(candidateTools, 50)
-		if isFinalAnswerOnlyValidationScenario(sc.ID) {
-			candidateMetrics = testMetrics(0, 50)
-		}
-		results = append(results,
-			runResult{
-				Variant:  "production",
-				Scenario: sc.ID,
-				Passed:   true,
-				Metrics:  candidateMetrics,
-			},
-			runResult{
-				Variant:  "cli",
-				Scenario: sc.ID,
-				Passed:   true,
-				Metrics:  testMetrics(cliTools, 100),
-			},
-		)
-	}
-
-	summary := codeFirstSummaryFor(results, "production")
-	if summary == nil {
-		t.Fatal("codeFirstSummaryFor returned nil")
-	}
-	if summary.BeatsCLI {
-		t.Fatalf("beats_cli = true, want false")
-	}
-	joined := ""
-	for _, criterion := range summary.Criteria {
-		joined += criterion.Name + ":" + criterion.Details + "\n"
-	}
-	if !strings.Contains(joined, "update-existing") {
-		t.Fatalf("criteria = %q, want update-existing detail", joined)
-	}
-}
-
-func TestCodeFirstSummaryFailsInvalidScenariosThatUseTools(t *testing.T) {
-	t.Parallel()
-
-	results := []runResult{}
-	for _, sc := range scenarios() {
-		productionMetrics := codeFirstProductionMetrics(sc.ID)
-		if sc.ID == "invalid-input" {
-			productionMetrics = testMetrics(1, 50)
-		}
-		results = append(results,
-			runResult{Variant: "production", Scenario: sc.ID, Passed: true, Metrics: productionMetrics},
-			runResult{Variant: "cli", Scenario: sc.ID, Passed: true, Metrics: testMetrics(2, 100)},
-		)
-	}
-
-	summary := codeFirstSummaryFor(results, "production")
-	if summary == nil {
-		t.Fatal("codeFirstSummaryFor returned nil")
-	}
-	criterion := criterionByName(summary.Criteria, "validation_scenarios_are_final_answer_only")
-	if criterion.Passed || !strings.Contains(criterion.Details, "invalid-input") {
-		t.Fatalf("validation criterion = %#v, want invalid-input failure", criterion)
-	}
-}
-
-func TestCodeFirstSummaryFailsWhenNonCachedTokenMajorityLoses(t *testing.T) {
-	t.Parallel()
-
-	results := []runResult{}
-	for index, sc := range scenarios() {
-		productionTokens := 120
-		if index == 0 {
-			productionTokens = 50
-		}
-		productionMetrics := testMetrics(1, productionTokens)
-		if isFinalAnswerOnlyValidationScenario(sc.ID) {
-			productionMetrics = testMetrics(0, productionTokens)
-		}
-		results = append(results,
-			runResult{Variant: "production", Scenario: sc.ID, Passed: true, Metrics: productionMetrics},
-			runResult{Variant: "cli", Scenario: sc.ID, Passed: true, Metrics: testMetrics(2, 100)},
-		)
-	}
-
-	summary := codeFirstSummaryFor(results, "production")
-	if summary == nil {
-		t.Fatal("codeFirstSummaryFor returned nil")
-	}
-	criterion := criterionByName(summary.Criteria, "non_cached_token_majority")
-	if criterion.Passed || !strings.Contains(criterion.Details, "required") {
-		t.Fatalf("token majority criterion = %#v, want failure", criterion)
-	}
-}
-
-func TestCodeFirstSummaryAllowsProductionOnlyScenarioWithoutCLI(t *testing.T) {
-	t.Parallel()
-
-	summary := codeFirstSummaryFor([]runResult{{
-		Variant:  "production",
-		Scenario: "medication-add-list",
-		Passed:   true,
-		Metrics:  testMetrics(1, 50),
-	}}, "production")
-	if summary == nil {
-		t.Fatal("codeFirstSummaryFor returned nil")
-	}
-	if !summary.BeatsCLI {
-		t.Fatalf("beats_cli = false, criteria = %#v", summary.Criteria)
-	}
-	criterion := criterionByName(summary.Criteria, "non_cached_token_majority")
-	if !criterion.Passed || !strings.Contains(criterion.Details, "required 0 of 0") {
-		t.Fatalf("token majority criterion = %#v, want production-only pass", criterion)
-	}
-}
-
-func criterionByName(criteria []codeFirstCriterion, name string) codeFirstCriterion {
-	for _, criterion := range criteria {
-		if criterion.Name == name {
-			return criterion
-		}
-	}
-	return codeFirstCriterion{}
 }

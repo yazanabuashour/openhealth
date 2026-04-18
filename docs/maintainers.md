@@ -2,7 +2,10 @@
 
 This repository uses **Beads** (`bd`) in embedded mode for maintainer task tracking.
 
-This repository is public and now includes a generated Go client, an in-process local runtime, a maintainer/debug CLI, and an OpenAPI contract. Keep maintainer docs honest about the actual supported surface.
+This repository is public and now includes a production AgentOps runner binary,
+a single-file OpenHealth skill, a generated Go client, an in-process local
+runtime, a maintainer/debug CLI, and an OpenAPI contract. Keep maintainer docs
+honest about the actual supported surface.
 
 ## Initial Setup
 
@@ -84,11 +87,15 @@ When changing GitHub settings, keep the repo aligned with:
 
 ## Release publication
 
-The first public release tag should be `v0.1.0`. The release contract is a tagged source release for the local in-process runtime. Tag a version like `v0.1.0`, push the tag, and let the release workflow:
+The first public release tag should be `v0.1.0`. The release contract is a
+tagged agent-app release for the `openhealth-agentops` binary, the single-file
+OpenHealth skill, and the local in-process runtime. Tag a version like
+`v0.1.0`, push the tag, and let the release workflow:
 
 - validate codegen, formatting, and tests before publish
 - create or reuse the GitHub Release
-- attach the canonical source archive, SHA256 checksums, and SPDX SBOM
-- generate GitHub attestations for the published source asset
+- attach platform binary archives, the skill archive, the canonical source
+  archive, SHA256 checksums, and SPDX SBOM
+- generate GitHub attestations for the published assets
 
 The `release` environment should remain protected so only approved maintainers can publish release assets.

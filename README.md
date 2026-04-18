@@ -1,11 +1,39 @@
 # openhealth
 
-OpenHealth is a Go SDK for a local-first health runtime. The default install surface is the generated client package in `client`, opened in-process with `client.OpenLocal(...)`. Normal use does not require a daemon, bound port, or background service.
+OpenHealth is a local-first health runtime for agent-operated personal health
+data. The production agent surface is the `openhealth-agentops` binary plus the
+single-file `openhealth` skill. The Go client package remains available for
+developers who want to embed the local runtime directly.
+
+Normal use does not require a daemon, bound port, hosted service, or Go
+toolchain on the client machine.
+
+## Install the agent app
+
+Download the `openhealth-agentops` archive for your platform from a tagged
+GitHub Release, unpack it, and put the binary on `PATH`.
+
+Install the skill by placing the released `SKILL.md` at:
+
+```text
+.agents/skills/openhealth/SKILL.md
+```
+
+The skill calls these production runner domains:
+
+```bash
+openhealth-agentops weight
+openhealth-agentops blood-pressure
+openhealth-agentops medications
+openhealth-agentops labs
+```
+
+The runner reads JSON from stdin and writes JSON to stdout. The skill is the
+client-agent contract for validation, request shapes, and answer hygiene.
 
 ## Install in your Go project
 
-Until the first release tag is published, install the current development line
-and import the client package from it:
+Developers can also import the local runtime directly:
 
 ```bash
 go get github.com/yazanabuashour/openhealth@main
@@ -79,9 +107,10 @@ Override the default location with either:
 
 The database path override wins over the data directory override.
 
-## Debugging with a standalone server
+## Maintainer debugging
 
-The standalone CLI remains available for maintainer debugging or contract inspection, but it is not the primary end-user install surface:
+The legacy `cmd/openhealth` CLI remains available only for maintainer debugging
+or contract inspection. It is not the production agent-app interface:
 
 ```bash
 mise exec -- go run ./cmd/openhealth serve
@@ -113,9 +142,10 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor expectations and [docs/ma
 
 - [openapi/openapi.yaml](openapi/openapi.yaml) defines the API contract that generates the server and client bindings.
 - [client](client) contains the checked-in generated Go client plus local runtime bootstrap helpers.
+- [cmd/openhealth-agentops](cmd/openhealth-agentops) contains the production JSON runner binary used by the skill.
 - [cmd/openhealth](cmd/openhealth) contains the maintainer/debug CLI with explicit `migrate` and `serve` commands.
 - [examples/client_summary](examples/client_summary) shows a minimal no-daemon consumer program that imports the generated client.
-- [skills/openhealth/SKILL.md](skills/openhealth/SKILL.md) provides optional agent-oriented install and usage guidance on top of the OpenAPI contract.
+- [skills/openhealth/SKILL.md](skills/openhealth/SKILL.md) is the complete shipped OpenHealth skill payload.
 - [CONTRIBUTING.md](CONTRIBUTING.md) explains how outside contributors should propose changes.
 - [SECURITY.md](SECURITY.md) explains how to report vulnerabilities privately and what response timing to expect.
 - [docs/maintainers.md](docs/maintainers.md) documents Beads-based maintainer workflow and repo administration notes.
@@ -125,15 +155,22 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contributor expectations and [docs/ma
 
 ## Release contract
 
-The source-level deliverables are:
+The production release deliverables are:
 
+- platform archives for the `openhealth-agentops` binary
+- the single-file `openhealth` skill archive
 - the Go module import path rooted at `github.com/yazanabuashour/openhealth`
 - the generated client package at `github.com/yazanabuashour/openhealth/client`
 - the local in-process runtime surfaced through `client.OpenLocal(...)`
 
-The maintainer CLI under `cmd/openhealth` remains part of the repository for debugging and contract inspection, but it is not the primary end-user install surface.
+The maintainer CLI under `cmd/openhealth` remains part of the repository for
+debugging and contract inspection, but it is not a product install surface.
 
-The release workflow is built around semantic version tags in the `v0.y.z` range. Each tagged GitHub Release publishes a canonical source archive, SHA256 checksums, an SPDX SBOM, and GitHub attestations for release verification. The repository does not publish downloadable platform binaries or a hosted service deployment target.
+The release workflow is built around semantic version tags in the `v0.y.z`
+range. Each tagged GitHub Release publishes binary archives, the skill archive,
+a canonical source archive, SHA256 checksums, an SPDX SBOM, and GitHub
+attestations for release verification. The repository does not publish a hosted
+service deployment target.
 
 ## Contributing
 

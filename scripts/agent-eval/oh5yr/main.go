@@ -33,7 +33,7 @@ const (
 	cacheModeIsolated     = "isolated"
 )
 
-var prewarmCompilePackages = []string{"./cmd/openhealth-agentops", "./cmd/openhealth", "./agentops"}
+var prewarmCompilePackages = []string{"./cmd/openhealth-agentops", "./agentops"}
 
 type scenario struct {
 	ID     string         `json:"id"`
@@ -67,10 +67,8 @@ type report struct {
 	CodexVersion          string                  `json:"codex_version"`
 	HistoryIsolation      historyIsolationSummary `json:"history_isolation"`
 	CommandTemplate       []string                `json:"command_template"`
-	CLIStatus             string                  `json:"cli_status"`
 	MetricNotes           []string                `json:"metric_notes,omitempty"`
 	StopLoss              *stopLossSummary        `json:"stop_loss,omitempty"`
-	CodeFirst             *codeFirstSummary       `json:"code_first,omitempty"`
 	Results               []runResult             `json:"results"`
 	Comparison            *comparisonSummary      `json:"comparison,omitempty"`
 	RawLogsCommitted      bool                    `json:"raw_logs_committed"`
@@ -121,6 +119,7 @@ type phaseTimings struct {
 	PrepareRunDir  float64 `json:"prepare_run_dir_seconds,omitempty"`
 	CopyRepo       float64 `json:"copy_repo_seconds,omitempty"`
 	InstallVariant float64 `json:"install_variant_seconds,omitempty"`
+	BuildAgentApp  float64 `json:"build_agent_app_seconds,omitempty"`
 	WarmCache      float64 `json:"warm_cache_seconds,omitempty"`
 	SeedDB         float64 `json:"seed_db_seconds,omitempty"`
 	AgentRun       float64 `json:"agent_run_seconds,omitempty"`
@@ -176,30 +175,6 @@ type stopLossSummary struct {
 	Triggered      bool     `json:"triggered"`
 	Recommendation string   `json:"recommendation"`
 	Triggers       []string `json:"triggers,omitempty"`
-}
-
-type codeFirstSummary struct {
-	CandidateVariant string                   `json:"candidate_variant"`
-	BaselineVariant  string                   `json:"baseline_variant"`
-	BeatsCLI         bool                     `json:"beats_cli"`
-	Recommendation   string                   `json:"recommendation"`
-	Criteria         []codeFirstCriterion     `json:"criteria"`
-	Entries          []codeFirstComparisonRow `json:"entries"`
-}
-
-type codeFirstCriterion struct {
-	Name    string `json:"name"`
-	Passed  bool   `json:"passed"`
-	Details string `json:"details"`
-}
-
-type codeFirstComparisonRow struct {
-	Scenario       string `json:"scenario"`
-	CandidatePass  bool   `json:"candidate_pass"`
-	CLIPass        bool   `json:"cli_pass"`
-	CandidateTools int    `json:"candidate_tools"`
-	CLITools       int    `json:"cli_tools"`
-	ToolDelta      *int   `json:"tool_delta,omitempty"`
 }
 
 type comparisonEntry struct {
@@ -273,14 +248,13 @@ type usage struct {
 }
 
 type runOptions struct {
-	RunRoot          string
-	Date             string
-	CompareTo        string
-	VariantFilter    string
-	ScenarioFilter   string
-	CandidateVariant string
-	Parallelism      int
-	CacheMode        string
+	RunRoot        string
+	Date           string
+	CompareTo      string
+	VariantFilter  string
+	ScenarioFilter string
+	Parallelism    int
+	CacheMode      string
 }
 
 func main() {
@@ -302,10 +276,9 @@ func main() {
 
 func parseRunOptions(args []string) (runOptions, error) {
 	options := runOptions{
-		Date:             time.Now().Format(time.DateOnly),
-		CandidateVariant: "production",
-		Parallelism:      defaultRunParallelism,
-		CacheMode:        cacheModeShared,
+		Date:        time.Now().Format(time.DateOnly),
+		Parallelism: defaultRunParallelism,
+		CacheMode:   cacheModeShared,
 	}
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -314,7 +287,6 @@ func parseRunOptions(args []string) (runOptions, error) {
 	fs.StringVar(&options.CompareTo, "compare-to", options.CompareTo, "optional baseline JSON report path for comparison")
 	fs.StringVar(&options.VariantFilter, "variant", options.VariantFilter, "optional comma-separated variant ids to run")
 	fs.StringVar(&options.ScenarioFilter, "scenario", options.ScenarioFilter, "optional comma-separated scenario ids to run")
-	fs.StringVar(&options.CandidateVariant, "candidate", options.CandidateVariant, "candidate variant id to compare directly with cli")
 	fs.IntVar(&options.Parallelism, "parallel", options.Parallelism, "number of scenario jobs to run concurrently")
 	fs.StringVar(&options.CacheMode, "cache-mode", options.CacheMode, "Go cache mode: shared or isolated")
 	if err := fs.Parse(args); err != nil {
@@ -446,15 +418,14 @@ func runCommand(args []string) {
 		},
 		CommandTemplate: []string{
 			"OPENHEALTH_DATABASE_PATH=<run-root>/<variant>/<scenario>/repo/openhealth.db",
+			"PATH=<run-root>/<variant>/<scenario>/bin:$PATH",
 			"GOCACHE=<run-root>/shared-cache/gocache when --cache-mode shared; otherwise <run-root>/<variant>/<scenario>/gocache",
 			"GOMODCACHE=<run-root>/shared-cache/gomodcache when --cache-mode shared; otherwise <run-root>/<variant>/<scenario>/gomodcache",
 			"single turn: codex exec --json --ephemeral --full-auto --skip-git-repo-check --add-dir <run-root>/<variant>/<scenario> --add-dir <run-root>/shared-cache when --cache-mode shared -C <run-root>/<variant>/<scenario>/repo -m gpt-5.4-mini -c model_reasoning_effort=\"medium\" -c shell_environment_policy.inherit=all <natural user prompt>",
 			"multi turn: first turn uses codex exec without --ephemeral; later turns use codex exec -C <run-root>/<variant>/<scenario>/repo --add-dir <writable-eval-roots> resume <thread-id> --json with per-turn logs",
 		},
-		CLIStatus:         "runnable: cli variant uses go run ./cmd/openhealth weight and blood-pressure commands with the configured Go cache mode",
 		MetricNotes:       metricNotes(options.Date, results),
 		StopLoss:          productionStopLoss(results),
-		CodeFirst:         codeFirstSummaryFor(results, options.CandidateVariant),
 		Results:           results,
 		RawLogsCommitted:  false,
 		RawLogsNote:       "Raw codex exec event logs and stderr files were retained under <run-root> during execution and intentionally not committed.",
@@ -558,9 +529,6 @@ func evalJobsFor(selectedVariants []variant, selectedScenarios []scenario) []eva
 	jobs := make([]evalJob, 0, len(selectedVariants)*len(selectedScenarios))
 	for _, currentVariant := range selectedVariants {
 		for _, currentScenario := range selectedScenarios {
-			if currentVariant.ID == "cli" && !hasCLIBaselineScenario(currentScenario.ID) {
-				continue
-			}
 			jobs = append(jobs, evalJob{
 				Index:    len(jobs),
 				Variant:  currentVariant,
@@ -645,6 +613,12 @@ func runOne(repoRoot string, runRoot string, currentVariant variant, currentScen
 	}
 	if err := timedPhase(&timings.InstallVariant, func() error { return installVariant(repoRoot, runRepo, currentVariant) }); err != nil {
 		return runResult{}, fmt.Errorf("install variant: %w", err)
+	}
+	if err := timedPhase(&timings.BuildAgentApp, func() error { return buildAgentOpsBinary(runRepo, runDir, dbPath, cache) }); err != nil {
+		return runResult{}, fmt.Errorf("build agent app: %w", err)
+	}
+	if err := preflightEvalContext(repoRoot, runRepo, runDir, cache); err != nil {
+		return runResult{}, fmt.Errorf("preflight eval context: %w", err)
 	}
 	if cache.Mode == cacheModeIsolated {
 		if err := timedPhase(&timings.WarmCache, func() error { return warmGoModules(runRepo, runDir, dbPath, cache) }); err != nil {
@@ -737,6 +711,7 @@ func (p phaseTimings) rounded() phaseTimings {
 		PrepareRunDir:  roundSeconds(p.PrepareRunDir),
 		CopyRepo:       roundSeconds(p.CopyRepo),
 		InstallVariant: roundSeconds(p.InstallVariant),
+		BuildAgentApp:  roundSeconds(p.BuildAgentApp),
 		WarmCache:      roundSeconds(p.WarmCache),
 		SeedDB:         roundSeconds(p.SeedDB),
 		AgentRun:       roundSeconds(p.AgentRun),
@@ -752,6 +727,7 @@ func aggregatePhaseTimings(results []runResult) phaseTimings {
 		total.PrepareRunDir += result.PhaseTimings.PrepareRunDir
 		total.CopyRepo += result.PhaseTimings.CopyRepo
 		total.InstallVariant += result.PhaseTimings.InstallVariant
+		total.BuildAgentApp += result.PhaseTimings.BuildAgentApp
 		total.WarmCache += result.PhaseTimings.WarmCache
 		total.SeedDB += result.PhaseTimings.SeedDB
 		total.AgentRun += result.PhaseTimings.AgentRun
@@ -1050,14 +1026,32 @@ func appendAddDirs(args []string, roots []string) []string {
 func evalEnv(runDir string, dbPath string, cache cacheConfig) []string {
 	env := os.Environ()
 	paths := evalPathsFor(runDir, cache)
+	binDir := filepath.Join(runDir, "bin")
 	env = append(env,
 		"OPENHEALTH_DATABASE_PATH="+dbPath,
 		"OPENHEALTH_DATA_DIR=",
 		"GOCACHE="+paths.GoCache,
 		"GOMODCACHE="+paths.GoModCache,
 		"TMPDIR="+paths.Temp,
+		"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 	)
 	return env
+}
+
+func buildAgentOpsBinary(runRepo string, runDir string, dbPath string, cache cacheConfig) error {
+	binDir := filepath.Join(runDir, "bin")
+	if err := os.MkdirAll(binDir, 0o755); err != nil {
+		return err
+	}
+	outputPath := filepath.Join(binDir, "openhealth-agentops")
+	cmd := exec.Command("go", "build", "-o", outputPath, "./cmd/openhealth-agentops")
+	cmd.Dir = runRepo
+	cmd.Env = evalEnv(runDir, dbPath, cache)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
+	}
+	return nil
 }
 
 func warmGoModules(runRepo string, runDir string, dbPath string, cache cacheConfig) error {
@@ -1154,7 +1148,6 @@ func prepareRunDir(runDir string, cache cacheConfig) error {
 func variants() []variant {
 	return []variant{
 		{ID: "production", Title: "Production AgentOps skill"},
-		{ID: "cli", Title: "CLI-oriented skill"},
 	}
 }
 
@@ -2359,70 +2352,77 @@ func installVariant(repoRoot string, runRepo string, currentVariant variant) err
 	switch currentVariant.ID {
 	case "production":
 		src = filepath.Join(repoRoot, "skills", "openhealth")
-	case "cli":
-		src = filepath.Join(repoRoot, "docs", "agent-eval-assets", "variants", "cli")
 	default:
 		return fmt.Errorf("unknown variant %q", currentVariant.ID)
 	}
 	if err := copyDir(src, dest); err != nil {
 		return err
 	}
-	if currentVariant.ID == "cli" {
-		if err := normalizeSkillName(filepath.Join(dest, "SKILL.md"), "openhealth"); err != nil {
-			return err
-		}
-	}
-	return installVariantAgentsFile(runRepo, currentVariant)
+	return nil
 }
 
-func installVariantAgentsFile(runRepo string, currentVariant variant) error {
-	var content string
-	switch currentVariant.ID {
-	case "production":
-		content = `# OpenHealth Eval Instructions
-
-For direct local OpenHealth weight, blood-pressure, medication, or lab requests, act as a product data agent, not a repo maintainer. Do not inspect .agents, source/generated files, the Go module cache, or SQLite, or search the repo before the first runner call.
-
-Reject final-answer-only, with exactly one assistant answer and no tools or DB check, for ambiguous short dates with no year, year-first slash dates like 2026/03/31, non-positive values, unsupported units, unsupported lab analyte slugs, unsupported medication status, empty optional text fields, or medication end dates before start dates. Do not first announce skill use or process. 03/29/2026 may become 2026-03-29.
-
-For valid tasks, pipe JSON to go run ./cmd/openhealth-agentops weight, go run ./cmd/openhealth-agentops blood-pressure, go run ./cmd/openhealth-agentops medications, or go run ./cmd/openhealth-agentops labs. Use one call per domain for mixed requests and answer from JSON only; entries are newest-first. Use history with limit:2 for "two most recent"; latest returns one row.
-
-Every request JSON must include action. Exact one-line shapes:
-{"action":"upsert_weights","weights":[{"date":"2026-03-29","value":152.2,"unit":"lb"}]}
-{"action":"list_weights","list_mode":"latest"}
-{"action":"list_weights","list_mode":"history","limit":2}
-{"action":"list_weights","list_mode":"range","from_date":"2026-03-29","to_date":"2026-03-30"}
-{"action":"record_blood_pressure","readings":[{"date":"2026-03-29","systolic":122,"diastolic":78,"pulse":64}]}
-{"action":"correct_blood_pressure","readings":[{"date":"2026-03-29","systolic":121,"diastolic":77,"pulse":63}]}
-{"action":"list_blood_pressure","list_mode":"latest"}
-{"action":"list_blood_pressure","list_mode":"history","limit":2}
-{"action":"list_blood_pressure","list_mode":"range","from_date":"2026-03-29","to_date":"2026-03-30"}
-{"action":"record_medications","medications":[{"name":"Levothyroxine","dosage_text":"25 mcg","start_date":"2026-01-01"}]}
-{"action":"correct_medication","target":{"name":"Levothyroxine","start_date":"2026-01-01"},"medication":{"name":"Levothyroxine","dosage_text":"50 mcg","start_date":"2026-01-01","end_date":"2026-04-01"}}
-{"action":"delete_medication","target":{"name":"Levothyroxine","start_date":"2026-01-01"}}
-{"action":"list_medications","status":"active"}
-{"action":"list_medications","status":"all"}
-{"action":"record_labs","collections":[{"date":"2026-03-29","panels":[{"panel_name":"Metabolic","results":[{"test_name":"Glucose","canonical_slug":"glucose","value_text":"89","value_numeric":89,"units":"mg/dL","range_text":"70-99"}]}]}]}
-{"action":"correct_labs","target":{"date":"2026-03-29"},"collection":{"date":"2026-03-29","panels":[{"panel_name":"Thyroid","results":[{"test_name":"TSH","canonical_slug":"tsh","value_text":"3.1","value_numeric":3.1,"units":"uIU/mL"}]}]}}
-{"action":"delete_labs","target":{"date":"2026-03-29"}}
-{"action":"list_labs","list_mode":"latest"}
-{"action":"list_labs","list_mode":"history","limit":2}
-{"action":"list_labs","list_mode":"range","from_date":"2026-03-29","to_date":"2026-03-30"}
-{"action":"list_labs","list_mode":"latest","analyte_slug":"glucose"}
-`
-	case "cli":
-		content = `# OpenHealth CLI Eval Instructions
-
-For direct local OpenHealth weight or blood-pressure data requests, use the installed OpenHealth CLI baseline skill contract.
-
-Reject ambiguous short dates with no year context, year-first slash dates such as 2026/03/31, non-positive values, and unsupported units directly in the final answer when the request is clearly invalid. Do not inspect files or run commands for those clearly invalid requests.
-
-For valid supported tasks, use go run ./cmd/openhealth weight or go run ./cmd/openhealth blood-pressure commands. Use blood-pressure correct, not add, when the user asks to correct an existing same-date reading. Results are newest-first.
-`
-	default:
-		return fmt.Errorf("unknown variant %q", currentVariant.ID)
+func preflightEvalContext(repoRoot string, runRepo string, runDir string, cache cacheConfig) error {
+	sourceSkill := filepath.Join(repoRoot, "skills", "openhealth", "SKILL.md")
+	installedSkill := filepath.Join(runRepo, ".agents", "skills", "openhealth", "SKILL.md")
+	sourceBytes, err := os.ReadFile(sourceSkill)
+	if err != nil {
+		return err
 	}
-	return os.WriteFile(filepath.Join(runRepo, "AGENTS.md"), []byte(content), 0o644)
+	installedBytes, err := os.ReadFile(installedSkill)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(sourceBytes, installedBytes) {
+		return errors.New("installed production skill does not match shipped SKILL.md")
+	}
+	if _, err := os.Stat(filepath.Join(runRepo, "AGENTS.md")); !os.IsNotExist(err) {
+		if err == nil {
+			return errors.New("production eval repo must not contain AGENTS.md")
+		}
+		return err
+	}
+
+	cmd := exec.Command("codex", "debug", "prompt-input", "Use OpenHealth to list latest weight.")
+	cmd.Dir = runRepo
+	cmd.Env = evalEnv(runDir, evalDatabasePath(runRepo), cache)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%w: %s", err, strings.TrimSpace(string(output)))
+	}
+	rendered := string(output)
+	if !strings.Contains(rendered, "- openhealth:") {
+		return errors.New("rendered prompt is missing openhealth skill discovery")
+	}
+	if !strings.Contains(rendered, ".agents/skills/openhealth/SKILL.md") {
+		return errors.New("rendered prompt does not point openhealth to the installed project skill")
+	}
+	if containsOpenHealthAgentsInstructions(rendered) {
+		return errors.New("rendered prompt contains OpenHealth product instructions from AGENTS.md")
+	}
+	return nil
+}
+
+func containsOpenHealthAgentsInstructions(rendered string) bool {
+	const marker = "# AGENTS.md instructions"
+	index := strings.Index(rendered, marker)
+	if index < 0 {
+		return false
+	}
+	agentsText := rendered[index:]
+	for _, forbidden := range []string{
+		"openhealth-agentops",
+		"upsert_weights",
+		"record_blood_pressure",
+		"record_medications",
+		"record_labs",
+		"ambiguous short date",
+		"product data agent",
+	} {
+		if strings.Contains(agentsText, forbidden) {
+			return true
+		}
+	}
+	return false
 }
 
 func copyDir(src string, dst string) error {
@@ -2632,13 +2632,9 @@ func metricNotes(reportDate string, results []runResult) []string {
 
 func productionStopLoss(results []runResult) *stopLossSummary {
 	productionByScenario := map[string]runResult{}
-	cliByScenario := map[string]runResult{}
 	for _, result := range results {
-		switch result.Variant {
-		case "production":
+		if result.Variant == "production" {
 			productionByScenario[result.Scenario] = result
-		case "cli":
-			cliByScenario[result.Scenario] = result
 		}
 	}
 	if len(productionByScenario) == 0 {
@@ -2702,271 +2698,16 @@ func productionStopLoss(results []runResult) *stopLossSummary {
 		}
 	}
 
-	moreThanDoubleCLI := []string{}
-	for scenario, production := range productionByScenario {
-		cli, ok := cliByScenario[scenario]
-		if !ok || cli.Metrics.ToolCalls == 0 {
-			continue
-		}
-		if production.Metrics.ToolCalls > 2*cli.Metrics.ToolCalls {
-			moreThanDoubleCLI = append(moreThanDoubleCLI, scenario)
-		}
-	}
-	if len(moreThanDoubleCLI) >= 3 {
-		triggers = append(triggers, fmt.Sprintf("production used more than 2x CLI tools in %s", sortedJoin(moreThanDoubleCLI)))
-	}
-
-	recommendation := "continue_production_hardening"
+	recommendation := "ship_agentops_production"
 	if len(triggers) > 0 {
-		recommendation = "continue_cli_baseline_for_agent_operations"
+		recommendation = "continue_production_hardening"
 	}
 	return &stopLossSummary{
-		Policy:         "After production hardening, keep CLI as the baseline recommendation if production loses correctness, directly inspects generated files, inspects the module cache, uses broad repo search in more than one routine scenario, uses the openhealth CLI, uses direct SQLite access, exceeds core tool thresholds, or uses more than 2x CLI tools in at least three comparable scenarios.",
+		Policy:         "Production AgentOps must pass every scenario without direct generated-file inspection, module-cache inspection, direct SQLite access, legacy openhealth CLI usage, broad repo search in more than one routine scenario, or excessive core tool counts.",
 		Triggered:      len(triggers) > 0,
 		Recommendation: recommendation,
 		Triggers:       triggers,
 	}
-}
-
-func codeFirstSummaryFor(results []runResult, candidateVariant string) *codeFirstSummary {
-	const baselineVariant = "cli"
-
-	if strings.TrimSpace(candidateVariant) == "" {
-		candidateVariant = "production"
-	}
-
-	candidateByScenario := map[string]runResult{}
-	cliByScenario := map[string]runResult{}
-	for _, result := range results {
-		switch result.Variant {
-		case candidateVariant:
-			candidateByScenario[result.Scenario] = result
-		case baselineVariant:
-			cliByScenario[result.Scenario] = result
-		}
-	}
-	if len(candidateByScenario) == 0 {
-		return nil
-	}
-
-	entries := []codeFirstComparisonRow{}
-	candidatePassedAll := true
-	noGenerated := true
-	noModuleCache := true
-	noRoutineBroadSearch := true
-	noCLIUsage := true
-	noDirectSQLite := true
-	validationFinalAnswerOnly := true
-	validationFinalAnswerFailures := []string{}
-	totalCandidateTools := 0
-	totalComparableCandidateTools := 0
-	totalCLITools := 0
-	totalCandidateNonCached := 0
-	totalCLINonCached := 0
-	tokenTotalComparable := true
-	tokenMajorityWins := 0
-	tokenMajorityScenarios := 0
-	tokenMissing := []string{}
-	scenariosAtOrBelowCLI := 0
-	routineExceedsCLIByMoreThanOne := []string{}
-	missingCLI := []string{}
-	comparableScenarios := 0
-
-	candidateScenarioIDs := []string{}
-	for _, scenario := range scenarioIDs() {
-		candidate, ok := candidateByScenario[scenario]
-		if !ok {
-			continue
-		}
-		candidateScenarioIDs = append(candidateScenarioIDs, scenario)
-		cli, hasCLI := cliByScenario[scenario]
-		requiresCLI := hasCLIBaselineScenario(scenario)
-		if !hasCLI && requiresCLI {
-			missingCLI = append(missingCLI, scenario)
-		}
-		if !candidate.Passed {
-			candidatePassedAll = false
-		}
-		if candidate.Metrics.GeneratedFileInspected {
-			noGenerated = false
-		}
-		if candidate.Metrics.ModuleCacheInspected {
-			noModuleCache = false
-		}
-		if candidate.Metrics.BroadRepoSearch && isRoutineScenario(candidate.Scenario) {
-			noRoutineBroadSearch = false
-		}
-		if candidate.Metrics.CLIUsed {
-			noCLIUsage = false
-		}
-		if candidate.Metrics.DirectSQLiteAccess {
-			noDirectSQLite = false
-		}
-		if isFinalAnswerOnlyValidationScenario(candidate.Scenario) &&
-			(candidate.Metrics.ToolCalls != 0 || candidate.Metrics.CommandExecutions != 0 || candidate.Metrics.AssistantCalls > 1) {
-			validationFinalAnswerOnly = false
-			validationFinalAnswerFailures = append(validationFinalAnswerFailures, candidate.Scenario)
-		}
-		totalCandidateTools += candidate.Metrics.ToolCalls
-		row := codeFirstComparisonRow{
-			Scenario:       scenario,
-			CandidatePass:  candidate.Passed,
-			CandidateTools: candidate.Metrics.ToolCalls,
-		}
-		if hasCLI {
-			comparableScenarios++
-			totalComparableCandidateTools += candidate.Metrics.ToolCalls
-			totalCLITools += cli.Metrics.ToolCalls
-			row.CLIPass = cli.Passed
-			row.CLITools = cli.Metrics.ToolCalls
-			delta := candidate.Metrics.ToolCalls - cli.Metrics.ToolCalls
-			row.ToolDelta = &delta
-			if candidate.Metrics.ToolCalls <= cli.Metrics.ToolCalls {
-				scenariosAtOrBelowCLI++
-			}
-			tokenMajorityScenarios++
-			candidateTokens, candidateHasTokens := nonCachedTokens(candidate)
-			cliTokens, cliHasTokens := nonCachedTokens(cli)
-			if !candidateHasTokens || !cliHasTokens {
-				tokenTotalComparable = false
-				tokenMissing = append(tokenMissing, scenario)
-			} else {
-				totalCandidateNonCached += candidateTokens
-				totalCLINonCached += cliTokens
-				if candidateTokens < cliTokens {
-					tokenMajorityWins++
-				}
-			}
-			if isRoutineScenario(scenario) && candidate.Metrics.ToolCalls > cli.Metrics.ToolCalls+1 {
-				routineExceedsCLIByMoreThanOne = append(routineExceedsCLIByMoreThanOne, scenario)
-			}
-		}
-		entries = append(entries, row)
-	}
-	requiredAtOrBelowCLI := requiredScenariosAtOrBelowCLI(comparableScenarios)
-	requiredTokenWins := 0
-	if tokenMajorityScenarios > 0 {
-		requiredTokenWins = strictMajority(tokenMajorityScenarios)
-	}
-
-	criteria := []codeFirstCriterion{
-		{
-			Name:    "candidate_passes_all_scenarios",
-			Passed:  candidatePassedAll,
-			Details: fmt.Sprintf("%d/%d candidate scenarios passed", countPassed(candidateByScenario), len(candidateScenarioIDs)),
-		},
-		{
-			Name:    "no_direct_generated_file_inspection",
-			Passed:  noGenerated,
-			Details: fmt.Sprintf("%s must not directly inspect generated files", candidateVariant),
-		},
-		{
-			Name:    "no_module_cache_inspection",
-			Passed:  noModuleCache,
-			Details: fmt.Sprintf("%s must not inspect the Go module cache", candidateVariant),
-		},
-		{
-			Name:    "no_routine_broad_repo_search",
-			Passed:  noRoutineBroadSearch,
-			Details: fmt.Sprintf("%s must not use broad repo search in routine scenarios", candidateVariant),
-		},
-		{
-			Name:    "no_openhealth_cli_usage",
-			Passed:  noCLIUsage,
-			Details: fmt.Sprintf("%s must not use the openhealth CLI", candidateVariant),
-		},
-		{
-			Name:    "no_direct_sqlite_access",
-			Passed:  noDirectSQLite,
-			Details: fmt.Sprintf("%s must not use direct SQLite access", candidateVariant),
-		},
-		{
-			Name:    "validation_scenarios_are_final_answer_only",
-			Passed:  validationFinalAnswerOnly,
-			Details: validationFinalAnswerDetails(validationFinalAnswerFailures),
-		},
-		{
-			Name:    "total_tools_less_than_or_equal_cli",
-			Passed:  len(missingCLI) == 0 && totalComparableCandidateTools <= totalCLITools,
-			Details: fmt.Sprintf("%s comparable tools %d vs cli tools %d; production-only tools %d", candidateVariant, totalComparableCandidateTools, totalCLITools, totalCandidateTools-totalComparableCandidateTools),
-		},
-		{
-			Name:    "minimum_scenarios_at_or_below_cli",
-			Passed:  scenariosAtOrBelowCLI >= requiredAtOrBelowCLI,
-			Details: fmt.Sprintf("%d comparable scenarios at or below CLI tools; required %d of %d", scenariosAtOrBelowCLI, requiredAtOrBelowCLI, comparableScenarios),
-		},
-		{
-			Name:    "no_routine_scenario_exceeds_cli_by_more_than_one_tool",
-			Passed:  len(missingCLI) == 0 && len(routineExceedsCLIByMoreThanOne) == 0,
-			Details: missingAwareDetails(missingCLI, routineExceedsCLIByMoreThanOne),
-		},
-		{
-			Name:    "non_cached_token_majority",
-			Passed:  len(missingCLI) == 0 && tokenMajorityWins >= requiredTokenWins,
-			Details: fmt.Sprintf("%d scenarios with lower non-cached input tokens; required %d of %d; missing usage: %s", tokenMajorityWins, requiredTokenWins, tokenMajorityScenarios, missingTokenDetails(tokenMissing)),
-		},
-		{
-			Name:    "non_cached_token_total_less_than_or_equal_cli",
-			Passed:  len(missingCLI) == 0 && tokenTotalComparable && totalCandidateNonCached <= totalCLINonCached,
-			Details: fmt.Sprintf("%s non-cached input tokens %d vs cli %d; missing usage: %s", candidateVariant, totalCandidateNonCached, totalCLINonCached, missingTokenDetails(tokenMissing)),
-		},
-	}
-
-	beatsCLI := true
-	for _, criterion := range criteria {
-		if !criterion.Passed {
-			beatsCLI = false
-			break
-		}
-	}
-	recommendation := "continue_cli_for_routine_openhealth_operations"
-	if beatsCLI {
-		recommendation = recommendationForCandidate(candidateVariant)
-	}
-
-	return &codeFirstSummary{
-		CandidateVariant: candidateVariant,
-		BaselineVariant:  baselineVariant,
-		BeatsCLI:         beatsCLI,
-		Recommendation:   recommendation,
-		Criteria:         criteria,
-		Entries:          entries,
-	}
-}
-
-func missingAwareDetails(missingCLI []string, exceeded []string) string {
-	if len(missingCLI) > 0 {
-		return fmt.Sprintf("missing cli scenarios: %s", sortedJoin(missingCLI))
-	}
-	if len(exceeded) > 0 {
-		return fmt.Sprintf("routine scenarios over CLI by more than one tool: %s", sortedJoin(exceeded))
-	}
-	return "no routine scenario exceeded CLI by more than one tool"
-}
-
-func countPassed(results map[string]runResult) int {
-	count := 0
-	for _, result := range results {
-		if result.Passed {
-			count++
-		}
-	}
-	return count
-}
-
-func requiredScenariosAtOrBelowCLI(candidateScenarios int) int {
-	return int(math.Ceil(float64(candidateScenarios) * 0.8))
-}
-
-func strictMajority(count int) int {
-	return count/2 + 1
-}
-
-func nonCachedTokens(result runResult) (int, bool) {
-	if result.Metrics.NonCachedInputTokens == nil {
-		return 0, false
-	}
-	return *result.Metrics.NonCachedInputTokens, true
 }
 
 func isFinalAnswerOnlyValidationScenario(id string) bool {
@@ -2978,27 +2719,6 @@ func isFinalAnswerOnlyValidationScenario(id string) bool {
 	default:
 		return false
 	}
-}
-
-func validationFinalAnswerDetails(failures []string) string {
-	if len(failures) == 0 {
-		return "validation scenarios used no tools, no command executions, and at most one assistant answer"
-	}
-	return fmt.Sprintf("validation scenarios were not final-answer-only: %s", sortedJoin(failures))
-}
-
-func missingTokenDetails(missing []string) string {
-	if len(missing) == 0 {
-		return "none"
-	}
-	return sortedJoin(missing)
-}
-
-func recommendationForCandidate(candidateVariant string) string {
-	if candidateVariant == "production" {
-		return "prefer_agentops_production_for_routine_openhealth_operations"
-	}
-	return "prefer_agentops_for_routine_openhealth_operations"
 }
 
 func scenarioIDs() []string {
@@ -3022,10 +2742,6 @@ func isRoutineScenario(id string) bool {
 	default:
 		return false
 	}
-}
-
-func hasCLIBaselineScenario(id string) bool {
-	return !isMedicationScenario(id) && !isLabScenario(id) && id != "mixed-medication-lab"
 }
 
 func isMixedScenario(id string) bool {
@@ -3184,6 +2900,7 @@ func writeMarkdown(path string, value report) error {
 	fmt.Fprintf(&b, "| prepare_run_dir | %.2f |\n", value.PhaseTotals.PrepareRunDir)
 	fmt.Fprintf(&b, "| copy_repo | %.2f |\n", value.PhaseTotals.CopyRepo)
 	fmt.Fprintf(&b, "| install_variant | %.2f |\n", value.PhaseTotals.InstallVariant)
+	fmt.Fprintf(&b, "| build_agent_app | %.2f |\n", value.PhaseTotals.BuildAgentApp)
 	fmt.Fprintf(&b, "| warm_cache | %.2f |\n", value.PhaseTotals.WarmCache)
 	fmt.Fprintf(&b, "| seed_db | %.2f |\n", value.PhaseTotals.SeedDB)
 	fmt.Fprintf(&b, "| agent_run | %.2f |\n", value.PhaseTotals.AgentRun)
@@ -3235,24 +2952,6 @@ func writeMarkdown(path string, value report) error {
 		}
 	}
 
-	if value.CodeFirst != nil {
-		fmt.Fprintf(&b, "\n## Code-First CLI Comparison\n\n")
-		fmt.Fprintf(&b, "- Candidate: `%s`\n", value.CodeFirst.CandidateVariant)
-		fmt.Fprintf(&b, "- Baseline: `%s`\n", value.CodeFirst.BaselineVariant)
-		fmt.Fprintf(&b, "- Beats CLI: `%s`\n", yesNo(value.CodeFirst.BeatsCLI))
-		fmt.Fprintf(&b, "- Recommendation: `%s`\n\n", value.CodeFirst.Recommendation)
-		fmt.Fprintf(&b, "| Criterion | Result | Details |\n")
-		fmt.Fprintf(&b, "| --- | --- | --- |\n")
-		for _, criterion := range value.CodeFirst.Criteria {
-			fmt.Fprintf(&b, "| `%s` | %s | %s |\n", criterion.Name, passText(criterion.Passed), criterion.Details)
-		}
-		fmt.Fprintf(&b, "\n| Scenario | Candidate | CLI | Tools Δ |\n")
-		fmt.Fprintf(&b, "| --- | ---: | ---: | ---: |\n")
-		for _, entry := range value.CodeFirst.Entries {
-			fmt.Fprintf(&b, "| `%s` | %d | %d | %s |\n", entry.Scenario, entry.CandidateTools, entry.CLITools, formatIntDelta(entry.ToolDelta))
-		}
-	}
-
 	if hasMetricEvidence(value.Results) {
 		fmt.Fprintf(&b, "\n## Metric Evidence\n\n")
 		for _, result := range value.Results {
@@ -3276,9 +2975,6 @@ func writeMarkdown(path string, value report) error {
 	for _, result := range value.Results {
 		fmt.Fprintf(&b, "- `%s/%s`: %s Raw event reference: `%s`.\n", result.Variant, result.Scenario, result.Verification.Details, result.RawLogArtifactReference)
 	}
-
-	fmt.Fprintf(&b, "\n## CLI-Oriented Variant\n\n")
-	fmt.Fprintf(&b, "Status: `%s`.\n", value.CLIStatus)
 
 	fmt.Fprintf(&b, "\n## App Server\n\n")
 	fmt.Fprintf(&b, "%s.\n", value.AppServerFallback)
@@ -4105,11 +3801,7 @@ func onlyAgentSkillTargets(targets []string) bool {
 	for _, target := range targets {
 		cleaned := filepath.ToSlash(strings.Trim(target, `"'`))
 		if !strings.HasPrefix(cleaned, ".agents/skills/") &&
-			!strings.HasPrefix(cleaned, "skills/openhealth/") &&
-			cleaned != "references/weights.md" &&
-			cleaned != "references/blood-pressure.md" &&
-			cleaned != "references/medications.md" &&
-			cleaned != "references/labs.md" {
+			!strings.HasPrefix(cleaned, "skills/openhealth/") {
 			return false
 		}
 	}

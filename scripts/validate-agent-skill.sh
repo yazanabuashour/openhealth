@@ -47,6 +47,9 @@ skill_file="$skill_dir/SKILL.md"
 [[ -d "$skill_dir" ]] || fail "skill directory not found: $skill_dir"
 [[ -f "$skill_file" ]] || fail "missing required file: $skill_file"
 
+extra_payload="$(find "$skill_dir" -mindepth 1 -maxdepth 1 ! -name SKILL.md -print)"
+[[ -z "$extra_payload" ]] || fail "$skill_dir must contain only SKILL.md"
+
 first_line="$(sed -n '1p' "$skill_file")"
 [[ "$first_line" == "---" ]] || fail "$skill_file must start with YAML frontmatter delimited by ---"
 

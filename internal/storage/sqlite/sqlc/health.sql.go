@@ -94,9 +94,182 @@ func (q *Queries) CreateBloodPressureEntry(ctx context.Context, arg CreateBloodP
 	return i, err
 }
 
+const createBodyCompositionEntry = `-- name: CreateBodyCompositionEntry :one
+INSERT INTO health_body_composition_entry (
+  recorded_at,
+  body_fat_percent,
+  weight_value,
+  weight_unit,
+  method,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at
+) VALUES (
+  ?1,
+  ?2,
+  ?3,
+  ?4,
+  ?5,
+  ?6,
+  ?7,
+  ?8,
+  ?9,
+  ?10
+)
+RETURNING
+  id,
+  recorded_at,
+  body_fat_percent,
+  weight_value,
+  weight_unit,
+  method,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at
+`
+
+type CreateBodyCompositionEntryParams struct {
+	RecordedAt       string
+	BodyFatPercent   *float64
+	WeightValue      *float64
+	WeightUnit       *string
+	Method           *string
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        string
+	UpdatedAt        string
+}
+
+func (q *Queries) CreateBodyCompositionEntry(ctx context.Context, arg CreateBodyCompositionEntryParams) (HealthBodyCompositionEntry, error) {
+	row := q.db.QueryRowContext(ctx, createBodyCompositionEntry,
+		arg.RecordedAt,
+		arg.BodyFatPercent,
+		arg.WeightValue,
+		arg.WeightUnit,
+		arg.Method,
+		arg.Note,
+		arg.Source,
+		arg.SourceRecordHash,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i HealthBodyCompositionEntry
+	err := row.Scan(
+		&i.ID,
+		&i.RecordedAt,
+		&i.BodyFatPercent,
+		&i.WeightValue,
+		&i.WeightUnit,
+		&i.Method,
+		&i.Note,
+		&i.Source,
+		&i.SourceRecordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const createImagingRecord = `-- name: CreateImagingRecord :one
+INSERT INTO health_imaging_record (
+  performed_at,
+  modality,
+  body_site,
+  title,
+  summary,
+  impression,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at
+) VALUES (
+  ?1,
+  ?2,
+  ?3,
+  ?4,
+  ?5,
+  ?6,
+  ?7,
+  ?8,
+  ?9,
+  ?10,
+  ?11
+)
+RETURNING
+  id,
+  performed_at,
+  modality,
+  body_site,
+  title,
+  summary,
+  impression,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at
+`
+
+type CreateImagingRecordParams struct {
+	PerformedAt      string
+	Modality         string
+	BodySite         *string
+	Title            *string
+	Summary          string
+	Impression       *string
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        string
+	UpdatedAt        string
+}
+
+func (q *Queries) CreateImagingRecord(ctx context.Context, arg CreateImagingRecordParams) (HealthImagingRecord, error) {
+	row := q.db.QueryRowContext(ctx, createImagingRecord,
+		arg.PerformedAt,
+		arg.Modality,
+		arg.BodySite,
+		arg.Title,
+		arg.Summary,
+		arg.Impression,
+		arg.Note,
+		arg.Source,
+		arg.SourceRecordHash,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i HealthImagingRecord
+	err := row.Scan(
+		&i.ID,
+		&i.PerformedAt,
+		&i.Modality,
+		&i.BodySite,
+		&i.Title,
+		&i.Summary,
+		&i.Impression,
+		&i.Note,
+		&i.Source,
+		&i.SourceRecordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const createLabCollection = `-- name: CreateLabCollection :one
 INSERT INTO health_lab_collection (
   collected_at,
+  note,
   source,
   created_at,
   updated_at
@@ -104,11 +277,13 @@ INSERT INTO health_lab_collection (
   ?1,
   ?2,
   ?3,
-  ?4
+  ?4,
+  ?5
 )
 RETURNING
   id,
   collected_at,
+  note,
   source,
   created_at,
   updated_at,
@@ -117,22 +292,35 @@ RETURNING
 
 type CreateLabCollectionParams struct {
 	CollectedAt string
+	Note        *string
 	Source      string
 	CreatedAt   string
 	UpdatedAt   *string
 }
 
-func (q *Queries) CreateLabCollection(ctx context.Context, arg CreateLabCollectionParams) (HealthLabCollection, error) {
+type CreateLabCollectionRow struct {
+	ID          int64
+	CollectedAt string
+	Note        *string
+	Source      string
+	CreatedAt   string
+	UpdatedAt   *string
+	DeletedAt   *string
+}
+
+func (q *Queries) CreateLabCollection(ctx context.Context, arg CreateLabCollectionParams) (CreateLabCollectionRow, error) {
 	row := q.db.QueryRowContext(ctx, createLabCollection,
 		arg.CollectedAt,
+		arg.Note,
 		arg.Source,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
-	var i HealthLabCollection
+	var i CreateLabCollectionRow
 	err := row.Scan(
 		&i.ID,
 		&i.CollectedAt,
+		&i.Note,
 		&i.Source,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -257,6 +445,7 @@ INSERT INTO health_medication_course (
   dosage_text,
   start_date,
   end_date,
+  note,
   source,
   created_at,
   updated_at
@@ -267,7 +456,8 @@ INSERT INTO health_medication_course (
   ?4,
   ?5,
   ?6,
-  ?7
+  ?7,
+  ?8
 )
 RETURNING
   id,
@@ -275,6 +465,7 @@ RETURNING
   dosage_text,
   start_date,
   end_date,
+  note,
   source,
   created_at,
   updated_at,
@@ -286,28 +477,44 @@ type CreateMedicationCourseParams struct {
 	DosageText *string
 	StartDate  string
 	EndDate    *string
+	Note       *string
 	Source     string
 	CreatedAt  string
 	UpdatedAt  string
 }
 
-func (q *Queries) CreateMedicationCourse(ctx context.Context, arg CreateMedicationCourseParams) (HealthMedicationCourse, error) {
+type CreateMedicationCourseRow struct {
+	ID         int64
+	Name       string
+	DosageText *string
+	StartDate  string
+	EndDate    *string
+	Note       *string
+	Source     string
+	CreatedAt  string
+	UpdatedAt  string
+	DeletedAt  *string
+}
+
+func (q *Queries) CreateMedicationCourse(ctx context.Context, arg CreateMedicationCourseParams) (CreateMedicationCourseRow, error) {
 	row := q.db.QueryRowContext(ctx, createMedicationCourse,
 		arg.Name,
 		arg.DosageText,
 		arg.StartDate,
 		arg.EndDate,
+		arg.Note,
 		arg.Source,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
-	var i HealthMedicationCourse
+	var i CreateMedicationCourseRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.DosageText,
 		&i.StartDate,
 		&i.EndDate,
+		&i.Note,
 		&i.Source,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -405,6 +612,52 @@ type DeleteBloodPressureEntryParams struct {
 
 func (q *Queries) DeleteBloodPressureEntry(ctx context.Context, arg DeleteBloodPressureEntryParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, deleteBloodPressureEntry, arg.DeletedAt, arg.UpdatedAt, arg.ID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const deleteBodyCompositionEntry = `-- name: DeleteBodyCompositionEntry :one
+UPDATE health_body_composition_entry
+SET
+  deleted_at = ?1,
+  updated_at = ?2
+WHERE id = ?3
+  AND deleted_at IS NULL
+RETURNING id
+`
+
+type DeleteBodyCompositionEntryParams struct {
+	DeletedAt *string
+	UpdatedAt string
+	ID        int64
+}
+
+func (q *Queries) DeleteBodyCompositionEntry(ctx context.Context, arg DeleteBodyCompositionEntryParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, deleteBodyCompositionEntry, arg.DeletedAt, arg.UpdatedAt, arg.ID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
+const deleteImagingRecord = `-- name: DeleteImagingRecord :one
+UPDATE health_imaging_record
+SET
+  deleted_at = ?1,
+  updated_at = ?2
+WHERE id = ?3
+  AND deleted_at IS NULL
+RETURNING id
+`
+
+type DeleteImagingRecordParams struct {
+	DeletedAt *string
+	UpdatedAt string
+	ID        int64
+}
+
+func (q *Queries) DeleteImagingRecord(ctx context.Context, arg DeleteImagingRecordParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, deleteImagingRecord, arg.DeletedAt, arg.UpdatedAt, arg.ID)
 	var id int64
 	err := row.Scan(&id)
 	return id, err
@@ -537,6 +790,7 @@ const getLabCollection = `-- name: GetLabCollection :one
 SELECT
   id,
   collected_at,
+  note,
   source,
   created_at,
   updated_at,
@@ -546,12 +800,23 @@ WHERE id = ?1
   AND deleted_at IS NULL
 `
 
-func (q *Queries) GetLabCollection(ctx context.Context, id int64) (HealthLabCollection, error) {
+type GetLabCollectionRow struct {
+	ID          int64
+	CollectedAt string
+	Note        *string
+	Source      string
+	CreatedAt   string
+	UpdatedAt   *string
+	DeletedAt   *string
+}
+
+func (q *Queries) GetLabCollection(ctx context.Context, id int64) (GetLabCollectionRow, error) {
 	row := q.db.QueryRowContext(ctx, getLabCollection, id)
-	var i HealthLabCollection
+	var i GetLabCollectionRow
 	err := row.Scan(
 		&i.ID,
 		&i.CollectedAt,
+		&i.Note,
 		&i.Source,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -567,6 +832,7 @@ SELECT
   dosage_text,
   start_date,
   end_date,
+  note,
   source,
   created_at,
   updated_at,
@@ -577,21 +843,35 @@ WHERE deleted_at IS NULL
 ORDER BY start_date DESC, id DESC
 `
 
-func (q *Queries) ListActiveMedicationCourses(ctx context.Context, today *string) ([]HealthMedicationCourse, error) {
+type ListActiveMedicationCoursesRow struct {
+	ID         int64
+	Name       string
+	DosageText *string
+	StartDate  string
+	EndDate    *string
+	Note       *string
+	Source     string
+	CreatedAt  string
+	UpdatedAt  string
+	DeletedAt  *string
+}
+
+func (q *Queries) ListActiveMedicationCourses(ctx context.Context, today *string) ([]ListActiveMedicationCoursesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listActiveMedicationCourses, today)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []HealthMedicationCourse
+	var items []ListActiveMedicationCoursesRow
 	for rows.Next() {
-		var i HealthMedicationCourse
+		var i ListActiveMedicationCoursesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
 			&i.DosageText,
 			&i.StartDate,
 			&i.EndDate,
+			&i.Note,
 			&i.Source,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -673,10 +953,157 @@ func (q *Queries) ListBloodPressureEntries(ctx context.Context, arg ListBloodPre
 	return items, nil
 }
 
+const listBodyCompositionEntries = `-- name: ListBodyCompositionEntries :many
+SELECT
+  id,
+  recorded_at,
+  body_fat_percent,
+  weight_value,
+  weight_unit,
+  method,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at
+FROM health_body_composition_entry
+WHERE deleted_at IS NULL
+  AND (?1 IS NULL OR recorded_at >= ?1)
+  AND (?2 IS NULL OR recorded_at <= ?2)
+ORDER BY recorded_at DESC, id DESC
+LIMIT CASE
+  WHEN ?3 IS NULL THEN -1
+  ELSE ?3
+END
+`
+
+type ListBodyCompositionEntriesParams struct {
+	FromRecordedAt interface{}
+	ToRecordedAt   interface{}
+	LimitCount     interface{}
+}
+
+func (q *Queries) ListBodyCompositionEntries(ctx context.Context, arg ListBodyCompositionEntriesParams) ([]HealthBodyCompositionEntry, error) {
+	rows, err := q.db.QueryContext(ctx, listBodyCompositionEntries, arg.FromRecordedAt, arg.ToRecordedAt, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []HealthBodyCompositionEntry
+	for rows.Next() {
+		var i HealthBodyCompositionEntry
+		if err := rows.Scan(
+			&i.ID,
+			&i.RecordedAt,
+			&i.BodyFatPercent,
+			&i.WeightValue,
+			&i.WeightUnit,
+			&i.Method,
+			&i.Note,
+			&i.Source,
+			&i.SourceRecordHash,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listImagingRecords = `-- name: ListImagingRecords :many
+SELECT
+  id,
+  performed_at,
+  modality,
+  body_site,
+  title,
+  summary,
+  impression,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at
+FROM health_imaging_record
+WHERE deleted_at IS NULL
+  AND (?1 IS NULL OR performed_at >= ?1)
+  AND (?2 IS NULL OR performed_at <= ?2)
+  AND (?3 IS NULL OR lower(modality) = lower(?3))
+  AND (?4 IS NULL OR (body_site IS NOT NULL AND lower(body_site) = lower(?4)))
+ORDER BY performed_at DESC, id DESC
+LIMIT CASE
+  WHEN ?5 IS NULL THEN -1
+  ELSE ?5
+END
+`
+
+type ListImagingRecordsParams struct {
+	FromPerformedAt interface{}
+	ToPerformedAt   interface{}
+	Modality        interface{}
+	BodySite        interface{}
+	LimitCount      interface{}
+}
+
+func (q *Queries) ListImagingRecords(ctx context.Context, arg ListImagingRecordsParams) ([]HealthImagingRecord, error) {
+	rows, err := q.db.QueryContext(ctx, listImagingRecords,
+		arg.FromPerformedAt,
+		arg.ToPerformedAt,
+		arg.Modality,
+		arg.BodySite,
+		arg.LimitCount,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []HealthImagingRecord
+	for rows.Next() {
+		var i HealthImagingRecord
+		if err := rows.Scan(
+			&i.ID,
+			&i.PerformedAt,
+			&i.Modality,
+			&i.BodySite,
+			&i.Title,
+			&i.Summary,
+			&i.Impression,
+			&i.Note,
+			&i.Source,
+			&i.SourceRecordHash,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLabCollections = `-- name: ListLabCollections :many
 SELECT
   id,
   collected_at,
+  note,
   source,
   created_at,
   updated_at,
@@ -686,18 +1113,29 @@ WHERE deleted_at IS NULL
 ORDER BY collected_at DESC, id DESC
 `
 
-func (q *Queries) ListLabCollections(ctx context.Context) ([]HealthLabCollection, error) {
+type ListLabCollectionsRow struct {
+	ID          int64
+	CollectedAt string
+	Note        *string
+	Source      string
+	CreatedAt   string
+	UpdatedAt   *string
+	DeletedAt   *string
+}
+
+func (q *Queries) ListLabCollections(ctx context.Context) ([]ListLabCollectionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listLabCollections)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []HealthLabCollection
+	var items []ListLabCollectionsRow
 	for rows.Next() {
-		var i HealthLabCollection
+		var i ListLabCollectionsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CollectedAt,
+			&i.Note,
 			&i.Source,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -887,6 +1325,7 @@ SELECT
   dosage_text,
   start_date,
   end_date,
+  note,
   source,
   created_at,
   updated_at,
@@ -896,21 +1335,35 @@ WHERE deleted_at IS NULL
 ORDER BY start_date DESC, id DESC
 `
 
-func (q *Queries) ListMedicationCourses(ctx context.Context) ([]HealthMedicationCourse, error) {
+type ListMedicationCoursesRow struct {
+	ID         int64
+	Name       string
+	DosageText *string
+	StartDate  string
+	EndDate    *string
+	Note       *string
+	Source     string
+	CreatedAt  string
+	UpdatedAt  string
+	DeletedAt  *string
+}
+
+func (q *Queries) ListMedicationCourses(ctx context.Context) ([]ListMedicationCoursesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listMedicationCourses)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []HealthMedicationCourse
+	var items []ListMedicationCoursesRow
 	for rows.Next() {
-		var i HealthMedicationCourse
+		var i ListMedicationCoursesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
 			&i.DosageText,
 			&i.StartDate,
 			&i.EndDate,
+			&i.Note,
 			&i.Source,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -1049,16 +1502,157 @@ func (q *Queries) UpdateBloodPressureEntry(ctx context.Context, arg UpdateBloodP
 	return i, err
 }
 
+const updateBodyCompositionEntry = `-- name: UpdateBodyCompositionEntry :one
+UPDATE health_body_composition_entry
+SET
+  recorded_at = ?1,
+  body_fat_percent = ?2,
+  weight_value = ?3,
+  weight_unit = ?4,
+  method = ?5,
+  note = ?6,
+  updated_at = ?7
+WHERE id = ?8
+  AND deleted_at IS NULL
+RETURNING
+  id,
+  recorded_at,
+  body_fat_percent,
+  weight_value,
+  weight_unit,
+  method,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at
+`
+
+type UpdateBodyCompositionEntryParams struct {
+	RecordedAt     string
+	BodyFatPercent *float64
+	WeightValue    *float64
+	WeightUnit     *string
+	Method         *string
+	Note           *string
+	UpdatedAt      string
+	ID             int64
+}
+
+func (q *Queries) UpdateBodyCompositionEntry(ctx context.Context, arg UpdateBodyCompositionEntryParams) (HealthBodyCompositionEntry, error) {
+	row := q.db.QueryRowContext(ctx, updateBodyCompositionEntry,
+		arg.RecordedAt,
+		arg.BodyFatPercent,
+		arg.WeightValue,
+		arg.WeightUnit,
+		arg.Method,
+		arg.Note,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i HealthBodyCompositionEntry
+	err := row.Scan(
+		&i.ID,
+		&i.RecordedAt,
+		&i.BodyFatPercent,
+		&i.WeightValue,
+		&i.WeightUnit,
+		&i.Method,
+		&i.Note,
+		&i.Source,
+		&i.SourceRecordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const updateImagingRecord = `-- name: UpdateImagingRecord :one
+UPDATE health_imaging_record
+SET
+  performed_at = ?1,
+  modality = ?2,
+  body_site = ?3,
+  title = ?4,
+  summary = ?5,
+  impression = ?6,
+  note = ?7,
+  updated_at = ?8
+WHERE id = ?9
+  AND deleted_at IS NULL
+RETURNING
+  id,
+  performed_at,
+  modality,
+  body_site,
+  title,
+  summary,
+  impression,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at
+`
+
+type UpdateImagingRecordParams struct {
+	PerformedAt string
+	Modality    string
+	BodySite    *string
+	Title       *string
+	Summary     string
+	Impression  *string
+	Note        *string
+	UpdatedAt   string
+	ID          int64
+}
+
+func (q *Queries) UpdateImagingRecord(ctx context.Context, arg UpdateImagingRecordParams) (HealthImagingRecord, error) {
+	row := q.db.QueryRowContext(ctx, updateImagingRecord,
+		arg.PerformedAt,
+		arg.Modality,
+		arg.BodySite,
+		arg.Title,
+		arg.Summary,
+		arg.Impression,
+		arg.Note,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i HealthImagingRecord
+	err := row.Scan(
+		&i.ID,
+		&i.PerformedAt,
+		&i.Modality,
+		&i.BodySite,
+		&i.Title,
+		&i.Summary,
+		&i.Impression,
+		&i.Note,
+		&i.Source,
+		&i.SourceRecordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const updateLabCollection = `-- name: UpdateLabCollection :one
 UPDATE health_lab_collection
 SET
   collected_at = ?1,
-  updated_at = ?2
-WHERE id = ?3
+  note = ?2,
+  updated_at = ?3
+WHERE id = ?4
   AND deleted_at IS NULL
 RETURNING
   id,
   collected_at,
+  note,
   source,
   created_at,
   updated_at,
@@ -1067,16 +1661,33 @@ RETURNING
 
 type UpdateLabCollectionParams struct {
 	CollectedAt string
+	Note        *string
 	UpdatedAt   *string
 	ID          int64
 }
 
-func (q *Queries) UpdateLabCollection(ctx context.Context, arg UpdateLabCollectionParams) (HealthLabCollection, error) {
-	row := q.db.QueryRowContext(ctx, updateLabCollection, arg.CollectedAt, arg.UpdatedAt, arg.ID)
-	var i HealthLabCollection
+type UpdateLabCollectionRow struct {
+	ID          int64
+	CollectedAt string
+	Note        *string
+	Source      string
+	CreatedAt   string
+	UpdatedAt   *string
+	DeletedAt   *string
+}
+
+func (q *Queries) UpdateLabCollection(ctx context.Context, arg UpdateLabCollectionParams) (UpdateLabCollectionRow, error) {
+	row := q.db.QueryRowContext(ctx, updateLabCollection,
+		arg.CollectedAt,
+		arg.Note,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i UpdateLabCollectionRow
 	err := row.Scan(
 		&i.ID,
 		&i.CollectedAt,
+		&i.Note,
 		&i.Source,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -1092,8 +1703,9 @@ SET
   dosage_text = ?2,
   start_date = ?3,
   end_date = ?4,
-  updated_at = ?5
-WHERE id = ?6
+  note = ?5,
+  updated_at = ?6
+WHERE id = ?7
   AND deleted_at IS NULL
 RETURNING
   id,
@@ -1101,6 +1713,7 @@ RETURNING
   dosage_text,
   start_date,
   end_date,
+  note,
   source,
   created_at,
   updated_at,
@@ -1112,26 +1725,42 @@ type UpdateMedicationCourseParams struct {
 	DosageText *string
 	StartDate  string
 	EndDate    *string
+	Note       *string
 	UpdatedAt  string
 	ID         int64
 }
 
-func (q *Queries) UpdateMedicationCourse(ctx context.Context, arg UpdateMedicationCourseParams) (HealthMedicationCourse, error) {
+type UpdateMedicationCourseRow struct {
+	ID         int64
+	Name       string
+	DosageText *string
+	StartDate  string
+	EndDate    *string
+	Note       *string
+	Source     string
+	CreatedAt  string
+	UpdatedAt  string
+	DeletedAt  *string
+}
+
+func (q *Queries) UpdateMedicationCourse(ctx context.Context, arg UpdateMedicationCourseParams) (UpdateMedicationCourseRow, error) {
 	row := q.db.QueryRowContext(ctx, updateMedicationCourse,
 		arg.Name,
 		arg.DosageText,
 		arg.StartDate,
 		arg.EndDate,
+		arg.Note,
 		arg.UpdatedAt,
 		arg.ID,
 	)
-	var i HealthMedicationCourse
+	var i UpdateMedicationCourseRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
 		&i.DosageText,
 		&i.StartDate,
 		&i.EndDate,
+		&i.Note,
 		&i.Source,
 		&i.CreatedAt,
 		&i.UpdatedAt,

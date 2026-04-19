@@ -32,6 +32,7 @@ type MedicationInput struct {
 	DosageText *string `json:"dosage_text,omitempty"`
 	StartDate  string  `json:"start_date"`
 	EndDate    *string `json:"end_date,omitempty"`
+	Note       *string `json:"note,omitempty"`
 }
 
 type MedicationTarget struct {
@@ -54,6 +55,7 @@ type MedicationWrite struct {
 	DosageText *string `json:"dosage_text,omitempty"`
 	StartDate  string  `json:"start_date"`
 	EndDate    *string `json:"end_date,omitempty"`
+	Note       *string `json:"note,omitempty"`
 	Status     string  `json:"status"`
 }
 
@@ -63,6 +65,7 @@ type MedicationEntry struct {
 	DosageText *string `json:"dosage_text,omitempty"`
 	StartDate  string  `json:"start_date"`
 	EndDate    *string `json:"end_date,omitempty"`
+	Note       *string `json:"note,omitempty"`
 }
 
 func RunMedicationTask(ctx context.Context, config client.LocalConfig, request MedicationTaskRequest) (MedicationTaskResult, error) {
@@ -114,6 +117,7 @@ type normalizedMedicationInput struct {
 	DosageText *string
 	StartDate  string
 	EndDate    *string
+	Note       *string
 }
 
 type normalizedMedicationTarget struct {
@@ -235,11 +239,19 @@ func normalizeMedicationInput(input MedicationInput) (normalizedMedicationInput,
 		}
 		input.EndDate = &endDate
 	}
+	if input.Note != nil {
+		note := strings.TrimSpace(*input.Note)
+		if note == "" {
+			return normalizedMedicationInput{}, "note must not be empty"
+		}
+		input.Note = &note
+	}
 	return normalizedMedicationInput{
 		Name:       name,
 		DosageText: input.DosageText,
 		StartDate:  input.StartDate,
 		EndDate:    input.EndDate,
+		Note:       input.Note,
 	}, ""
 }
 
@@ -322,7 +334,11 @@ func runMedicationCorrect(ctx context.Context, api *client.LocalClient, request 
 	if rejection != "" {
 		return MedicationTaskResult{Rejected: true, RejectionReason: rejection, Summary: rejection}, nil
 	}
-	written, err := api.ReplaceMedicationCourse(ctx, target.ID, client.MedicationCourseInput(request.Medication))
+	medication := request.Medication
+	if medication.Note == nil {
+		medication.Note = target.Note
+	}
+	written, err := api.ReplaceMedicationCourse(ctx, target.ID, client.MedicationCourseInput(medication))
 	if err != nil {
 		return MedicationTaskResult{}, err
 	}
@@ -430,7 +446,8 @@ func medicationMatches(item client.MedicationCourse, medication normalizedMedica
 	return strings.EqualFold(item.Name, medication.Name) &&
 		equalStringPointer(item.DosageText, medication.DosageText) &&
 		item.StartDate == medication.StartDate &&
-		equalStringPointer(item.EndDate, medication.EndDate)
+		equalStringPointer(item.EndDate, medication.EndDate) &&
+		equalStringPointer(item.Note, medication.Note)
 }
 
 func medicationWrite(item client.MedicationCourse, status string) MedicationWrite {
@@ -440,6 +457,7 @@ func medicationWrite(item client.MedicationCourse, status string) MedicationWrit
 		DosageText: item.DosageText,
 		StartDate:  item.StartDate,
 		EndDate:    item.EndDate,
+		Note:       item.Note,
 		Status:     status,
 	}
 }
@@ -451,6 +469,7 @@ func medicationEntry(item client.MedicationCourse) MedicationEntry {
 		DosageText: item.DosageText,
 		StartDate:  item.StartDate,
 		EndDate:    item.EndDate,
+		Note:       item.Note,
 	}
 }
 

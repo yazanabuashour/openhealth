@@ -1,6 +1,6 @@
 ---
 name: openhealth
-description: Use this skill for local-first OpenHealth weight, blood-pressure, medication, or lab data. For valid requests, pipe JSON directly to the installed openhealth runner; do not call --help or search source, docs, module cache, or SQLite first. Normalize MM/DD/YYYY dates to YYYY-MM-DD, but reject short dates without a year and year-first slash dates. For filtered list answers, do not mention omitted rows. For invalid values, unsupported units/statuses, invalid lab slug shapes, empty optional text fields, unsafe corrections/deletes, medication end dates before start dates, or systolic values not greater than diastolic values, reject directly without tools.
+description: Use this skill for local-first OpenHealth weight, body-composition, blood-pressure, medication, lab, or imaging data. For valid requests, pipe JSON directly to the installed openhealth runner; do not call --help or search source, docs, module cache, or SQLite first. Normalize MM/DD/YYYY dates to YYYY-MM-DD, but reject short dates without a year and year-first slash dates. For filtered list answers, do not mention omitted rows. For invalid values, unsupported units/statuses, invalid lab slug shapes, empty optional text fields, unsafe corrections/deletes, medication end dates before start dates, or systolic values not greater than diastolic values, reject directly without tools.
 license: MIT
 compatibility: Requires local filesystem access and an installed openhealth binary on PATH.
 ---
@@ -10,9 +10,11 @@ compatibility: Requires local filesystem access and an installed openhealth bina
 Use the installed `openhealth` JSON runners:
 
 - `openhealth weight`
+- `openhealth body-composition`
 - `openhealth blood-pressure`
 - `openhealth medications`
 - `openhealth labs`
+- `openhealth imaging`
 
 The command syntax above is complete. The configured local data path is already
 available through the environment; do not call `--help`, inspect source, or add
@@ -31,14 +33,19 @@ the CLI when the request has:
 | non-positive weight, systolic, diastolic, or pulse | reject as invalid |
 | systolic not greater than diastolic | reject as invalid |
 | unsupported weight unit, like `stone` | reject; pounds only |
+| invalid body-composition percentage or contextual weight | reject as invalid |
+| incomplete body-composition weight pair | reject as invalid |
 | invalid lab analyte slug shape, like punctuation-only text | reject as invalid |
 | unsupported medication status | reject as invalid |
-| empty optional medication/lab text field | reject as invalid |
+| empty optional medication, lab, body-composition, or imaging text field | reject as invalid |
 | medication end date before start date | reject as invalid |
 
 Full slash dates with a year, like `03/29/2026` or `02/01/2026`, may be
 normalized to `YYYY-MM-DD`. Short dates without a year still require a year
 clarification.
+Optional text fields cannot be cleared with runner JSON in this release; omit
+them on corrections to preserve existing text, or provide a non-empty replacement
+value.
 
 ## Runner Contract
 
@@ -68,6 +75,34 @@ same-date value is idempotent. A same-date different value updates the row.
 Accepted units are `lb`, `lbs`, `pound`, and `pounds`; the runner normalizes them
 to `lb`. For "two most recent" or any count greater than one, use `history`
 with `limit`; `latest` returns one row.
+
+Keep scale weight in `openhealth weight`. If a source row contains both scale
+weight and body-fat percentage, call `openhealth weight` for the weight and
+`openhealth body-composition` for the body-fat/body-composition data.
+
+Body composition:
+
+```json
+{"action":"record_body_composition","records":[{"date":"2026-03-29","body_fat_percent":18.7,"weight_value":154.2,"weight_unit":"lb","method":"smart scale","note":"same row as weight import"}]}
+{"action":"correct_body_composition","target":{"id":123},"record":{"date":"2026-03-29","body_fat_percent":18.1,"method":"DEXA"}}
+{"action":"delete_body_composition","target":{"id":123}}
+{"action":"list_body_composition","list_mode":"latest"}
+{"action":"list_body_composition","list_mode":"history","limit":2}
+{"action":"list_body_composition","list_mode":"range","from_date":"2026-03-29","to_date":"2026-03-30"}
+```
+
+Request JSON fields are `action`, `records`, `record`, `target`, `list_mode`,
+`from_date`, `to_date`, and `limit`. Each record has `date`, optional
+`body_fat_percent`, optional contextual `weight_value`, optional `weight_unit`,
+optional `method`, and optional `note`. At least one measurement is required.
+`body_fat_percent` must be greater than 0 and less than or equal to 100.
+Contextual `weight_value` must be greater than 0, `weight_unit` must normalize
+to `lb`, and `weight_value` plus `weight_unit` must be provided together.
+Repeating an exact record is idempotent and returns `already_exists`; a distinct
+same-date record is stored as a separate record. Use corrections and deletes
+with a target by `id`, or by `date` only when exactly one same-date record
+exists. If a date is ambiguous, list body composition first and use the returned
+record `id`.
 
 Blood pressure:
 
@@ -100,13 +135,17 @@ Medications:
 
 Request JSON fields are `action`, `medications`, `medication`, `target`, and
 `status`. Each medication request has `name`, optional `dosage_text`,
-`start_date`, and optional `end_date`. Use `record_medications` with one or more
-courses. Repeating an exact same `name` and `start_date` course is idempotent
-and returns `already_exists`; the same `name` and `start_date` with different
-details is rejected and should be corrected with `correct_medication`.
+`start_date`, optional `end_date`, and optional `note`. Use `record_medications`
+with one or more courses. Repeating an exact same `name` and `start_date` course
+is idempotent and returns `already_exists`; the same `name` and `start_date`
+with different details is rejected and should be corrected with
+`correct_medication`.
 When the user provides dose details, put the full amount, route, form, frequency,
 and delivery details in `dosage_text`, such as `2.5 mg subcutaneous injection
 weekly`, `topical cream twice daily`, or `1 patch every 24 hours`.
+Use `note` for extra medication-course narrative that does not belong in the
+structured dose text, such as why the course changed or context from an import
+file.
 Use `correct_medication` or `delete_medication` with a target by `id`, or by
 exact normalized `name` and `start_date`. The target must match exactly one
 medication; zero or multiple matches return `rejected` with `rejection_reason`.
@@ -117,7 +156,7 @@ inactive or ended courses, even to explain why they were omitted.
 Labs:
 
 ```json
-{"action":"record_labs","collections":[{"date":"2026-03-29","panels":[{"panel_name":"Metabolic","results":[{"test_name":"Glucose","canonical_slug":"glucose","value_text":"89","value_numeric":89,"units":"mg/dL","range_text":"70-99"}]}]}]}
+{"action":"record_labs","collections":[{"date":"2026-03-29","note":"labs look stable, keep moving","panels":[{"panel_name":"Metabolic","results":[{"test_name":"Glucose","canonical_slug":"glucose","value_text":"89","value_numeric":89,"units":"mg/dL","range_text":"70-99"}]}]}]}
 {"action":"correct_labs","target":{"date":"2026-03-29"},"collection":{"date":"2026-03-29","panels":[{"panel_name":"Thyroid","results":[{"test_name":"TSH","canonical_slug":"tsh","value_text":"3.1","value_numeric":3.1,"units":"uIU/mL"}]}]}}
 {"action":"patch_labs","target":{"id":123},"result_updates":[{"panel_name":"Metabolic","match":{"canonical_slug":"glucose"},"result":{"test_name":"Glucose","canonical_slug":"glucose","value_text":"92","value_numeric":92,"units":"mg/dL"}}]}
 {"action":"delete_labs","target":{"date":"2026-03-29"}}
@@ -129,10 +168,10 @@ Labs:
 
 Request JSON fields are `action`, `collections`, `collection`,
 `result_updates`, `target`, `list_mode`, `from_date`, `to_date`, `limit`, and
-`analyte_slug`. Each collection request has `date`, nested `panels`, and nested
-`results`. Each panel has `panel_name` and `results`. Each result has
-`test_name`, optional `canonical_slug`, `value_text`, optional `value_numeric`,
-optional `units`, optional `range_text`, and optional `flag`.
+`analyte_slug`. Each collection request has `date`, optional `note`, nested
+`panels`, and nested `results`. Each panel has `panel_name` and `results`. Each
+result has `test_name`, optional `canonical_slug`, `value_text`, optional
+`value_numeric`, optional `units`, optional `range_text`, and optional `flag`.
 
 Use lowercase kebab-case `canonical_slug` and `analyte_slug` values derived from
 the lab or test name, such as `vitamin-d`, `hemoglobin-a1c`, `ferritin`, and
@@ -154,6 +193,31 @@ For "two most recent" or any count greater than one, use `history` with
 `limit`; `latest` returns one matching collection. `analyte_slug` filters nested
 results to that canonical analyte and omits collections without matching
 results.
+
+Imaging:
+
+```json
+{"action":"record_imaging","records":[{"date":"2026-03-29","modality":"X-ray","body_site":"chest","title":"Chest X-ray","summary":"No acute cardiopulmonary abnormality.","impression":"Normal chest radiograph.","note":"ordered for cough"}]}
+{"action":"correct_imaging","target":{"id":123},"record":{"date":"2026-03-29","modality":"CT","body_site":"chest","summary":"Stable small pulmonary nodule.","note":"follow-up scan"}}
+{"action":"delete_imaging","target":{"id":123}}
+{"action":"list_imaging","list_mode":"latest"}
+{"action":"list_imaging","list_mode":"history","limit":2}
+{"action":"list_imaging","list_mode":"range","from_date":"2026-03-29","to_date":"2026-03-30"}
+{"action":"list_imaging","list_mode":"history","modality":"x-ray","body_site":"CHEST"}
+```
+
+Request JSON fields are `action`, `records`, `record`, `target`, `list_mode`,
+`from_date`, `to_date`, `limit`, optional `modality`, and optional `body_site`.
+Each imaging record has `date`, `modality`, optional `body_site`, optional
+`title`, required `summary`, optional `impression`, and optional `note`.
+`date`, `modality`, and `summary` are required. Use `summary` for the main scan
+or report summary, `impression` for the radiology impression when present, and
+`note` for extra import-file or clinician narrative. `modality` and `body_site`
+filters are exact case-insensitive matches after trimming. Repeating an exact
+record is idempotent and returns `already_exists`; a distinct same-date record
+is stored as a separate record. Use corrections and deletes with a target by
+`id`, or by `date` only when exactly one same-date imaging record exists. If a
+date is ambiguous, list imaging first and use the returned record `id`.
 
 Do not run repo-wide file discovery or broad searches for routine user-data
 tasks; do not inspect source files, module-cache docs, or SQLite directly.

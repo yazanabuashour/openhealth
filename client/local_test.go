@@ -237,6 +237,7 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 		Name:       "Levothyroxine",
 		DosageText: stringPointer("25 mcg"),
 		StartDate:  "2026-01-01",
+		Note:       stringPointer("started after annual exam"),
 	})
 	if err != nil {
 		t.Fatalf("create medication: %v", err)
@@ -244,11 +245,12 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 	med, err = api.ReplaceMedicationCourse(ctx, med.ID, client.MedicationCourseInput{
 		Name:      "Levothyroxine",
 		StartDate: "2026-01-02",
+		Note:      stringPointer("dose held before imaging"),
 	})
 	if err != nil {
 		t.Fatalf("replace medication: %v", err)
 	}
-	if med.StartDate != "2026-01-02" || med.DosageText != nil {
+	if med.StartDate != "2026-01-02" || med.DosageText != nil || med.Note == nil || *med.Note != "dose held before imaging" {
 		t.Fatalf("medication = %#v, want replacement values", med)
 	}
 	meds, err := api.ListMedicationCourses(ctx, client.MedicationListOptions{Status: client.MedicationStatusAll})
@@ -262,6 +264,7 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 	slug := client.AnalyteSlugGlucose
 	lab, err := api.CreateLabCollection(ctx, client.LabCollectionInput{
 		CollectedAt: recordedAt,
+		Note:        stringPointer("labs look stable"),
 		Panels: []client.LabPanelInput{
 			{
 				PanelName: "Metabolic",
@@ -282,6 +285,7 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 	}
 	lab, err = api.ReplaceLabCollection(ctx, lab.ID, client.LabCollectionInput{
 		CollectedAt: recordedAt.Add(24 * time.Hour),
+		Note:        stringPointer("collection corrected"),
 		Panels: []client.LabPanelInput{
 			{
 				PanelName: "Thyroid",
@@ -297,7 +301,7 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("replace lab collection: %v", err)
 	}
-	if lab.Panels[0].PanelName != "Thyroid" || lab.Panels[0].Results[0].TestName != "TSH" {
+	if lab.Panels[0].PanelName != "Thyroid" || lab.Panels[0].Results[0].TestName != "TSH" || lab.Note == nil || *lab.Note != "collection corrected" {
 		t.Fatalf("lab collection = %#v, want replacement panel/result", lab)
 	}
 	labs, err := api.ListLabCollections(ctx)
@@ -307,6 +311,69 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 	if len(labs) != 1 || labs[0].ID != lab.ID {
 		t.Fatalf("lab collections = %#v", labs)
 	}
+
+	bodyUnit := client.WeightUnitLb
+	body, err := api.CreateBodyComposition(ctx, client.BodyCompositionInput{
+		RecordedAt:     recordedAt,
+		BodyFatPercent: float64Pointer(18.7),
+		WeightValue:    float64Pointer(154.2),
+		WeightUnit:     &bodyUnit,
+		Method:         stringPointer("smart scale"),
+		Note:           stringPointer("same row as weight"),
+	})
+	if err != nil {
+		t.Fatalf("create body composition: %v", err)
+	}
+	body, err = api.ReplaceBodyComposition(ctx, body.ID, client.BodyCompositionInput{
+		RecordedAt:     recordedAt.Add(24 * time.Hour),
+		BodyFatPercent: float64Pointer(18.1),
+		Method:         stringPointer("DEXA"),
+	})
+	if err != nil {
+		t.Fatalf("replace body composition: %v", err)
+	}
+	if body.BodyFatPercent == nil || *body.BodyFatPercent != 18.1 || body.WeightValue != nil || body.Method == nil || *body.Method != "DEXA" {
+		t.Fatalf("body composition = %#v, want replacement values", body)
+	}
+	bodies, err := api.ListBodyComposition(ctx, client.BodyCompositionListOptions{Limit: 1})
+	if err != nil {
+		t.Fatalf("list body composition: %v", err)
+	}
+	if len(bodies) != 1 || bodies[0].ID != body.ID {
+		t.Fatalf("body composition list = %#v", bodies)
+	}
+
+	imaging, err := api.CreateImaging(ctx, client.ImagingRecordInput{
+		PerformedAt: recordedAt,
+		Modality:    "X-ray",
+		BodySite:    stringPointer("chest"),
+		Title:       stringPointer("Chest X-ray"),
+		Summary:     "No acute cardiopulmonary abnormality.",
+		Impression:  stringPointer("Normal chest radiograph."),
+		Note:        stringPointer("ordered for cough"),
+	})
+	if err != nil {
+		t.Fatalf("create imaging: %v", err)
+	}
+	imaging, err = api.ReplaceImaging(ctx, imaging.ID, client.ImagingRecordInput{
+		PerformedAt: recordedAt.Add(24 * time.Hour),
+		Modality:    "CT",
+		BodySite:    stringPointer("chest"),
+		Summary:     "Stable small pulmonary nodule.",
+	})
+	if err != nil {
+		t.Fatalf("replace imaging: %v", err)
+	}
+	if imaging.Modality != "CT" || imaging.Title != nil || imaging.Summary != "Stable small pulmonary nodule." {
+		t.Fatalf("imaging = %#v, want replacement values", imaging)
+	}
+	images, err := api.ListImaging(ctx, client.ImagingListOptions{Modality: stringPointer("ct"), BodySite: stringPointer("CHEST")})
+	if err != nil {
+		t.Fatalf("list imaging: %v", err)
+	}
+	if len(images) != 1 || images[0].ID != imaging.ID {
+		t.Fatalf("imaging list = %#v", images)
+	}
 	if err := api.DeleteBloodPressure(ctx, bp.ID); err != nil {
 		t.Fatalf("delete blood pressure: %v", err)
 	}
@@ -315,6 +382,12 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 	}
 	if err := api.DeleteLabCollection(ctx, lab.ID); err != nil {
 		t.Fatalf("delete lab collection: %v", err)
+	}
+	if err := api.DeleteBodyComposition(ctx, body.ID); err != nil {
+		t.Fatalf("delete body composition: %v", err)
+	}
+	if err := api.DeleteImaging(ctx, imaging.ID); err != nil {
+		t.Fatalf("delete imaging: %v", err)
 	}
 }
 

@@ -18,12 +18,17 @@ The `oh-5yr` harness covers routine local user-data tasks:
 
 - weight add/reapply/correction, latest/history/range listing, and invalid input
   rejection
+- body-composition record/correction/delete/list, combined weight plus body-fat
+  import rows, and invalid input rejection
 - blood-pressure record/correction, latest/history/range listing, relation
   validation, and invalid input rejection
 - medication record/correction/delete/list, non-oral dosage text, and invalid
-  input rejection
+  input rejection, including medication-course notes
 - lab record/correction/patch/delete/latest/history/range/analyte listing,
-  arbitrary slugs, multiple same-day collections, and invalid input rejection
+  arbitrary slugs, collection notes, multiple same-day collections, and invalid
+  input rejection
+- imaging record/correction/delete/latest/history/range/filter listing and
+  invalid input rejection
 - mixed-domain requests in one user task
 - true multi-turn requests that require clarification or conversational context
 

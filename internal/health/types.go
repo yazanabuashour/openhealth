@@ -120,6 +120,7 @@ type MedicationCourse struct {
 	DosageText *string
 	StartDate  string
 	EndDate    *string
+	Note       *string
 	Source     string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
@@ -157,11 +158,43 @@ type LabPanel struct {
 type LabCollection struct {
 	ID          int
 	CollectedAt time.Time
+	Note        *string
 	Source      string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   *time.Time
 	Panels      []LabPanel
+}
+
+type BodyCompositionEntry struct {
+	ID               int
+	RecordedAt       time.Time
+	BodyFatPercent   *float64
+	WeightValue      *float64
+	WeightUnit       *WeightUnit
+	Method           *string
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	DeletedAt        *time.Time
+}
+
+type ImagingRecord struct {
+	ID               int
+	PerformedAt      time.Time
+	Modality         string
+	BodySite         *string
+	Title            *string
+	Summary          string
+	Impression       *string
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	DeletedAt        *time.Time
 }
 
 type MovingAveragePoint struct {
@@ -221,6 +254,7 @@ type MedicationCourseInput struct {
 	DosageText *string
 	StartDate  string
 	EndDate    *string
+	Note       *string
 }
 
 type LabResultInput struct {
@@ -240,7 +274,27 @@ type LabPanelInput struct {
 
 type LabCollectionInput struct {
 	CollectedAt time.Time
+	Note        *string
 	Panels      []LabPanelInput
+}
+
+type BodyCompositionInput struct {
+	RecordedAt     time.Time
+	BodyFatPercent *float64
+	WeightValue    *float64
+	WeightUnit     *WeightUnit
+	Method         *string
+	Note           *string
+}
+
+type ImagingRecordInput struct {
+	PerformedAt time.Time
+	Modality    string
+	BodySite    *string
+	Title       *string
+	Summary     string
+	Impression  *string
+	Note        *string
 }
 
 type WeightUpdateInput struct {
@@ -255,6 +309,12 @@ type WeightTrendParams struct {
 
 type MedicationListParams struct {
 	Status MedicationStatus
+}
+
+type ImagingListParams struct {
+	HistoryFilter
+	Modality *string
+	BodySite *string
 }
 
 type CreateWeightEntryParams struct {
@@ -313,6 +373,7 @@ type CreateMedicationCourseParams struct {
 	DosageText *string
 	StartDate  string
 	EndDate    *string
+	Note       *string
 	Source     string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
@@ -324,6 +385,7 @@ type UpdateMedicationCourseParams struct {
 	DosageText *string
 	StartDate  string
 	EndDate    *string
+	Note       *string
 	UpdatedAt  time.Time
 }
 
@@ -352,6 +414,7 @@ type LabPanelWriteParams struct {
 
 type CreateLabCollectionParams struct {
 	CollectedAt time.Time
+	Note        *string
 	Source      string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
@@ -361,8 +424,71 @@ type CreateLabCollectionParams struct {
 type UpdateLabCollectionParams struct {
 	ID          int
 	CollectedAt time.Time
+	Note        *string
 	UpdatedAt   time.Time
 	Panels      []LabPanelWriteParams
+}
+
+type CreateBodyCompositionEntryParams struct {
+	RecordedAt       time.Time
+	BodyFatPercent   *float64
+	WeightValue      *float64
+	WeightUnit       *WeightUnit
+	Method           *string
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type UpdateBodyCompositionEntryParams struct {
+	ID             int
+	RecordedAt     time.Time
+	BodyFatPercent *float64
+	WeightValue    *float64
+	WeightUnit     *WeightUnit
+	Method         *string
+	Note           *string
+	UpdatedAt      time.Time
+}
+
+type DeleteBodyCompositionEntryParams struct {
+	ID        int
+	DeletedAt time.Time
+	UpdatedAt time.Time
+}
+
+type CreateImagingRecordParams struct {
+	PerformedAt      time.Time
+	Modality         string
+	BodySite         *string
+	Title            *string
+	Summary          string
+	Impression       *string
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type UpdateImagingRecordParams struct {
+	ID          int
+	PerformedAt time.Time
+	Modality    string
+	BodySite    *string
+	Title       *string
+	Summary     string
+	Impression  *string
+	Note        *string
+	UpdatedAt   time.Time
+}
+
+type DeleteImagingRecordParams struct {
+	ID        int
+	DeletedAt time.Time
+	UpdatedAt time.Time
 }
 
 type DeleteLabCollectionParams struct {
@@ -396,6 +522,14 @@ type Repository interface {
 	UpdateLabCollection(ctx context.Context, params UpdateLabCollectionParams) (LabCollection, error)
 	DeleteLabCollection(ctx context.Context, params DeleteLabCollectionParams) error
 	ListLabResultsWithCollection(ctx context.Context) ([]LabResultWithCollection, error)
+	ListBodyCompositionEntries(ctx context.Context, filter HistoryFilter) ([]BodyCompositionEntry, error)
+	CreateBodyCompositionEntry(ctx context.Context, params CreateBodyCompositionEntryParams) (BodyCompositionEntry, error)
+	UpdateBodyCompositionEntry(ctx context.Context, params UpdateBodyCompositionEntryParams) (BodyCompositionEntry, error)
+	DeleteBodyCompositionEntry(ctx context.Context, params DeleteBodyCompositionEntryParams) error
+	ListImagingRecords(ctx context.Context, params ImagingListParams) ([]ImagingRecord, error)
+	CreateImagingRecord(ctx context.Context, params CreateImagingRecordParams) (ImagingRecord, error)
+	UpdateImagingRecord(ctx context.Context, params UpdateImagingRecordParams) (ImagingRecord, error)
+	DeleteImagingRecord(ctx context.Context, params DeleteImagingRecordParams) error
 }
 
 type Service interface {
@@ -421,4 +555,12 @@ type Service interface {
 	CreateLabCollection(ctx context.Context, input LabCollectionInput) (LabCollection, error)
 	ReplaceLabCollection(ctx context.Context, id int, input LabCollectionInput) (LabCollection, error)
 	DeleteLabCollection(ctx context.Context, id int) error
+	ListBodyComposition(ctx context.Context, filter HistoryFilter) ([]BodyCompositionEntry, error)
+	CreateBodyComposition(ctx context.Context, input BodyCompositionInput) (BodyCompositionEntry, error)
+	ReplaceBodyComposition(ctx context.Context, id int, input BodyCompositionInput) (BodyCompositionEntry, error)
+	DeleteBodyComposition(ctx context.Context, id int) error
+	ListImaging(ctx context.Context, params ImagingListParams) ([]ImagingRecord, error)
+	CreateImaging(ctx context.Context, input ImagingRecordInput) (ImagingRecord, error)
+	ReplaceImaging(ctx context.Context, id int, input ImagingRecordInput) (ImagingRecord, error)
+	DeleteImaging(ctx context.Context, id int) error
 }

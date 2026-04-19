@@ -37,6 +37,10 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) err
 		return runMedications(args[1:], stdin, stdout)
 	case "labs":
 		return runLabs(args[1:], stdin, stdout)
+	case "body-composition":
+		return runBodyComposition(args[1:], stdin, stdout)
+	case "imaging":
+		return runImaging(args[1:], stdin, stdout)
 	default:
 		_ = writeUsage(stderr)
 		return fmt.Errorf("unknown OpenHealth runner domain %q", args[0])
@@ -115,6 +119,42 @@ func runLabs(args []string, stdin io.Reader, stdout io.Writer) error {
 	return encodeResult(stdout, result)
 }
 
+func runBodyComposition(args []string, stdin io.Reader, stdout io.Writer) error {
+	config, err := parseLocalConfig("body-composition", args)
+	if err != nil {
+		return err
+	}
+
+	var request runner.BodyCompositionTaskRequest
+	if err := decodeRequest(stdin, &request); err != nil {
+		return err
+	}
+
+	result, err := runner.RunBodyCompositionTask(context.Background(), config, request)
+	if err != nil {
+		return err
+	}
+	return encodeResult(stdout, result)
+}
+
+func runImaging(args []string, stdin io.Reader, stdout io.Writer) error {
+	config, err := parseLocalConfig("imaging", args)
+	if err != nil {
+		return err
+	}
+
+	var request runner.ImagingTaskRequest
+	if err := decodeRequest(stdin, &request); err != nil {
+		return err
+	}
+
+	result, err := runner.RunImagingTask(context.Background(), config, request)
+	if err != nil {
+		return err
+	}
+	return encodeResult(stdout, result)
+}
+
 func parseLocalConfig(name string, args []string) (client.LocalConfig, error) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -157,6 +197,8 @@ func writeUsage(w io.Writer) error {
   openhealth blood-pressure [-db path] < request.json
   openhealth medications [-db path] < request.json
   openhealth labs [-db path] < request.json
+  openhealth body-composition [-db path] < request.json
+  openhealth imaging [-db path] < request.json
 `)
 	return err
 }

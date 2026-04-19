@@ -21,7 +21,7 @@ func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
 	result, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
 		Action: runner.LabTaskActionRecord,
 		Collections: []runner.LabCollectionInput{
-			metabolicCollection("2026-03-29", 89),
+			{Date: "2026-03-29", Note: stringPointer("labs look stable, keep moving"), Panels: metabolicCollection("2026-03-29", 89).Panels},
 			thyroidCollection("2026-03-30", "3.1"),
 		},
 	})
@@ -35,10 +35,13 @@ func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
 		t.Fatalf("write statuses = %q, want created,created", got)
 	}
 	assertLabCollectionDates(t, result.Entries, []string{"2026-03-30", "2026-03-29"})
+	if got := result.Entries[1].Note; got == nil || *got != "labs look stable, keep moving" {
+		t.Fatalf("lab note = %#v, want stable note", got)
+	}
 
 	again, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
 		Action:      runner.LabTaskActionRecord,
-		Collections: []runner.LabCollectionInput{metabolicCollection("2026-03-29", 89)},
+		Collections: []runner.LabCollectionInput{{Date: "2026-03-29", Note: stringPointer("labs look stable, keep moving"), Panels: metabolicCollection("2026-03-29", 89).Panels}},
 	})
 	if err != nil {
 		t.Fatalf("repeat lab task: %v", err)
@@ -58,6 +61,9 @@ func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
 	assertLabCollectionDates(t, latestGlucose.Entries, []string{"2026-03-29"})
 	if got := latestGlucose.Entries[0].Panels[0].Results[0].ValueText; got != "89" {
 		t.Fatalf("glucose value = %q, want 89", got)
+	}
+	if got := latestGlucose.Entries[0].Note; got == nil || *got != "labs look stable, keep moving" {
+		t.Fatalf("filtered lab note = %#v, want stable note", got)
 	}
 
 	bounded, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
@@ -84,6 +90,9 @@ func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
 	}
 	if got := labWriteStatuses(corrected.Writes); got != "updated" {
 		t.Fatalf("correction write statuses = %q, want updated", got)
+	}
+	if got := corrected.Entries[1].Note; got == nil || *got != "labs look stable, keep moving" {
+		t.Fatalf("corrected lab note = %#v, want preserved note", got)
 	}
 	correctedLatest, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
 		Action:      runner.LabTaskActionList,

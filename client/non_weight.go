@@ -57,6 +57,7 @@ type MedicationCourseInput struct {
 	DosageText *string
 	StartDate  string
 	EndDate    *string
+	Note       *string
 }
 
 type MedicationListOptions struct {
@@ -69,6 +70,7 @@ type MedicationCourse struct {
 	DosageText *string
 	StartDate  string
 	EndDate    *string
+	Note       *string
 	Source     string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
@@ -92,6 +94,7 @@ type LabPanelInput struct {
 
 type LabCollectionInput struct {
 	CollectedAt time.Time
+	Note        *string
 	Panels      []LabPanelInput
 }
 
@@ -119,11 +122,76 @@ type LabPanel struct {
 type LabCollection struct {
 	ID          int
 	CollectedAt time.Time
+	Note        *string
 	Source      string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	DeletedAt   *time.Time
 	Panels      []LabPanel
+}
+
+type BodyCompositionInput struct {
+	RecordedAt     time.Time
+	BodyFatPercent *float64
+	WeightValue    *float64
+	WeightUnit     *WeightUnit
+	Method         *string
+	Note           *string
+}
+
+type BodyCompositionListOptions struct {
+	From  *time.Time
+	To    *time.Time
+	Limit int
+}
+
+type BodyCompositionEntry struct {
+	ID               int
+	RecordedAt       time.Time
+	BodyFatPercent   *float64
+	WeightValue      *float64
+	WeightUnit       *WeightUnit
+	Method           *string
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	DeletedAt        *time.Time
+}
+
+type ImagingRecordInput struct {
+	PerformedAt time.Time
+	Modality    string
+	BodySite    *string
+	Title       *string
+	Summary     string
+	Impression  *string
+	Note        *string
+}
+
+type ImagingListOptions struct {
+	From     *time.Time
+	To       *time.Time
+	Limit    int
+	Modality *string
+	BodySite *string
+}
+
+type ImagingRecord struct {
+	ID               int
+	PerformedAt      time.Time
+	Modality         string
+	BodySite         *string
+	Title            *string
+	Summary          string
+	Impression       *string
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	DeletedAt        *time.Time
 }
 
 func (c *LocalClient) RecordBloodPressure(ctx context.Context, input BloodPressureRecordInput) (BloodPressureEntry, error) {
@@ -260,13 +328,106 @@ func (c *LocalClient) ListLabCollections(ctx context.Context) ([]LabCollection, 
 	return fromHealthLabCollections(items), nil
 }
 
-func historyFilterFromBloodPressureOptions(options BloodPressureListOptions) health.HistoryFilter {
-	filter := health.HistoryFilter{
-		From: options.From,
-		To:   options.To,
+func (c *LocalClient) CreateBodyComposition(ctx context.Context, input BodyCompositionInput) (BodyCompositionEntry, error) {
+	service, err := c.localService()
+	if err != nil {
+		return BodyCompositionEntry{}, err
 	}
-	if options.Limit != 0 {
-		limit := options.Limit
+	item, err := service.CreateBodyComposition(ctx, toHealthBodyCompositionInput(input))
+	if err != nil {
+		return BodyCompositionEntry{}, err
+	}
+	return fromHealthBodyCompositionEntry(item), nil
+}
+
+func (c *LocalClient) ReplaceBodyComposition(ctx context.Context, id int, input BodyCompositionInput) (BodyCompositionEntry, error) {
+	service, err := c.localService()
+	if err != nil {
+		return BodyCompositionEntry{}, err
+	}
+	item, err := service.ReplaceBodyComposition(ctx, id, toHealthBodyCompositionInput(input))
+	if err != nil {
+		return BodyCompositionEntry{}, err
+	}
+	return fromHealthBodyCompositionEntry(item), nil
+}
+
+func (c *LocalClient) DeleteBodyComposition(ctx context.Context, id int) error {
+	service, err := c.localService()
+	if err != nil {
+		return err
+	}
+	return service.DeleteBodyComposition(ctx, id)
+}
+
+func (c *LocalClient) ListBodyComposition(ctx context.Context, options BodyCompositionListOptions) ([]BodyCompositionEntry, error) {
+	service, err := c.localService()
+	if err != nil {
+		return nil, err
+	}
+	items, err := service.ListBodyComposition(ctx, historyFilterFromOptions(options.From, options.To, options.Limit))
+	if err != nil {
+		return nil, err
+	}
+	return fromHealthBodyCompositionEntries(items), nil
+}
+
+func (c *LocalClient) CreateImaging(ctx context.Context, input ImagingRecordInput) (ImagingRecord, error) {
+	service, err := c.localService()
+	if err != nil {
+		return ImagingRecord{}, err
+	}
+	item, err := service.CreateImaging(ctx, toHealthImagingRecordInput(input))
+	if err != nil {
+		return ImagingRecord{}, err
+	}
+	return fromHealthImagingRecord(item), nil
+}
+
+func (c *LocalClient) ReplaceImaging(ctx context.Context, id int, input ImagingRecordInput) (ImagingRecord, error) {
+	service, err := c.localService()
+	if err != nil {
+		return ImagingRecord{}, err
+	}
+	item, err := service.ReplaceImaging(ctx, id, toHealthImagingRecordInput(input))
+	if err != nil {
+		return ImagingRecord{}, err
+	}
+	return fromHealthImagingRecord(item), nil
+}
+
+func (c *LocalClient) DeleteImaging(ctx context.Context, id int) error {
+	service, err := c.localService()
+	if err != nil {
+		return err
+	}
+	return service.DeleteImaging(ctx, id)
+}
+
+func (c *LocalClient) ListImaging(ctx context.Context, options ImagingListOptions) ([]ImagingRecord, error) {
+	service, err := c.localService()
+	if err != nil {
+		return nil, err
+	}
+	items, err := service.ListImaging(ctx, health.ImagingListParams{
+		HistoryFilter: historyFilterFromOptions(options.From, options.To, options.Limit),
+		Modality:      options.Modality,
+		BodySite:      options.BodySite,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return fromHealthImagingRecords(items), nil
+}
+
+func historyFilterFromBloodPressureOptions(options BloodPressureListOptions) health.HistoryFilter {
+	return historyFilterFromOptions(options.From, options.To, options.Limit)
+}
+
+func historyFilterFromOptions(from *time.Time, to *time.Time, limitValue int) health.HistoryFilter {
+	filter := health.HistoryFilter{From: from, To: to}
+	if limitValue != 0 {
+		limit := limitValue
 		filter.Limit = &limit
 	}
 	return filter
@@ -299,8 +460,29 @@ func toHealthLabCollectionInput(input LabCollectionInput) health.LabCollectionIn
 	}
 	return health.LabCollectionInput{
 		CollectedAt: input.CollectedAt,
+		Note:        input.Note,
 		Panels:      panels,
 	}
+}
+
+func toHealthBodyCompositionInput(input BodyCompositionInput) health.BodyCompositionInput {
+	var weightUnit *health.WeightUnit
+	if input.WeightUnit != nil {
+		unit := health.WeightUnit(*input.WeightUnit)
+		weightUnit = &unit
+	}
+	return health.BodyCompositionInput{
+		RecordedAt:     input.RecordedAt,
+		BodyFatPercent: input.BodyFatPercent,
+		WeightValue:    input.WeightValue,
+		WeightUnit:     weightUnit,
+		Method:         input.Method,
+		Note:           input.Note,
+	}
+}
+
+func toHealthImagingRecordInput(input ImagingRecordInput) health.ImagingRecordInput {
+	return health.ImagingRecordInput(input)
 }
 
 func toHealthLabResultInput(input LabResultInput) health.LabResultInput {
@@ -357,6 +539,7 @@ func fromHealthMedicationCourse(item health.MedicationCourse) MedicationCourse {
 		DosageText: item.DosageText,
 		StartDate:  item.StartDate,
 		EndDate:    item.EndDate,
+		Note:       item.Note,
 		Source:     item.Source,
 		CreatedAt:  item.CreatedAt,
 		UpdatedAt:  item.UpdatedAt,
@@ -380,11 +563,68 @@ func fromHealthLabCollection(item health.LabCollection) LabCollection {
 	return LabCollection{
 		ID:          item.ID,
 		CollectedAt: item.CollectedAt,
+		Note:        item.Note,
 		Source:      item.Source,
 		CreatedAt:   item.CreatedAt,
 		UpdatedAt:   item.UpdatedAt,
 		DeletedAt:   item.DeletedAt,
 		Panels:      panels,
+	}
+}
+
+func fromHealthBodyCompositionEntries(items []health.BodyCompositionEntry) []BodyCompositionEntry {
+	out := make([]BodyCompositionEntry, 0, len(items))
+	for _, item := range items {
+		out = append(out, fromHealthBodyCompositionEntry(item))
+	}
+	return out
+}
+
+func fromHealthBodyCompositionEntry(item health.BodyCompositionEntry) BodyCompositionEntry {
+	var weightUnit *WeightUnit
+	if item.WeightUnit != nil {
+		unit := WeightUnit(*item.WeightUnit)
+		weightUnit = &unit
+	}
+	return BodyCompositionEntry{
+		ID:               item.ID,
+		RecordedAt:       item.RecordedAt,
+		BodyFatPercent:   item.BodyFatPercent,
+		WeightValue:      item.WeightValue,
+		WeightUnit:       weightUnit,
+		Method:           item.Method,
+		Note:             item.Note,
+		Source:           item.Source,
+		SourceRecordHash: item.SourceRecordHash,
+		CreatedAt:        item.CreatedAt,
+		UpdatedAt:        item.UpdatedAt,
+		DeletedAt:        item.DeletedAt,
+	}
+}
+
+func fromHealthImagingRecords(items []health.ImagingRecord) []ImagingRecord {
+	out := make([]ImagingRecord, 0, len(items))
+	for _, item := range items {
+		out = append(out, fromHealthImagingRecord(item))
+	}
+	return out
+}
+
+func fromHealthImagingRecord(item health.ImagingRecord) ImagingRecord {
+	return ImagingRecord{
+		ID:               item.ID,
+		PerformedAt:      item.PerformedAt,
+		Modality:         item.Modality,
+		BodySite:         item.BodySite,
+		Title:            item.Title,
+		Summary:          item.Summary,
+		Impression:       item.Impression,
+		Note:             item.Note,
+		Source:           item.Source,
+		SourceRecordHash: item.SourceRecordHash,
+		CreatedAt:        item.CreatedAt,
+		UpdatedAt:        item.UpdatedAt,
+		DeletedAt:        item.DeletedAt,
 	}
 }
 

@@ -42,6 +42,10 @@ type LabCollectionInput = health.LabCollectionInput
 type LabResult = health.LabResult
 type LabPanel = health.LabPanel
 type LabCollection = health.LabCollection
+type BodyCompositionInput = health.BodyCompositionInput
+type BodyCompositionEntry = health.BodyCompositionEntry
+type ImagingRecordInput = health.ImagingRecordInput
+type ImagingRecord = health.ImagingRecord
 
 const (
 	MedicationStatusActive = health.MedicationStatusActive
@@ -74,6 +78,20 @@ type BloodPressureListOptions struct {
 
 type MedicationListOptions struct {
 	Status MedicationStatus
+}
+
+type BodyCompositionListOptions struct {
+	From  *time.Time
+	To    *time.Time
+	Limit int
+}
+
+type ImagingListOptions struct {
+	From     *time.Time
+	To       *time.Time
+	Limit    int
+	Modality *string
+	BodySite *string
 }
 
 type LocalClient struct {
@@ -203,6 +221,74 @@ func (c *LocalClient) ListLabCollections(ctx context.Context) ([]LabCollection, 
 		return nil, err
 	}
 	return service.ListLabCollections(ctx)
+}
+
+func (c *LocalClient) CreateBodyComposition(ctx context.Context, input BodyCompositionInput) (BodyCompositionEntry, error) {
+	service, err := c.localService()
+	if err != nil {
+		return BodyCompositionEntry{}, err
+	}
+	return service.CreateBodyComposition(ctx, input)
+}
+
+func (c *LocalClient) ReplaceBodyComposition(ctx context.Context, id int, input BodyCompositionInput) (BodyCompositionEntry, error) {
+	service, err := c.localService()
+	if err != nil {
+		return BodyCompositionEntry{}, err
+	}
+	return service.ReplaceBodyComposition(ctx, id, input)
+}
+
+func (c *LocalClient) DeleteBodyComposition(ctx context.Context, id int) error {
+	service, err := c.localService()
+	if err != nil {
+		return err
+	}
+	return service.DeleteBodyComposition(ctx, id)
+}
+
+func (c *LocalClient) ListBodyComposition(ctx context.Context, options BodyCompositionListOptions) ([]BodyCompositionEntry, error) {
+	service, err := c.localService()
+	if err != nil {
+		return nil, err
+	}
+	return service.ListBodyComposition(ctx, historyFilter(options.From, options.To, options.Limit))
+}
+
+func (c *LocalClient) CreateImaging(ctx context.Context, input ImagingRecordInput) (ImagingRecord, error) {
+	service, err := c.localService()
+	if err != nil {
+		return ImagingRecord{}, err
+	}
+	return service.CreateImaging(ctx, input)
+}
+
+func (c *LocalClient) ReplaceImaging(ctx context.Context, id int, input ImagingRecordInput) (ImagingRecord, error) {
+	service, err := c.localService()
+	if err != nil {
+		return ImagingRecord{}, err
+	}
+	return service.ReplaceImaging(ctx, id, input)
+}
+
+func (c *LocalClient) DeleteImaging(ctx context.Context, id int) error {
+	service, err := c.localService()
+	if err != nil {
+		return err
+	}
+	return service.DeleteImaging(ctx, id)
+}
+
+func (c *LocalClient) ListImaging(ctx context.Context, options ImagingListOptions) ([]ImagingRecord, error) {
+	service, err := c.localService()
+	if err != nil {
+		return nil, err
+	}
+	return service.ListImaging(ctx, health.ImagingListParams{
+		HistoryFilter: historyFilter(options.From, options.To, options.Limit),
+		Modality:      options.Modality,
+		BodySite:      options.BodySite,
+	})
 }
 
 func (c *LocalClient) localService() (health.Service, error) {

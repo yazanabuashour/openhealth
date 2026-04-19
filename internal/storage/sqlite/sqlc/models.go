@@ -17,6 +17,37 @@ type HealthBloodPressureEntry struct {
 	DeletedAt        *string
 }
 
+type HealthBodyCompositionEntry struct {
+	ID               int64
+	RecordedAt       string
+	BodyFatPercent   *float64
+	WeightValue      *float64
+	WeightUnit       *string
+	Method           *string
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        string
+	UpdatedAt        string
+	DeletedAt        *string
+}
+
+type HealthImagingRecord struct {
+	ID               int64
+	PerformedAt      string
+	Modality         string
+	BodySite         *string
+	Title            *string
+	Summary          string
+	Impression       *string
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        string
+	UpdatedAt        string
+	DeletedAt        *string
+}
+
 type HealthLabCollection struct {
 	ID          int64
 	CollectedAt string
@@ -24,6 +55,7 @@ type HealthLabCollection struct {
 	CreatedAt   string
 	UpdatedAt   *string
 	DeletedAt   *string
+	Note        *string
 }
 
 type HealthLabPanel struct {
@@ -56,6 +88,7 @@ type HealthMedicationCourse struct {
 	CreatedAt  string
 	UpdatedAt  string
 	DeletedAt  *string
+	Note       *string
 }
 
 type HealthWeightEntry struct {

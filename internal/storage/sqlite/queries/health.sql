@@ -194,6 +194,7 @@ SELECT
   dosage_text,
   start_date,
   end_date,
+  note,
   source,
   created_at,
   updated_at,
@@ -208,6 +209,7 @@ INSERT INTO health_medication_course (
   dosage_text,
   start_date,
   end_date,
+  note,
   source,
   created_at,
   updated_at
@@ -216,6 +218,7 @@ INSERT INTO health_medication_course (
   sqlc.narg('dosage_text'),
   sqlc.arg('start_date'),
   sqlc.narg('end_date'),
+  sqlc.narg('note'),
   sqlc.arg('source'),
   sqlc.arg('created_at'),
   sqlc.arg('updated_at')
@@ -226,6 +229,7 @@ RETURNING
   dosage_text,
   start_date,
   end_date,
+  note,
   source,
   created_at,
   updated_at,
@@ -238,6 +242,7 @@ SET
   dosage_text = sqlc.narg('dosage_text'),
   start_date = sqlc.arg('start_date'),
   end_date = sqlc.narg('end_date'),
+  note = sqlc.narg('note'),
   updated_at = sqlc.arg('updated_at')
 WHERE id = sqlc.arg('id')
   AND deleted_at IS NULL
@@ -247,6 +252,7 @@ RETURNING
   dosage_text,
   start_date,
   end_date,
+  note,
   source,
   created_at,
   updated_at,
@@ -268,6 +274,7 @@ SELECT
   dosage_text,
   start_date,
   end_date,
+  note,
   source,
   created_at,
   updated_at,
@@ -287,6 +294,7 @@ WHERE deleted_at IS NULL
 SELECT
   id,
   collected_at,
+  note,
   source,
   created_at,
   updated_at,
@@ -299,6 +307,7 @@ ORDER BY collected_at DESC, id DESC;
 SELECT
   id,
   collected_at,
+  note,
   source,
   created_at,
   updated_at,
@@ -310,11 +319,13 @@ WHERE id = sqlc.arg('id')
 -- name: CreateLabCollection :one
 INSERT INTO health_lab_collection (
   collected_at,
+  note,
   source,
   created_at,
   updated_at
 ) VALUES (
   sqlc.arg('collected_at'),
+  sqlc.narg('note'),
   sqlc.arg('source'),
   sqlc.arg('created_at'),
   sqlc.arg('updated_at')
@@ -322,6 +333,7 @@ INSERT INTO health_lab_collection (
 RETURNING
   id,
   collected_at,
+  note,
   source,
   created_at,
   updated_at,
@@ -331,12 +343,14 @@ RETURNING
 UPDATE health_lab_collection
 SET
   collected_at = sqlc.arg('collected_at'),
+  note = sqlc.narg('note'),
   updated_at = sqlc.arg('updated_at')
 WHERE id = sqlc.arg('id')
   AND deleted_at IS NULL
 RETURNING
   id,
   collected_at,
+  note,
   source,
   created_at,
   updated_at,
@@ -450,3 +464,205 @@ INNER JOIN health_lab_collection ON health_lab_collection.id = health_lab_panel.
 WHERE health_lab_result.canonical_slug IS NOT NULL
   AND health_lab_collection.deleted_at IS NULL
 ORDER BY health_lab_collection.collected_at DESC, health_lab_result.id DESC;
+
+-- name: ListBodyCompositionEntries :many
+SELECT
+  id,
+  recorded_at,
+  body_fat_percent,
+  weight_value,
+  weight_unit,
+  method,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at
+FROM health_body_composition_entry
+WHERE deleted_at IS NULL
+  AND (sqlc.narg('from_recorded_at') IS NULL OR recorded_at >= sqlc.narg('from_recorded_at'))
+  AND (sqlc.narg('to_recorded_at') IS NULL OR recorded_at <= sqlc.narg('to_recorded_at'))
+ORDER BY recorded_at DESC, id DESC
+LIMIT CASE
+  WHEN sqlc.narg('limit_count') IS NULL THEN -1
+  ELSE sqlc.narg('limit_count')
+END;
+
+-- name: CreateBodyCompositionEntry :one
+INSERT INTO health_body_composition_entry (
+  recorded_at,
+  body_fat_percent,
+  weight_value,
+  weight_unit,
+  method,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at
+) VALUES (
+  sqlc.arg('recorded_at'),
+  sqlc.narg('body_fat_percent'),
+  sqlc.narg('weight_value'),
+  sqlc.narg('weight_unit'),
+  sqlc.narg('method'),
+  sqlc.narg('note'),
+  sqlc.arg('source'),
+  sqlc.arg('source_record_hash'),
+  sqlc.arg('created_at'),
+  sqlc.arg('updated_at')
+)
+RETURNING
+  id,
+  recorded_at,
+  body_fat_percent,
+  weight_value,
+  weight_unit,
+  method,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at;
+
+-- name: UpdateBodyCompositionEntry :one
+UPDATE health_body_composition_entry
+SET
+  recorded_at = sqlc.arg('recorded_at'),
+  body_fat_percent = sqlc.narg('body_fat_percent'),
+  weight_value = sqlc.narg('weight_value'),
+  weight_unit = sqlc.narg('weight_unit'),
+  method = sqlc.narg('method'),
+  note = sqlc.narg('note'),
+  updated_at = sqlc.arg('updated_at')
+WHERE id = sqlc.arg('id')
+  AND deleted_at IS NULL
+RETURNING
+  id,
+  recorded_at,
+  body_fat_percent,
+  weight_value,
+  weight_unit,
+  method,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at;
+
+-- name: DeleteBodyCompositionEntry :one
+UPDATE health_body_composition_entry
+SET
+  deleted_at = sqlc.arg('deleted_at'),
+  updated_at = sqlc.arg('updated_at')
+WHERE id = sqlc.arg('id')
+  AND deleted_at IS NULL
+RETURNING id;
+
+-- name: ListImagingRecords :many
+SELECT
+  id,
+  performed_at,
+  modality,
+  body_site,
+  title,
+  summary,
+  impression,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at
+FROM health_imaging_record
+WHERE deleted_at IS NULL
+  AND (sqlc.narg('from_performed_at') IS NULL OR performed_at >= sqlc.narg('from_performed_at'))
+  AND (sqlc.narg('to_performed_at') IS NULL OR performed_at <= sqlc.narg('to_performed_at'))
+  AND (sqlc.narg('modality') IS NULL OR lower(modality) = lower(sqlc.narg('modality')))
+  AND (sqlc.narg('body_site') IS NULL OR (body_site IS NOT NULL AND lower(body_site) = lower(sqlc.narg('body_site'))))
+ORDER BY performed_at DESC, id DESC
+LIMIT CASE
+  WHEN sqlc.narg('limit_count') IS NULL THEN -1
+  ELSE sqlc.narg('limit_count')
+END;
+
+-- name: CreateImagingRecord :one
+INSERT INTO health_imaging_record (
+  performed_at,
+  modality,
+  body_site,
+  title,
+  summary,
+  impression,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at
+) VALUES (
+  sqlc.arg('performed_at'),
+  sqlc.arg('modality'),
+  sqlc.narg('body_site'),
+  sqlc.narg('title'),
+  sqlc.arg('summary'),
+  sqlc.narg('impression'),
+  sqlc.narg('note'),
+  sqlc.arg('source'),
+  sqlc.arg('source_record_hash'),
+  sqlc.arg('created_at'),
+  sqlc.arg('updated_at')
+)
+RETURNING
+  id,
+  performed_at,
+  modality,
+  body_site,
+  title,
+  summary,
+  impression,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at;
+
+-- name: UpdateImagingRecord :one
+UPDATE health_imaging_record
+SET
+  performed_at = sqlc.arg('performed_at'),
+  modality = sqlc.arg('modality'),
+  body_site = sqlc.narg('body_site'),
+  title = sqlc.narg('title'),
+  summary = sqlc.arg('summary'),
+  impression = sqlc.narg('impression'),
+  note = sqlc.narg('note'),
+  updated_at = sqlc.arg('updated_at')
+WHERE id = sqlc.arg('id')
+  AND deleted_at IS NULL
+RETURNING
+  id,
+  performed_at,
+  modality,
+  body_site,
+  title,
+  summary,
+  impression,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at;
+
+-- name: DeleteImagingRecord :one
+UPDATE health_imaging_record
+SET
+  deleted_at = sqlc.arg('deleted_at'),
+  updated_at = sqlc.arg('updated_at')
+WHERE id = sqlc.arg('id')
+  AND deleted_at IS NULL
+RETURNING id;

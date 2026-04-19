@@ -86,10 +86,10 @@ When changing GitHub settings, keep the repo aligned with:
 
 ## Release publication
 
-The first public release tag should be `v0.1.0`. The release contract is a
-tagged agent-app release for the `openhealth` binary, the single-file
-OpenHealth skill, and the direct local runtime. Tag a version like `v0.1.0`,
-push the tag, and let the release workflow:
+Public releases use annotated semantic version tags in the `v0.y.z` range. The
+release contract is a tagged release for the `openhealth` binary, the
+single-file OpenHealth skill, and the direct local runtime. Tag a version like
+`v0.2.0`, push the tag, and let the release workflow:
 
 - validate storage codegen, formatting, and tests before publish
 - create or reuse the GitHub Release

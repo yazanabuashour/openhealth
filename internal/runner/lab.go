@@ -38,6 +38,7 @@ type LabTaskRequest struct {
 
 type LabCollectionInput struct {
 	Date   string          `json:"date"`
+	Note   *string         `json:"note,omitempty"`
 	Panels []LabPanelInput `json:"panels"`
 }
 
@@ -89,6 +90,7 @@ type LabCollectionWrite struct {
 type LabCollectionEntry struct {
 	ID     int             `json:"id"`
 	Date   string          `json:"date"`
+	Note   *string         `json:"note,omitempty"`
 	Panels []LabPanelEntry `json:"panels"`
 }
 
@@ -160,6 +162,7 @@ type normalizedLabTaskRequest struct {
 
 type normalizedLabCollectionInput struct {
 	CollectedAt time.Time
+	Note        *string
 	Panels      []normalizedLabPanelInput
 }
 
@@ -343,7 +346,11 @@ func normalizeLabCollectionInput(input LabCollectionInput) (normalizedLabCollect
 	if len(input.Panels) == 0 {
 		return normalizedLabCollectionInput{}, "at least one lab panel is required"
 	}
-	normalized := normalizedLabCollectionInput{CollectedAt: collectedAt}
+	note, rejection := normalizeOptionalLabText(input.Note, "note")
+	if rejection != "" {
+		return normalizedLabCollectionInput{}, rejection
+	}
+	normalized := normalizedLabCollectionInput{CollectedAt: collectedAt, Note: note}
 	for _, panel := range input.Panels {
 		parsed, rejection := normalizeLabPanelInput(panel)
 		if rejection != "" {
@@ -527,7 +534,11 @@ func runLabCorrect(ctx context.Context, api *client.LocalClient, request normali
 	if rejection != "" {
 		return LabTaskResult{Rejected: true, RejectionReason: rejection, Summary: rejection}, nil
 	}
-	written, err := api.ReplaceLabCollection(ctx, target.ID, toClientLabCollectionInput(request.Collection))
+	collection := request.Collection
+	if collection.Note == nil {
+		collection.Note = target.Note
+	}
+	written, err := api.ReplaceLabCollection(ctx, target.ID, toClientLabCollectionInput(collection))
 	if err != nil {
 		return LabTaskResult{}, err
 	}
@@ -686,6 +697,7 @@ func normalizedLabCollectionFromClient(item client.LabCollection) normalizedLabC
 	}
 	return normalizedLabCollectionInput{
 		CollectedAt: item.CollectedAt,
+		Note:        item.Note,
 		Panels:      panels,
 	}
 }
@@ -743,6 +755,7 @@ func toClientLabCollectionInput(input normalizedLabCollectionInput) client.LabCo
 	}
 	return client.LabCollectionInput{
 		CollectedAt: input.CollectedAt,
+		Note:        input.Note,
 		Panels:      panels,
 	}
 }
@@ -758,6 +771,7 @@ func matchingLabCollection(items []client.LabCollection, input normalizedLabColl
 
 func labCollectionMatches(item client.LabCollection, input normalizedLabCollectionInput) bool {
 	if item.CollectedAt.Format(time.DateOnly) != input.CollectedAt.Format(time.DateOnly) ||
+		!equalStringPointer(item.Note, input.Note) ||
 		len(item.Panels) != len(input.Panels) {
 		return false
 	}
@@ -799,6 +813,7 @@ func labCollectionEntry(item client.LabCollection, analyteSlug *client.AnalyteSl
 	entry := LabCollectionEntry{
 		ID:   item.ID,
 		Date: item.CollectedAt.Format(time.DateOnly),
+		Note: item.Note,
 	}
 	for _, panel := range item.Panels {
 		panelEntry := LabPanelEntry{PanelName: panel.PanelName}

@@ -82,6 +82,39 @@ VALUES (?, 'Vitamin D', 'vitamin-d', '32', 1)
 `, panelID); err != nil {
 		t.Fatalf("insert arbitrary lab slug after migration: %v", err)
 	}
+	if _, err := db.ExecContext(ctx, `
+UPDATE health_lab_collection
+SET note = 'labs look stable'
+WHERE id = ?
+`, collectionID); err != nil {
+		t.Fatalf("update migrated lab collection note: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO health_medication_course (name, dosage_text, start_date, note, source, created_at, updated_at)
+VALUES ('Semaglutide', '0.25 mg subcutaneous injection weekly', '2026-04-01', 'coverage approved', 'test', '2026-04-01T00:00:00Z', '2026-04-01T00:00:00Z')
+`); err != nil {
+		t.Fatalf("insert migrated medication note: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO health_body_composition_entry (
+  recorded_at, body_fat_percent, weight_value, weight_unit, method, note, source, source_record_hash, created_at, updated_at
+)
+VALUES (
+  '2026-04-01T00:00:00Z', 18.7, 154.2, 'lb', 'smart scale', 'same import row as weight', 'test', 'body-a', '2026-04-01T00:00:00Z', '2026-04-01T00:00:00Z'
+)
+`); err != nil {
+		t.Fatalf("insert migrated body composition: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO health_imaging_record (
+  performed_at, modality, body_site, title, summary, impression, note, source, source_record_hash, created_at, updated_at
+)
+VALUES (
+  '2026-04-01T00:00:00Z', 'X-ray', 'chest', 'Chest X-ray', 'No acute cardiopulmonary abnormality.', 'Normal chest radiograph.', 'ordered for cough', 'test', 'imaging-a', '2026-04-01T00:00:00Z', '2026-04-01T00:00:00Z'
+)
+`); err != nil {
+		t.Fatalf("insert migrated imaging: %v", err)
+	}
 }
 
 func TestPendingMigrationsRejectsPartialLegacySchema(t *testing.T) {

@@ -204,30 +204,34 @@ func (r *Repository) DeleteBloodPressureEntry(ctx context.Context, params health
 }
 
 func (r *Repository) ListMedicationCourses(ctx context.Context, status health.MedicationStatus, today string) ([]health.MedicationCourse, error) {
-	var (
-		rows []sqlc.HealthMedicationCourse
-		err  error
-	)
-
+	items := []health.MedicationCourse{}
 	switch status {
 	case health.MedicationStatusActive:
-		rows, err = r.queries.ListActiveMedicationCourses(ctx, &today)
+		rows, err := r.queries.ListActiveMedicationCourses(ctx, &today)
+		if err != nil {
+			return nil, wrapDatabaseError("failed to list health medications", err)
+		}
+		for _, row := range rows {
+			item, err := toMedicationCourseFields(row.ID, row.Name, row.DosageText, row.StartDate, row.EndDate, row.Note, row.Source, row.CreatedAt, row.UpdatedAt, row.DeletedAt)
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, item)
+		}
 	case health.MedicationStatusAll:
-		rows, err = r.queries.ListMedicationCourses(ctx)
+		rows, err := r.queries.ListMedicationCourses(ctx)
+		if err != nil {
+			return nil, wrapDatabaseError("failed to list health medications", err)
+		}
+		for _, row := range rows {
+			item, err := toMedicationCourseFields(row.ID, row.Name, row.DosageText, row.StartDate, row.EndDate, row.Note, row.Source, row.CreatedAt, row.UpdatedAt, row.DeletedAt)
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, item)
+		}
 	default:
 		return nil, &health.ValidationError{Message: "status must be 'active' or 'all'"}
-	}
-	if err != nil {
-		return nil, wrapDatabaseError("failed to list health medications", err)
-	}
-
-	items := make([]health.MedicationCourse, 0, len(rows))
-	for _, row := range rows {
-		item, err := toMedicationCourse(row)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, item)
 	}
 	return items, nil
 }
@@ -238,6 +242,7 @@ func (r *Repository) CreateMedicationCourse(ctx context.Context, params health.C
 		DosageText: params.DosageText,
 		StartDate:  params.StartDate,
 		EndDate:    params.EndDate,
+		Note:       params.Note,
 		Source:     params.Source,
 		CreatedAt:  serializeInstant(params.CreatedAt),
 		UpdatedAt:  serializeInstant(params.UpdatedAt),
@@ -245,7 +250,7 @@ func (r *Repository) CreateMedicationCourse(ctx context.Context, params health.C
 	if err != nil {
 		return health.MedicationCourse{}, wrapDatabaseError("failed to create health medication course", err)
 	}
-	return toMedicationCourse(row)
+	return toMedicationCourseFields(row.ID, row.Name, row.DosageText, row.StartDate, row.EndDate, row.Note, row.Source, row.CreatedAt, row.UpdatedAt, row.DeletedAt)
 }
 
 func (r *Repository) UpdateMedicationCourse(ctx context.Context, params health.UpdateMedicationCourseParams) (health.MedicationCourse, error) {
@@ -254,6 +259,7 @@ func (r *Repository) UpdateMedicationCourse(ctx context.Context, params health.U
 		DosageText: params.DosageText,
 		StartDate:  params.StartDate,
 		EndDate:    params.EndDate,
+		Note:       params.Note,
 		UpdatedAt:  serializeInstant(params.UpdatedAt),
 		ID:         int64(params.ID),
 	})
@@ -266,7 +272,7 @@ func (r *Repository) UpdateMedicationCourse(ctx context.Context, params health.U
 		}
 		return health.MedicationCourse{}, wrapDatabaseError("failed to update health medication course", err)
 	}
-	return toMedicationCourse(row)
+	return toMedicationCourseFields(row.ID, row.Name, row.DosageText, row.StartDate, row.EndDate, row.Note, row.Source, row.CreatedAt, row.UpdatedAt, row.DeletedAt)
 }
 
 func (r *Repository) DeleteMedicationCourse(ctx context.Context, params health.DeleteMedicationCourseParams) error {
@@ -330,7 +336,16 @@ func (r *Repository) ListLabCollections(ctx context.Context) ([]health.LabCollec
 
 	items := make([]health.LabCollection, 0, len(collections))
 	for _, collection := range collections {
-		item, err := toLabCollection(collection, panelsByCollection[int(collection.ID)])
+		item, err := toLabCollectionFields(
+			collection.ID,
+			collection.CollectedAt,
+			collection.Note,
+			collection.Source,
+			collection.CreatedAt,
+			collection.UpdatedAt,
+			collection.DeletedAt,
+			panelsByCollection[int(collection.ID)],
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -353,6 +368,7 @@ func (r *Repository) CreateLabCollection(ctx context.Context, params health.Crea
 	updatedAt := serializeInstant(params.UpdatedAt)
 	collection, err := queries.CreateLabCollection(ctx, sqlc.CreateLabCollectionParams{
 		CollectedAt: serializeInstant(params.CollectedAt),
+		Note:        params.Note,
 		Source:      params.Source,
 		CreatedAt:   serializeInstant(params.CreatedAt),
 		UpdatedAt:   &updatedAt,
@@ -386,6 +402,7 @@ func (r *Repository) UpdateLabCollection(ctx context.Context, params health.Upda
 	updatedAt := serializeInstant(params.UpdatedAt)
 	collection, err := queries.UpdateLabCollection(ctx, sqlc.UpdateLabCollectionParams{
 		CollectedAt: serializeInstant(params.CollectedAt),
+		Note:        params.Note,
 		UpdatedAt:   &updatedAt,
 		ID:          int64(params.ID),
 	})
@@ -501,7 +518,16 @@ func (r *Repository) getLabCollectionWithQueries(ctx context.Context, queries *s
 			Results:      resultsByPanel[int(panel.ID)],
 		})
 	}
-	return toLabCollection(collection, outPanels)
+	return toLabCollectionFields(
+		collection.ID,
+		collection.CollectedAt,
+		collection.Note,
+		collection.Source,
+		collection.CreatedAt,
+		collection.UpdatedAt,
+		collection.DeletedAt,
+		outPanels,
+	)
 }
 
 func (r *Repository) ListLabResultsWithCollection(ctx context.Context) ([]health.LabResultWithCollection, error) {
@@ -537,6 +563,172 @@ func (r *Repository) ListLabResultsWithCollection(ctx context.Context) ([]health
 	}
 
 	return items, nil
+}
+
+func (r *Repository) ListBodyCompositionEntries(ctx context.Context, filter health.HistoryFilter) ([]health.BodyCompositionEntry, error) {
+	rows, err := r.queries.ListBodyCompositionEntries(ctx, sqlc.ListBodyCompositionEntriesParams{
+		FromRecordedAt: nullableInstant(filter.From),
+		ToRecordedAt:   nullableInstant(filter.To),
+		LimitCount:     nullableLimit(filter.Limit),
+	})
+	if err != nil {
+		return nil, wrapDatabaseError("failed to list health body composition entries", err)
+	}
+	items := make([]health.BodyCompositionEntry, 0, len(rows))
+	for _, row := range rows {
+		item, err := toBodyCompositionEntry(row)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func (r *Repository) CreateBodyCompositionEntry(ctx context.Context, params health.CreateBodyCompositionEntryParams) (health.BodyCompositionEntry, error) {
+	row, err := r.queries.CreateBodyCompositionEntry(ctx, sqlc.CreateBodyCompositionEntryParams{
+		RecordedAt:       serializeInstant(params.RecordedAt),
+		BodyFatPercent:   params.BodyFatPercent,
+		WeightValue:      params.WeightValue,
+		WeightUnit:       nullableWeightUnit(params.WeightUnit),
+		Method:           params.Method,
+		Note:             params.Note,
+		Source:           params.Source,
+		SourceRecordHash: params.SourceRecordHash,
+		CreatedAt:        serializeInstant(params.CreatedAt),
+		UpdatedAt:        serializeInstant(params.UpdatedAt),
+	})
+	if err != nil {
+		return health.BodyCompositionEntry{}, wrapDatabaseError("failed to create health body composition entry", err)
+	}
+	return toBodyCompositionEntry(row)
+}
+
+func (r *Repository) UpdateBodyCompositionEntry(ctx context.Context, params health.UpdateBodyCompositionEntryParams) (health.BodyCompositionEntry, error) {
+	row, err := r.queries.UpdateBodyCompositionEntry(ctx, sqlc.UpdateBodyCompositionEntryParams{
+		RecordedAt:     serializeInstant(params.RecordedAt),
+		BodyFatPercent: params.BodyFatPercent,
+		WeightValue:    params.WeightValue,
+		WeightUnit:     nullableWeightUnit(params.WeightUnit),
+		Method:         params.Method,
+		Note:           params.Note,
+		UpdatedAt:      serializeInstant(params.UpdatedAt),
+		ID:             int64(params.ID),
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return health.BodyCompositionEntry{}, &health.NotFoundError{
+				Resource: "health_body_composition_entry",
+				ID:       fmt.Sprintf("%d", params.ID),
+			}
+		}
+		return health.BodyCompositionEntry{}, wrapDatabaseError("failed to update health body composition entry", err)
+	}
+	return toBodyCompositionEntry(row)
+}
+
+func (r *Repository) DeleteBodyCompositionEntry(ctx context.Context, params health.DeleteBodyCompositionEntryParams) error {
+	deletedAt := serializeInstant(params.DeletedAt)
+	_, err := r.queries.DeleteBodyCompositionEntry(ctx, sqlc.DeleteBodyCompositionEntryParams{
+		DeletedAt: &deletedAt,
+		UpdatedAt: serializeInstant(params.UpdatedAt),
+		ID:        int64(params.ID),
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &health.NotFoundError{
+				Resource: "health_body_composition_entry",
+				ID:       fmt.Sprintf("%d", params.ID),
+			}
+		}
+		return wrapDatabaseError("failed to delete health body composition entry", err)
+	}
+	return nil
+}
+
+func (r *Repository) ListImagingRecords(ctx context.Context, params health.ImagingListParams) ([]health.ImagingRecord, error) {
+	rows, err := r.queries.ListImagingRecords(ctx, sqlc.ListImagingRecordsParams{
+		FromPerformedAt: nullableInstant(params.From),
+		ToPerformedAt:   nullableInstant(params.To),
+		Modality:        nullableString(params.Modality),
+		BodySite:        nullableString(params.BodySite),
+		LimitCount:      nullableLimit(params.Limit),
+	})
+	if err != nil {
+		return nil, wrapDatabaseError("failed to list health imaging records", err)
+	}
+	items := make([]health.ImagingRecord, 0, len(rows))
+	for _, row := range rows {
+		item, err := toImagingRecord(row)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func (r *Repository) CreateImagingRecord(ctx context.Context, params health.CreateImagingRecordParams) (health.ImagingRecord, error) {
+	row, err := r.queries.CreateImagingRecord(ctx, sqlc.CreateImagingRecordParams{
+		PerformedAt:      serializeInstant(params.PerformedAt),
+		Modality:         params.Modality,
+		BodySite:         params.BodySite,
+		Title:            params.Title,
+		Summary:          params.Summary,
+		Impression:       params.Impression,
+		Note:             params.Note,
+		Source:           params.Source,
+		SourceRecordHash: params.SourceRecordHash,
+		CreatedAt:        serializeInstant(params.CreatedAt),
+		UpdatedAt:        serializeInstant(params.UpdatedAt),
+	})
+	if err != nil {
+		return health.ImagingRecord{}, wrapDatabaseError("failed to create health imaging record", err)
+	}
+	return toImagingRecord(row)
+}
+
+func (r *Repository) UpdateImagingRecord(ctx context.Context, params health.UpdateImagingRecordParams) (health.ImagingRecord, error) {
+	row, err := r.queries.UpdateImagingRecord(ctx, sqlc.UpdateImagingRecordParams{
+		PerformedAt: serializeInstant(params.PerformedAt),
+		Modality:    params.Modality,
+		BodySite:    params.BodySite,
+		Title:       params.Title,
+		Summary:     params.Summary,
+		Impression:  params.Impression,
+		Note:        params.Note,
+		UpdatedAt:   serializeInstant(params.UpdatedAt),
+		ID:          int64(params.ID),
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return health.ImagingRecord{}, &health.NotFoundError{
+				Resource: "health_imaging_record",
+				ID:       fmt.Sprintf("%d", params.ID),
+			}
+		}
+		return health.ImagingRecord{}, wrapDatabaseError("failed to update health imaging record", err)
+	}
+	return toImagingRecord(row)
+}
+
+func (r *Repository) DeleteImagingRecord(ctx context.Context, params health.DeleteImagingRecordParams) error {
+	deletedAt := serializeInstant(params.DeletedAt)
+	_, err := r.queries.DeleteImagingRecord(ctx, sqlc.DeleteImagingRecordParams{
+		DeletedAt: &deletedAt,
+		UpdatedAt: serializeInstant(params.UpdatedAt),
+		ID:        int64(params.ID),
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &health.NotFoundError{
+				Resource: "health_imaging_record",
+				ID:       fmt.Sprintf("%d", params.ID),
+			}
+		}
+		return wrapDatabaseError("failed to delete health imaging record", err)
+	}
+	return nil
 }
 
 func toWeightEntry(row sqlc.HealthWeightEntry) (health.WeightEntry, error) {
@@ -601,56 +793,58 @@ func toBloodPressureEntry(row sqlc.HealthBloodPressureEntry) (health.BloodPressu
 	}, nil
 }
 
-func toMedicationCourse(row sqlc.HealthMedicationCourse) (health.MedicationCourse, error) {
-	createdAt, err := parseInstant(row.CreatedAt)
+func toMedicationCourseFields(id int64, name string, dosageText *string, startDate string, endDate *string, note *string, source string, createdAtValue string, updatedAtValue string, deletedAtValue *string) (health.MedicationCourse, error) {
+	createdAt, err := parseInstant(createdAtValue)
 	if err != nil {
 		return health.MedicationCourse{}, err
 	}
-	updatedAt, err := parseInstant(row.UpdatedAt)
+	updatedAt, err := parseInstant(updatedAtValue)
 	if err != nil {
 		return health.MedicationCourse{}, err
 	}
-	deletedAt, err := parseOptionalInstant(row.DeletedAt)
+	deletedAt, err := parseOptionalInstant(deletedAtValue)
 	if err != nil {
 		return health.MedicationCourse{}, err
 	}
 	return health.MedicationCourse{
-		ID:         int(row.ID),
-		Name:       row.Name,
-		DosageText: row.DosageText,
-		StartDate:  row.StartDate,
-		EndDate:    row.EndDate,
-		Source:     row.Source,
+		ID:         int(id),
+		Name:       name,
+		DosageText: dosageText,
+		StartDate:  startDate,
+		EndDate:    endDate,
+		Note:       note,
+		Source:     source,
 		CreatedAt:  createdAt,
 		UpdatedAt:  updatedAt,
 		DeletedAt:  deletedAt,
 	}, nil
 }
 
-func toLabCollection(row sqlc.HealthLabCollection, panels []health.LabPanel) (health.LabCollection, error) {
-	collectedAt, err := parseInstant(row.CollectedAt)
+func toLabCollectionFields(id int64, collectedAtValue string, note *string, source string, createdAtValue string, updatedAtValue *string, deletedAtValue *string, panels []health.LabPanel) (health.LabCollection, error) {
+	collectedAt, err := parseInstant(collectedAtValue)
 	if err != nil {
 		return health.LabCollection{}, err
 	}
-	createdAt, err := parseInstant(row.CreatedAt)
+	createdAt, err := parseInstant(createdAtValue)
 	if err != nil {
 		return health.LabCollection{}, err
 	}
 	updatedAt := createdAt
-	if row.UpdatedAt != nil {
-		updatedAt, err = parseInstant(*row.UpdatedAt)
+	if updatedAtValue != nil {
+		updatedAt, err = parseInstant(*updatedAtValue)
 		if err != nil {
 			return health.LabCollection{}, err
 		}
 	}
-	deletedAt, err := parseOptionalInstant(row.DeletedAt)
+	deletedAt, err := parseOptionalInstant(deletedAtValue)
 	if err != nil {
 		return health.LabCollection{}, err
 	}
 	return health.LabCollection{
-		ID:          int(row.ID),
+		ID:          int(id),
 		CollectedAt: collectedAt,
-		Source:      row.Source,
+		Note:        note,
+		Source:      source,
 		CreatedAt:   createdAt,
 		UpdatedAt:   updatedAt,
 		DeletedAt:   deletedAt,
@@ -671,6 +865,73 @@ func toLabResult(row sqlc.HealthLabResult) health.LabResult {
 		Flag:          row.Flag,
 		DisplayOrder:  int(row.DisplayOrder),
 	}
+}
+
+func toBodyCompositionEntry(row sqlc.HealthBodyCompositionEntry) (health.BodyCompositionEntry, error) {
+	recordedAt, err := parseInstant(row.RecordedAt)
+	if err != nil {
+		return health.BodyCompositionEntry{}, err
+	}
+	createdAt, err := parseInstant(row.CreatedAt)
+	if err != nil {
+		return health.BodyCompositionEntry{}, err
+	}
+	updatedAt, err := parseInstant(row.UpdatedAt)
+	if err != nil {
+		return health.BodyCompositionEntry{}, err
+	}
+	deletedAt, err := parseOptionalInstant(row.DeletedAt)
+	if err != nil {
+		return health.BodyCompositionEntry{}, err
+	}
+	return health.BodyCompositionEntry{
+		ID:               int(row.ID),
+		RecordedAt:       recordedAt,
+		BodyFatPercent:   row.BodyFatPercent,
+		WeightValue:      row.WeightValue,
+		WeightUnit:       optionalWeightUnit(row.WeightUnit),
+		Method:           row.Method,
+		Note:             row.Note,
+		Source:           row.Source,
+		SourceRecordHash: row.SourceRecordHash,
+		CreatedAt:        createdAt,
+		UpdatedAt:        updatedAt,
+		DeletedAt:        deletedAt,
+	}, nil
+}
+
+func toImagingRecord(row sqlc.HealthImagingRecord) (health.ImagingRecord, error) {
+	performedAt, err := parseInstant(row.PerformedAt)
+	if err != nil {
+		return health.ImagingRecord{}, err
+	}
+	createdAt, err := parseInstant(row.CreatedAt)
+	if err != nil {
+		return health.ImagingRecord{}, err
+	}
+	updatedAt, err := parseInstant(row.UpdatedAt)
+	if err != nil {
+		return health.ImagingRecord{}, err
+	}
+	deletedAt, err := parseOptionalInstant(row.DeletedAt)
+	if err != nil {
+		return health.ImagingRecord{}, err
+	}
+	return health.ImagingRecord{
+		ID:               int(row.ID),
+		PerformedAt:      performedAt,
+		Modality:         row.Modality,
+		BodySite:         row.BodySite,
+		Title:            row.Title,
+		Summary:          row.Summary,
+		Impression:       row.Impression,
+		Note:             row.Note,
+		Source:           row.Source,
+		SourceRecordHash: row.SourceRecordHash,
+		CreatedAt:        createdAt,
+		UpdatedAt:        updatedAt,
+		DeletedAt:        deletedAt,
+	}, nil
 }
 
 func parseInstant(value string) (time.Time, error) {
@@ -727,6 +988,21 @@ func nullableWeightUnit(value *health.WeightUnit) *string {
 	}
 	unit := string(*value)
 	return &unit
+}
+
+func optionalWeightUnit(value *string) *health.WeightUnit {
+	if value == nil {
+		return nil
+	}
+	unit := health.WeightUnit(*value)
+	return &unit
+}
+
+func nullableString(value *string) interface{} {
+	if value == nil {
+		return nil
+	}
+	return *value
 }
 
 func nullableInt64(value *int) *int64 {

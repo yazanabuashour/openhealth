@@ -34,7 +34,7 @@ Use this for quick local setup when you want the current release.
 ### Manual Install, Pinned Version
 
 ```bash
-curl -fsSL https://github.com/yazanabuashour/openhealth/releases/download/v0.1.1/install.sh | sh
+curl -fsSL https://github.com/yazanabuashour/openhealth/releases/download/v0.2.0/install.sh | sh
 ```
 
 Use this for reproducible setup. Both manual install commands install and
@@ -53,9 +53,11 @@ The skill calls these runner domains:
 
 ```bash
 openhealth weight
+openhealth body-composition
 openhealth blood-pressure
 openhealth medications
 openhealth labs
+openhealth imaging
 ```
 
 The runner reads structured JSON from stdin, validates and normalizes the
@@ -117,7 +119,7 @@ func main() {
 
 `client.OpenLocal(...)` opens SQLite locally, runs migrations, and calls the
 same local health service used by the runner. There is no hosted service or
-remote HTTP API contract in the `0.1.0` release surface.
+remote HTTP API contract in the `0.2.0` release surface.
 
 ## Local Storage
 
@@ -174,7 +176,7 @@ mise exec -- go test ./...
 
 ## Release Contract
 
-The `0.1.0` release deliverables are:
+The `0.2.0` release deliverables are:
 
 - platform archives for the `openhealth` binary
 - the single-file `openhealth` skill archive

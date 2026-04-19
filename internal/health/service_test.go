@@ -232,6 +232,14 @@ func TestServiceNonWeightValidationAndNotFound(t *testing.T) {
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("medication validation error = %v, want validation", err)
 	}
+	_, err = service.CreateMedicationCourse(ctx, health.MedicationCourseInput{
+		Name:      "Blank Note",
+		StartDate: "2026-04-15",
+		Note:      stringPointer("  "),
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("medication empty note validation error = %v, want validation", err)
+	}
 
 	_, err = service.CreateLabCollection(ctx, health.LabCollectionInput{
 		CollectedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
@@ -251,11 +259,215 @@ func TestServiceNonWeightValidationAndNotFound(t *testing.T) {
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("lab validation error = %v, want validation", err)
 	}
+	_, err = service.CreateLabCollection(ctx, health.LabCollectionInput{
+		CollectedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		Note:        stringPointer(" "),
+		Panels: []health.LabPanelInput{
+			{
+				PanelName: "Metabolic",
+				Results:   []health.LabResultInput{{TestName: "Glucose", ValueText: "89"}},
+			},
+		},
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("lab empty note validation error = %v, want validation", err)
+	}
+
+	_, err = service.CreateBodyComposition(ctx, health.BodyCompositionInput{
+		RecordedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("body composition missing measurement validation error = %v, want validation", err)
+	}
+	_, err = service.CreateBodyComposition(ctx, health.BodyCompositionInput{
+		RecordedAt:     time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		BodyFatPercent: float64Pointer(101),
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("body composition body fat validation error = %v, want validation", err)
+	}
+	_, err = service.CreateBodyComposition(ctx, health.BodyCompositionInput{
+		RecordedAt:  time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		WeightValue: float64Pointer(154),
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("body composition weight pair validation error = %v, want validation", err)
+	}
+	kilograms := health.WeightUnit("kg")
+	_, err = service.CreateBodyComposition(ctx, health.BodyCompositionInput{
+		RecordedAt:  time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		WeightValue: float64Pointer(70),
+		WeightUnit:  &kilograms,
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("body composition weight unit validation error = %v, want validation", err)
+	}
+	_, err = service.CreateBodyComposition(ctx, health.BodyCompositionInput{
+		RecordedAt:     time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		BodyFatPercent: float64Pointer(18.7),
+		Note:           stringPointer(" "),
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("body composition empty note validation error = %v, want validation", err)
+	}
+
+	_, err = service.CreateImaging(ctx, health.ImagingRecordInput{
+		PerformedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		Modality:    " ",
+		Summary:     "No acute abnormality.",
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("imaging modality validation error = %v, want validation", err)
+	}
+	_, err = service.CreateImaging(ctx, health.ImagingRecordInput{
+		PerformedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		Modality:    "X-ray",
+		Summary:     " ",
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("imaging summary validation error = %v, want validation", err)
+	}
+	_, err = service.CreateImaging(ctx, health.ImagingRecordInput{
+		PerformedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		Modality:    "X-ray",
+		Summary:     "No acute abnormality.",
+		Note:        stringPointer(" "),
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("imaging empty note validation error = %v, want validation", err)
+	}
 
 	err = service.DeleteLabCollection(ctx, 999)
 	var notFoundErr *health.NotFoundError
 	if !errors.As(err, &notFoundErr) {
 		t.Fatalf("delete missing lab collection error = %v, want not found", err)
+	}
+}
+
+func TestServiceImportContextLifecycles(t *testing.T) {
+	t.Parallel()
+
+	db := testutil.NewSQLiteDB(t)
+	repo := sqlite.NewRepository(db)
+	service := health.NewService(repo, health.WithClock(func() time.Time {
+		return time.Date(2026, 4, 15, 12, 0, 0, 0, time.UTC)
+	}))
+	ctx := context.Background()
+
+	med, err := service.CreateMedicationCourse(ctx, health.MedicationCourseInput{
+		Name:       "Semaglutide",
+		DosageText: stringPointer("0.25 mg subcutaneous injection weekly"),
+		StartDate:  "2026-04-01",
+		Note:       stringPointer(" Started after insurance approval "),
+	})
+	if err != nil {
+		t.Fatalf("create medication with note: %v", err)
+	}
+	if med.Note == nil || *med.Note != "Started after insurance approval" {
+		t.Fatalf("medication note = %#v, want trimmed note", med.Note)
+	}
+
+	lab, err := service.CreateLabCollection(ctx, health.LabCollectionInput{
+		CollectedAt: time.Date(2026, 4, 10, 8, 0, 0, 0, time.UTC),
+		Note:        stringPointer(" labs look stable, keep moving "),
+		Panels: []health.LabPanelInput{
+			{
+				PanelName: "Metabolic",
+				Results:   []health.LabResultInput{{TestName: "Glucose", ValueText: "92"}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create lab with note: %v", err)
+	}
+	if lab.Note == nil || *lab.Note != "labs look stable, keep moving" {
+		t.Fatalf("lab note = %#v, want trimmed note", lab.Note)
+	}
+
+	unit := health.WeightUnitLb
+	body, err := service.CreateBodyComposition(ctx, health.BodyCompositionInput{
+		RecordedAt:     time.Date(2026, 4, 12, 7, 0, 0, 0, time.UTC),
+		BodyFatPercent: float64Pointer(18.7),
+		WeightValue:    float64Pointer(154.2),
+		WeightUnit:     &unit,
+		Method:         stringPointer(" smart scale "),
+		Note:           stringPointer(" same import row as scale weight "),
+	})
+	if err != nil {
+		t.Fatalf("create body composition: %v", err)
+	}
+	if body.BodyFatPercent == nil || *body.BodyFatPercent != 18.7 || body.Method == nil || *body.Method != "smart scale" {
+		t.Fatalf("created body composition = %#v", body)
+	}
+	body, err = service.ReplaceBodyComposition(ctx, body.ID, health.BodyCompositionInput{
+		RecordedAt:     time.Date(2026, 4, 13, 7, 0, 0, 0, time.UTC),
+		BodyFatPercent: float64Pointer(18.2),
+		Note:           stringPointer("corrected scan"),
+	})
+	if err != nil {
+		t.Fatalf("replace body composition: %v", err)
+	}
+	if body.BodyFatPercent == nil || *body.BodyFatPercent != 18.2 || body.WeightValue != nil || body.Note == nil || *body.Note != "corrected scan" {
+		t.Fatalf("replaced body composition = %#v", body)
+	}
+	if err := service.DeleteBodyComposition(ctx, body.ID); err != nil {
+		t.Fatalf("delete body composition: %v", err)
+	}
+	bodies, err := service.ListBodyComposition(ctx, health.HistoryFilter{})
+	if err != nil {
+		t.Fatalf("list body composition after delete: %v", err)
+	}
+	if len(bodies) != 0 {
+		t.Fatalf("deleted body composition should be hidden, got %#v", bodies)
+	}
+
+	imaging, err := service.CreateImaging(ctx, health.ImagingRecordInput{
+		PerformedAt: time.Date(2026, 4, 14, 9, 0, 0, 0, time.UTC),
+		Modality:    " X-ray ",
+		BodySite:    stringPointer(" chest "),
+		Title:       stringPointer(" Chest X-ray "),
+		Summary:     " No acute cardiopulmonary abnormality. ",
+		Impression:  stringPointer(" Normal chest radiograph. "),
+		Note:        stringPointer(" ordered for cough "),
+	})
+	if err != nil {
+		t.Fatalf("create imaging: %v", err)
+	}
+	if imaging.Modality != "X-ray" || imaging.Summary != "No acute cardiopulmonary abnormality." || imaging.Note == nil || *imaging.Note != "ordered for cough" {
+		t.Fatalf("created imaging = %#v", imaging)
+	}
+	filtered, err := service.ListImaging(ctx, health.ImagingListParams{
+		Modality: stringPointer("x-RAY"),
+		BodySite: stringPointer("CHEST"),
+	})
+	if err != nil {
+		t.Fatalf("list filtered imaging: %v", err)
+	}
+	if len(filtered) != 1 || filtered[0].ID != imaging.ID {
+		t.Fatalf("filtered imaging = %#v, want id %d", filtered, imaging.ID)
+	}
+	imaging, err = service.ReplaceImaging(ctx, imaging.ID, health.ImagingRecordInput{
+		PerformedAt: time.Date(2026, 4, 15, 9, 0, 0, 0, time.UTC),
+		Modality:    "CT",
+		BodySite:    stringPointer("chest"),
+		Summary:     "Stable small pulmonary nodule.",
+		Note:        stringPointer("follow-up scan"),
+	})
+	if err != nil {
+		t.Fatalf("replace imaging: %v", err)
+	}
+	if imaging.Modality != "CT" || imaging.Title != nil || imaging.Note == nil || *imaging.Note != "follow-up scan" {
+		t.Fatalf("replaced imaging = %#v", imaging)
+	}
+	if err := service.DeleteImaging(ctx, imaging.ID); err != nil {
+		t.Fatalf("delete imaging: %v", err)
+	}
+	images, err := service.ListImaging(ctx, health.ImagingListParams{})
+	if err != nil {
+		t.Fatalf("list imaging after delete: %v", err)
+	}
+	if len(images) != 0 {
+		t.Fatalf("deleted imaging should be hidden, got %#v", images)
 	}
 }
 
@@ -342,6 +554,10 @@ func ts(value string) string {
 }
 
 func stringPointer(value string) *string {
+	return &value
+}
+
+func float64Pointer(value float64) *float64 {
 	return &value
 }
 

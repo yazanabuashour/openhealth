@@ -172,6 +172,7 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 		DosageText: stringPointer("25 mcg"),
 		StartDate:  "2026-01-01",
 		EndDate:    stringPointer("2026-12-31"),
+		Note:       stringPointer("started after annual exam"),
 		Source:     "manual",
 		CreatedAt:  now,
 		UpdatedAt:  now,
@@ -179,10 +180,14 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create medication: %v", err)
 	}
+	if med.Note == nil || *med.Note != "started after annual exam" {
+		t.Fatalf("created medication note = %#v, want annual exam note", med.Note)
+	}
 	med, err = repo.UpdateMedicationCourse(ctx, health.UpdateMedicationCourseParams{
 		ID:        med.ID,
 		Name:      "Levothyroxine",
 		StartDate: "2026-01-02",
+		Note:      stringPointer("dose held before imaging"),
 		UpdatedAt: now.Add(time.Hour),
 	})
 	if err != nil {
@@ -190,6 +195,9 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 	}
 	if med.StartDate != "2026-01-02" || med.EndDate != nil {
 		t.Fatalf("updated medication = %#v, want new start date and nil end date", med)
+	}
+	if med.Note == nil || *med.Note != "dose held before imaging" {
+		t.Fatalf("updated medication note = %#v, want held note", med.Note)
 	}
 	if err := repo.DeleteMedicationCourse(ctx, health.DeleteMedicationCourseParams{
 		ID:        med.ID,
@@ -208,6 +216,7 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 
 	lab, err := repo.CreateLabCollection(ctx, health.CreateLabCollectionParams{
 		CollectedAt: now,
+		Note:        stringPointer("labs look stable"),
 		Source:      "manual",
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -234,12 +243,16 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 	if len(lab.Panels) != 1 || len(lab.Panels[0].Results) != 1 {
 		t.Fatalf("created lab collection = %#v", lab)
 	}
+	if lab.Note == nil || *lab.Note != "labs look stable" {
+		t.Fatalf("created lab note = %#v, want stable note", lab.Note)
+	}
 	if slug := lab.Panels[0].Results[0].CanonicalSlug; slug == nil || *slug != health.AnalyteSlug("vitamin-d") {
 		t.Fatalf("created arbitrary lab slug = %#v, want vitamin-d", slug)
 	}
 	lab, err = repo.UpdateLabCollection(ctx, health.UpdateLabCollectionParams{
 		ID:          lab.ID,
 		CollectedAt: now.Add(24 * time.Hour),
+		Note:        stringPointer("glucose corrected"),
 		UpdatedAt:   now.Add(time.Hour),
 		Panels: []health.LabPanelWriteParams{
 			{
@@ -263,6 +276,9 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 	}
 	if lab.Panels[0].PanelName != "Metabolic" || lab.Panels[0].Results[0].TestName != "Glucose" {
 		t.Fatalf("updated lab collection = %#v", lab)
+	}
+	if lab.Note == nil || *lab.Note != "glucose corrected" {
+		t.Fatalf("updated lab note = %#v, want corrected note", lab.Note)
 	}
 	results, err := repo.ListLabResultsWithCollection(ctx)
 	if err != nil {
@@ -291,6 +307,113 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 	}
 	if len(results) != 0 {
 		t.Fatalf("deleted lab collection results should be hidden, got %#v", results)
+	}
+
+	bodyUnit := health.WeightUnitLb
+	body, err := repo.CreateBodyCompositionEntry(ctx, health.CreateBodyCompositionEntryParams{
+		RecordedAt:       now,
+		BodyFatPercent:   float64Pointer(18.7),
+		WeightValue:      float64Pointer(154.2),
+		WeightUnit:       &bodyUnit,
+		Method:           stringPointer("smart scale"),
+		Note:             stringPointer("same row as weight import"),
+		Source:           "manual",
+		SourceRecordHash: "body-a",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	if err != nil {
+		t.Fatalf("create body composition: %v", err)
+	}
+	if body.BodyFatPercent == nil || *body.BodyFatPercent != 18.7 || body.WeightUnit == nil || *body.WeightUnit != health.WeightUnitLb {
+		t.Fatalf("created body composition = %#v", body)
+	}
+	body, err = repo.UpdateBodyCompositionEntry(ctx, health.UpdateBodyCompositionEntryParams{
+		ID:             body.ID,
+		RecordedAt:     now.Add(24 * time.Hour),
+		BodyFatPercent: float64Pointer(18.1),
+		Method:         stringPointer("dexa"),
+		Note:           stringPointer("corrected method"),
+		UpdatedAt:      now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("update body composition: %v", err)
+	}
+	if body.BodyFatPercent == nil || *body.BodyFatPercent != 18.1 || body.WeightValue != nil || body.Method == nil || *body.Method != "dexa" {
+		t.Fatalf("updated body composition = %#v", body)
+	}
+	if err := repo.DeleteBodyCompositionEntry(ctx, health.DeleteBodyCompositionEntryParams{
+		ID:        body.ID,
+		DeletedAt: now.Add(2 * time.Hour),
+		UpdatedAt: now.Add(2 * time.Hour),
+	}); err != nil {
+		t.Fatalf("delete body composition: %v", err)
+	}
+	bodies, err := repo.ListBodyCompositionEntries(ctx, health.HistoryFilter{})
+	if err != nil {
+		t.Fatalf("list body composition after delete: %v", err)
+	}
+	if len(bodies) != 0 {
+		t.Fatalf("deleted body composition should be hidden, got %#v", bodies)
+	}
+
+	imaging, err := repo.CreateImagingRecord(ctx, health.CreateImagingRecordParams{
+		PerformedAt:      now,
+		Modality:         "X-ray",
+		BodySite:         stringPointer("chest"),
+		Title:            stringPointer("Chest X-ray"),
+		Summary:          "No acute cardiopulmonary abnormality.",
+		Impression:       stringPointer("Normal chest radiograph."),
+		Note:             stringPointer("ordered for cough"),
+		Source:           "manual",
+		SourceRecordHash: "imaging-a",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	if err != nil {
+		t.Fatalf("create imaging: %v", err)
+	}
+	if imaging.BodySite == nil || *imaging.BodySite != "chest" || imaging.Note == nil || *imaging.Note != "ordered for cough" {
+		t.Fatalf("created imaging = %#v", imaging)
+	}
+	filtered, err := repo.ListImagingRecords(ctx, health.ImagingListParams{
+		Modality: stringPointer("x-RAY"),
+		BodySite: stringPointer("CHEST"),
+	})
+	if err != nil {
+		t.Fatalf("list filtered imaging: %v", err)
+	}
+	if len(filtered) != 1 || filtered[0].ID != imaging.ID {
+		t.Fatalf("filtered imaging = %#v, want id %d", filtered, imaging.ID)
+	}
+	imaging, err = repo.UpdateImagingRecord(ctx, health.UpdateImagingRecordParams{
+		ID:          imaging.ID,
+		PerformedAt: now.Add(24 * time.Hour),
+		Modality:    "CT",
+		BodySite:    stringPointer("chest"),
+		Summary:     "Stable small pulmonary nodule.",
+		Note:        stringPointer("follow-up scan"),
+		UpdatedAt:   now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("update imaging: %v", err)
+	}
+	if imaging.Modality != "CT" || imaging.Summary != "Stable small pulmonary nodule." || imaging.Title != nil {
+		t.Fatalf("updated imaging = %#v", imaging)
+	}
+	if err := repo.DeleteImagingRecord(ctx, health.DeleteImagingRecordParams{
+		ID:        imaging.ID,
+		DeletedAt: now.Add(2 * time.Hour),
+		UpdatedAt: now.Add(2 * time.Hour),
+	}); err != nil {
+		t.Fatalf("delete imaging: %v", err)
+	}
+	images, err := repo.ListImagingRecords(ctx, health.ImagingListParams{})
+	if err != nil {
+		t.Fatalf("list imaging after delete: %v", err)
+	}
+	if len(images) != 0 {
+		t.Fatalf("deleted imaging should be hidden, got %#v", images)
 	}
 }
 

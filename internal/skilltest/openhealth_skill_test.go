@@ -57,10 +57,15 @@ func TestOpenHealthSkillUsesInstalledRunner(t *testing.T) {
 	text := string(content)
 	for _, want := range []string{
 		"openhealth weight",
+		"openhealth body-composition",
 		"openhealth blood-pressure",
 		"openhealth medications",
 		"openhealth labs",
+		"openhealth imaging",
 		"upsert_weights",
+		"record_body_composition",
+		"correct_body_composition",
+		"delete_body_composition",
 		"record_blood_pressure",
 		"correct_blood_pressure",
 		"record_medications",
@@ -70,6 +75,9 @@ func TestOpenHealthSkillUsesInstalledRunner(t *testing.T) {
 		"correct_labs",
 		"patch_labs",
 		"delete_labs",
+		"record_imaging",
+		"correct_imaging",
+		"delete_imaging",
 		"Do not run repo-wide file discovery or broad searches",
 		"reject directly without running code",
 		"Runner `entries` are already newest-first",
@@ -85,6 +93,15 @@ func TestOpenHealthSkillUsesInstalledRunner(t *testing.T) {
 		"systolic not greater than diastolic",
 		"result_updates",
 		"date is ambiguous",
+		"body_fat_percent",
+		"Keep scale weight in `openhealth weight`",
+		"call `openhealth weight` for the weight and",
+		"lab, body-composition, or imaging text field",
+		"Optional text fields cannot be cleared",
+		"optional `note`",
+		"summary",
+		"impression",
+		"modality",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("skill missing %q", want)

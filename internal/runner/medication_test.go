@@ -20,7 +20,7 @@ func TestRunMedicationTaskRecordListCorrectAndDelete(t *testing.T) {
 	result, err := runner.RunMedicationTask(ctx, config, runner.MedicationTaskRequest{
 		Action: runner.MedicationTaskActionRecord,
 		Medications: []runner.MedicationInput{
-			{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01"},
+			{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01", Note: stringPointer("Started after annual exam")},
 			{Name: "Vitamin D", StartDate: "2026-02-01", EndDate: stringPointer("2026-03-01")},
 		},
 	})
@@ -35,13 +35,13 @@ func TestRunMedicationTaskRecordListCorrectAndDelete(t *testing.T) {
 	}
 	assertMedicationEntries(t, result.Entries, []runner.MedicationEntry{
 		{Name: "Vitamin D", StartDate: "2026-02-01", EndDate: stringPointer("2026-03-01")},
-		{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01"},
+		{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01", Note: stringPointer("Started after annual exam")},
 	})
 
 	again, err := runner.RunMedicationTask(ctx, config, runner.MedicationTaskRequest{
 		Action: runner.MedicationTaskActionRecord,
 		Medications: []runner.MedicationInput{
-			{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01"},
+			{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01", Note: stringPointer("Started after annual exam")},
 		},
 	})
 	if err != nil {
@@ -71,6 +71,7 @@ func TestRunMedicationTaskRecordListCorrectAndDelete(t *testing.T) {
 			Name:       "Levothyroxine",
 			DosageText: stringPointer("50 mcg"),
 			StartDate:  "2026-01-01",
+			Note:       stringPointer("Dose increased after follow-up"),
 		},
 	})
 	if err != nil {
@@ -84,7 +85,27 @@ func TestRunMedicationTaskRecordListCorrectAndDelete(t *testing.T) {
 	}
 	assertMedicationEntries(t, corrected.Entries, []runner.MedicationEntry{
 		{Name: "Vitamin D", StartDate: "2026-02-01", EndDate: stringPointer("2026-03-01")},
-		{Name: "Levothyroxine", DosageText: stringPointer("50 mcg"), StartDate: "2026-01-01"},
+		{Name: "Levothyroxine", DosageText: stringPointer("50 mcg"), StartDate: "2026-01-01", Note: stringPointer("Dose increased after follow-up")},
+	})
+
+	correctedNoNote, err := runner.RunMedicationTask(ctx, config, runner.MedicationTaskRequest{
+		Action: runner.MedicationTaskActionCorrect,
+		Target: &runner.MedicationTarget{Name: "Levothyroxine", StartDate: "2026-01-01"},
+		Medication: &runner.MedicationInput{
+			Name:       "Levothyroxine",
+			DosageText: stringPointer("75 mcg"),
+			StartDate:  "2026-01-01",
+		},
+	})
+	if err != nil {
+		t.Fatalf("correct medication without note: %v", err)
+	}
+	if got := medicationWriteStatuses(correctedNoNote.Writes); got != "updated" {
+		t.Fatalf("no-note correction write statuses = %q, want updated", got)
+	}
+	assertMedicationEntries(t, correctedNoNote.Entries, []runner.MedicationEntry{
+		{Name: "Vitamin D", StartDate: "2026-02-01", EndDate: stringPointer("2026-03-01")},
+		{Name: "Levothyroxine", DosageText: stringPointer("75 mcg"), StartDate: "2026-01-01", Note: stringPointer("Dose increased after follow-up")},
 	})
 
 	deleted, err := runner.RunMedicationTask(ctx, config, runner.MedicationTaskRequest{
@@ -101,7 +122,7 @@ func TestRunMedicationTaskRecordListCorrectAndDelete(t *testing.T) {
 		t.Fatalf("delete write statuses = %q, want deleted", got)
 	}
 	assertMedicationEntries(t, deleted.Entries, []runner.MedicationEntry{
-		{Name: "Levothyroxine", DosageText: stringPointer("50 mcg"), StartDate: "2026-01-01"},
+		{Name: "Levothyroxine", DosageText: stringPointer("75 mcg"), StartDate: "2026-01-01", Note: stringPointer("Dose increased after follow-up")},
 	})
 
 	active, err := runner.RunMedicationTask(ctx, config, runner.MedicationTaskRequest{
@@ -112,7 +133,7 @@ func TestRunMedicationTaskRecordListCorrectAndDelete(t *testing.T) {
 		t.Fatalf("list active medications: %v", err)
 	}
 	assertMedicationEntries(t, active.Entries, []runner.MedicationEntry{
-		{Name: "Levothyroxine", DosageText: stringPointer("50 mcg"), StartDate: "2026-01-01"},
+		{Name: "Levothyroxine", DosageText: stringPointer("75 mcg"), StartDate: "2026-01-01", Note: stringPointer("Dose increased after follow-up")},
 	})
 }
 
@@ -191,6 +212,14 @@ func TestRunMedicationTaskRejectsInvalidInputBeforeOpeningDatabase(t *testing.T)
 			reason: "dosage_text must not be empty",
 		},
 		{
+			name: "empty note",
+			request: runner.MedicationTaskRequest{
+				Action:      runner.MedicationTaskActionRecord,
+				Medications: []runner.MedicationInput{{Name: "Levothyroxine", StartDate: "2026-01-01", Note: stringPointer(" ")}},
+			},
+			reason: "note must not be empty",
+		},
+		{
 			name: "end before start",
 			request: runner.MedicationTaskRequest{
 				Action:      runner.MedicationTaskActionRecord,
@@ -255,7 +284,8 @@ func assertMedicationEntries(t *testing.T, got []runner.MedicationEntry, want []
 		if got[i].Name != want[i].Name ||
 			got[i].StartDate != want[i].StartDate ||
 			!equalStringPointers(got[i].DosageText, want[i].DosageText) ||
-			!equalStringPointers(got[i].EndDate, want[i].EndDate) {
+			!equalStringPointers(got[i].EndDate, want[i].EndDate) ||
+			!equalStringPointers(got[i].Note, want[i].Note) {
 			t.Fatalf("entry %d = %#v, want %#v", i, got[i], want[i])
 		}
 	}

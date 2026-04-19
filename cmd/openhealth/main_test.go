@@ -128,6 +128,64 @@ func TestRunLabsJSONRoundTrip(t *testing.T) {
 	assertLabEntryDates(t, listResult.Entries, []string{"2026-03-29"})
 }
 
+func TestRunBodyCompositionJSONRoundTrip(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
+
+	record := `{"action":"record_body_composition","records":[{"date":"2026-03-29","body_fat_percent":18.7,"weight_value":154.2,"weight_unit":"lb","method":"smart scale","note":"same import row as weight"}]}`
+	var recordStdout bytes.Buffer
+	if err := run([]string{"body-composition", "--db", databasePath}, strings.NewReader(record), &recordStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run body-composition record: %v", err)
+	}
+	var recordResult runner.BodyCompositionTaskResult
+	decodeJSON(t, recordStdout.Bytes(), &recordResult)
+	if len(recordResult.Writes) != 1 {
+		t.Fatalf("writes = %d, want 1", len(recordResult.Writes))
+	}
+	assertBodyCompositionEntries(t, recordResult.Entries, []runner.BodyCompositionTaskEntry{
+		{Date: "2026-03-29", BodyFatPercent: floatPointer(18.7), WeightValue: floatPointer(154.2), WeightUnit: stringPointer("lb"), Method: stringPointer("smart scale"), Note: stringPointer("same import row as weight")},
+	})
+
+	list := `{"action":"list_body_composition","list_mode":"latest"}`
+	var listStdout bytes.Buffer
+	if err := run([]string{"body-composition", "--db", databasePath}, strings.NewReader(list), &listStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run body-composition list: %v", err)
+	}
+	var listResult runner.BodyCompositionTaskResult
+	decodeJSON(t, listStdout.Bytes(), &listResult)
+	assertBodyCompositionEntries(t, listResult.Entries, []runner.BodyCompositionTaskEntry{
+		{Date: "2026-03-29", BodyFatPercent: floatPointer(18.7), WeightValue: floatPointer(154.2), WeightUnit: stringPointer("lb"), Method: stringPointer("smart scale"), Note: stringPointer("same import row as weight")},
+	})
+}
+
+func TestRunImagingJSONRoundTrip(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
+
+	record := `{"action":"record_imaging","records":[{"date":"2026-03-29","modality":"X-ray","body_site":"chest","title":"Chest X-ray","summary":"No acute cardiopulmonary abnormality.","impression":"Normal chest radiograph.","note":"ordered for cough"}]}`
+	var recordStdout bytes.Buffer
+	if err := run([]string{"imaging", "--db", databasePath}, strings.NewReader(record), &recordStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run imaging record: %v", err)
+	}
+	var recordResult runner.ImagingTaskResult
+	decodeJSON(t, recordStdout.Bytes(), &recordResult)
+	if len(recordResult.Writes) != 1 {
+		t.Fatalf("writes = %d, want 1", len(recordResult.Writes))
+	}
+	assertImagingEntries(t, recordResult.Entries, []runner.ImagingTaskEntry{
+		{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality.", Impression: stringPointer("Normal chest radiograph."), Note: stringPointer("ordered for cough")},
+	})
+
+	list := `{"action":"list_imaging","list_mode":"latest","modality":"x-ray","body_site":"CHEST"}`
+	var listStdout bytes.Buffer
+	if err := run([]string{"imaging", "--db", databasePath}, strings.NewReader(list), &listStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run imaging list: %v", err)
+	}
+	var listResult runner.ImagingTaskResult
+	decodeJSON(t, listStdout.Bytes(), &listResult)
+	assertImagingEntries(t, listResult.Entries, []runner.ImagingTaskEntry{
+		{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality.", Impression: stringPointer("Normal chest radiograph."), Note: stringPointer("ordered for cough")},
+	})
+}
+
 func TestRunValidationRejectionDoesNotCreateDatabase(t *testing.T) {
 	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
 	request := `{"action":"upsert_weights","weights":[{"date":"2026-03-31","value":-5,"unit":"stone"}]}`
@@ -278,6 +336,41 @@ func assertLabEntryDates(t *testing.T, got []runner.LabCollectionEntry, want []s
 	}
 }
 
+func assertBodyCompositionEntries(t *testing.T, got []runner.BodyCompositionTaskEntry, want []runner.BodyCompositionTaskEntry) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("entries = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i].Date != want[i].Date ||
+			!equalFloatPointers(got[i].BodyFatPercent, want[i].BodyFatPercent) ||
+			!equalFloatPointers(got[i].WeightValue, want[i].WeightValue) ||
+			!equalStringPointers(got[i].WeightUnit, want[i].WeightUnit) ||
+			!equalStringPointers(got[i].Method, want[i].Method) ||
+			!equalStringPointers(got[i].Note, want[i].Note) {
+			t.Fatalf("entries = %#v, want %#v", got, want)
+		}
+	}
+}
+
+func assertImagingEntries(t *testing.T, got []runner.ImagingTaskEntry, want []runner.ImagingTaskEntry) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("entries = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i].Date != want[i].Date ||
+			got[i].Modality != want[i].Modality ||
+			got[i].Summary != want[i].Summary ||
+			!equalStringPointers(got[i].BodySite, want[i].BodySite) ||
+			!equalStringPointers(got[i].Title, want[i].Title) ||
+			!equalStringPointers(got[i].Impression, want[i].Impression) ||
+			!equalStringPointers(got[i].Note, want[i].Note) {
+			t.Fatalf("entries = %#v, want %#v", got, want)
+		}
+	}
+}
+
 func equalStringPointers(a *string, b *string) bool {
 	switch {
 	case a == nil && b == nil:
@@ -291,4 +384,19 @@ func equalStringPointers(a *string, b *string) bool {
 
 func stringPointer(value string) *string {
 	return &value
+}
+
+func floatPointer(value float64) *float64 {
+	return &value
+}
+
+func equalFloatPointers(a *float64, b *float64) bool {
+	switch {
+	case a == nil && b == nil:
+		return true
+	case a == nil || b == nil:
+		return false
+	default:
+		return *a == *b
+	}
 }

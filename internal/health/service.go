@@ -375,6 +375,7 @@ func (s *service) CreateMedicationCourse(ctx context.Context, input MedicationCo
 		DosageText: normalized.DosageText,
 		StartDate:  normalized.StartDate,
 		EndDate:    normalized.EndDate,
+		Note:       normalized.Note,
 		Source:     manualSource,
 		CreatedAt:  now,
 		UpdatedAt:  now,
@@ -395,6 +396,7 @@ func (s *service) ReplaceMedicationCourse(ctx context.Context, id int, input Med
 		DosageText: normalized.DosageText,
 		StartDate:  normalized.StartDate,
 		EndDate:    normalized.EndDate,
+		Note:       normalized.Note,
 		UpdatedAt:  s.now().UTC(),
 	})
 }
@@ -505,6 +507,7 @@ func (s *service) CreateLabCollection(ctx context.Context, input LabCollectionIn
 	now := s.now().UTC()
 	return s.repo.CreateLabCollection(ctx, CreateLabCollectionParams{
 		CollectedAt: normalized.CollectedAt,
+		Note:        normalized.Note,
 		Source:      manualSource,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -523,6 +526,7 @@ func (s *service) ReplaceLabCollection(ctx context.Context, id int, input LabCol
 	return s.repo.UpdateLabCollection(ctx, UpdateLabCollectionParams{
 		ID:          id,
 		CollectedAt: normalized.CollectedAt,
+		Note:        normalized.Note,
 		UpdatedAt:   s.now().UTC(),
 		Panels:      labPanelWriteParams(normalized.Panels),
 	})
@@ -534,6 +538,150 @@ func (s *service) DeleteLabCollection(ctx context.Context, id int) error {
 	}
 	now := s.now().UTC()
 	return s.repo.DeleteLabCollection(ctx, DeleteLabCollectionParams{
+		ID:        id,
+		DeletedAt: now,
+		UpdatedAt: now,
+	})
+}
+
+func (s *service) ListBodyComposition(ctx context.Context, filter HistoryFilter) ([]BodyCompositionEntry, error) {
+	if err := validateHistoryFilter(filter); err != nil {
+		return nil, err
+	}
+	return s.repo.ListBodyCompositionEntries(ctx, filter)
+}
+
+func (s *service) CreateBodyComposition(ctx context.Context, input BodyCompositionInput) (BodyCompositionEntry, error) {
+	normalized, err := normalizeBodyCompositionInput(input)
+	if err != nil {
+		return BodyCompositionEntry{}, err
+	}
+	sourceRecordHash, err := s.hashGenerator()
+	if err != nil {
+		return BodyCompositionEntry{}, &DatabaseError{
+			Message: "failed to generate body composition entry hash",
+			Cause:   err,
+		}
+	}
+	now := s.now().UTC()
+	return s.repo.CreateBodyCompositionEntry(ctx, CreateBodyCompositionEntryParams{
+		RecordedAt:       normalized.RecordedAt,
+		BodyFatPercent:   normalized.BodyFatPercent,
+		WeightValue:      normalized.WeightValue,
+		WeightUnit:       normalized.WeightUnit,
+		Method:           normalized.Method,
+		Note:             normalized.Note,
+		Source:           manualSource,
+		SourceRecordHash: sourceRecordHash,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+}
+
+func (s *service) ReplaceBodyComposition(ctx context.Context, id int, input BodyCompositionInput) (BodyCompositionEntry, error) {
+	if err := validateRecordID(id); err != nil {
+		return BodyCompositionEntry{}, err
+	}
+	normalized, err := normalizeBodyCompositionInput(input)
+	if err != nil {
+		return BodyCompositionEntry{}, err
+	}
+	return s.repo.UpdateBodyCompositionEntry(ctx, UpdateBodyCompositionEntryParams{
+		ID:             id,
+		RecordedAt:     normalized.RecordedAt,
+		BodyFatPercent: normalized.BodyFatPercent,
+		WeightValue:    normalized.WeightValue,
+		WeightUnit:     normalized.WeightUnit,
+		Method:         normalized.Method,
+		Note:           normalized.Note,
+		UpdatedAt:      s.now().UTC(),
+	})
+}
+
+func (s *service) DeleteBodyComposition(ctx context.Context, id int) error {
+	if err := validateRecordID(id); err != nil {
+		return err
+	}
+	now := s.now().UTC()
+	return s.repo.DeleteBodyCompositionEntry(ctx, DeleteBodyCompositionEntryParams{
+		ID:        id,
+		DeletedAt: now,
+		UpdatedAt: now,
+	})
+}
+
+func (s *service) ListImaging(ctx context.Context, params ImagingListParams) ([]ImagingRecord, error) {
+	if err := validateHistoryFilter(params.HistoryFilter); err != nil {
+		return nil, err
+	}
+	modality, err := normalizeOptionalText(params.Modality, "modality")
+	if err != nil {
+		return nil, err
+	}
+	bodySite, err := normalizeOptionalText(params.BodySite, "body_site")
+	if err != nil {
+		return nil, err
+	}
+	params.Modality = modality
+	params.BodySite = bodySite
+	return s.repo.ListImagingRecords(ctx, params)
+}
+
+func (s *service) CreateImaging(ctx context.Context, input ImagingRecordInput) (ImagingRecord, error) {
+	normalized, err := normalizeImagingRecordInput(input)
+	if err != nil {
+		return ImagingRecord{}, err
+	}
+	sourceRecordHash, err := s.hashGenerator()
+	if err != nil {
+		return ImagingRecord{}, &DatabaseError{
+			Message: "failed to generate imaging record hash",
+			Cause:   err,
+		}
+	}
+	now := s.now().UTC()
+	return s.repo.CreateImagingRecord(ctx, CreateImagingRecordParams{
+		PerformedAt:      normalized.PerformedAt,
+		Modality:         normalized.Modality,
+		BodySite:         normalized.BodySite,
+		Title:            normalized.Title,
+		Summary:          normalized.Summary,
+		Impression:       normalized.Impression,
+		Note:             normalized.Note,
+		Source:           manualSource,
+		SourceRecordHash: sourceRecordHash,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+}
+
+func (s *service) ReplaceImaging(ctx context.Context, id int, input ImagingRecordInput) (ImagingRecord, error) {
+	if err := validateRecordID(id); err != nil {
+		return ImagingRecord{}, err
+	}
+	normalized, err := normalizeImagingRecordInput(input)
+	if err != nil {
+		return ImagingRecord{}, err
+	}
+	return s.repo.UpdateImagingRecord(ctx, UpdateImagingRecordParams{
+		ID:          id,
+		PerformedAt: normalized.PerformedAt,
+		Modality:    normalized.Modality,
+		BodySite:    normalized.BodySite,
+		Title:       normalized.Title,
+		Summary:     normalized.Summary,
+		Impression:  normalized.Impression,
+		Note:        normalized.Note,
+		UpdatedAt:   s.now().UTC(),
+	})
+}
+
+func (s *service) DeleteImaging(ctx context.Context, id int) error {
+	if err := validateRecordID(id); err != nil {
+		return err
+	}
+	now := s.now().UTC()
+	return s.repo.DeleteImagingRecord(ctx, DeleteImagingRecordParams{
 		ID:        id,
 		DeletedAt: now,
 		UpdatedAt: now,
@@ -620,6 +768,11 @@ func normalizeMedicationCourseInput(input MedicationCourseInput) (MedicationCour
 			return MedicationCourseInput{}, &ValidationError{Message: "end_date must be on or after start_date"}
 		}
 	}
+	note, err := normalizeOptionalText(input.Note, "note")
+	if err != nil {
+		return MedicationCourseInput{}, err
+	}
+	input.Note = note
 	return input, nil
 }
 
@@ -630,6 +783,11 @@ func normalizeLabCollectionInput(input LabCollectionInput) (LabCollectionInput, 
 	if len(input.Panels) == 0 {
 		return LabCollectionInput{}, &ValidationError{Message: "at least one lab panel is required"}
 	}
+	note, err := normalizeOptionalText(input.Note, "note")
+	if err != nil {
+		return LabCollectionInput{}, err
+	}
+	input.Note = note
 	input.CollectedAt = input.CollectedAt.UTC()
 	for panelIndex := range input.Panels {
 		panel := &input.Panels[panelIndex]
@@ -660,6 +818,79 @@ func normalizeLabCollectionInput(input LabCollectionInput) (LabCollectionInput, 
 		}
 	}
 	return input, nil
+}
+
+func normalizeBodyCompositionInput(input BodyCompositionInput) (BodyCompositionInput, error) {
+	if input.RecordedAt.IsZero() {
+		return BodyCompositionInput{}, &ValidationError{Message: "recorded_at is required"}
+	}
+	if input.BodyFatPercent == nil && input.WeightValue == nil {
+		return BodyCompositionInput{}, &ValidationError{Message: "at least one body composition measurement is required"}
+	}
+	if input.BodyFatPercent != nil && (*input.BodyFatPercent <= 0 || *input.BodyFatPercent > 100) {
+		return BodyCompositionInput{}, &ValidationError{Message: "body_fat_percent must be greater than 0 and less than or equal to 100"}
+	}
+	if (input.WeightValue == nil) != (input.WeightUnit == nil) {
+		return BodyCompositionInput{}, &ValidationError{Message: "weight_value and weight_unit must be provided together"}
+	}
+	if input.WeightValue != nil && *input.WeightValue <= 0 {
+		return BodyCompositionInput{}, &ValidationError{Message: "weight_value must be greater than 0"}
+	}
+	if input.WeightUnit != nil && *input.WeightUnit != WeightUnitLb {
+		return BodyCompositionInput{}, &ValidationError{Message: "weight_unit must be 'lb'"}
+	}
+	method, err := normalizeOptionalText(input.Method, "method")
+	if err != nil {
+		return BodyCompositionInput{}, err
+	}
+	note, err := normalizeOptionalText(input.Note, "note")
+	if err != nil {
+		return BodyCompositionInput{}, err
+	}
+	input.RecordedAt = input.RecordedAt.UTC()
+	input.Method = method
+	input.Note = note
+	return input, nil
+}
+
+func normalizeImagingRecordInput(input ImagingRecordInput) (ImagingRecordInput, error) {
+	if input.PerformedAt.IsZero() {
+		return ImagingRecordInput{}, &ValidationError{Message: "performed_at is required"}
+	}
+	input.Modality = strings.TrimSpace(input.Modality)
+	if input.Modality == "" {
+		return ImagingRecordInput{}, &ValidationError{Message: "modality is required"}
+	}
+	input.Summary = strings.TrimSpace(input.Summary)
+	if input.Summary == "" {
+		return ImagingRecordInput{}, &ValidationError{Message: "summary is required"}
+	}
+	var err error
+	if input.BodySite, err = normalizeOptionalText(input.BodySite, "body_site"); err != nil {
+		return ImagingRecordInput{}, err
+	}
+	if input.Title, err = normalizeOptionalText(input.Title, "title"); err != nil {
+		return ImagingRecordInput{}, err
+	}
+	if input.Impression, err = normalizeOptionalText(input.Impression, "impression"); err != nil {
+		return ImagingRecordInput{}, err
+	}
+	if input.Note, err = normalizeOptionalText(input.Note, "note"); err != nil {
+		return ImagingRecordInput{}, err
+	}
+	input.PerformedAt = input.PerformedAt.UTC()
+	return input, nil
+}
+
+func normalizeOptionalText(value *string, field string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil, &ValidationError{Message: field + " must not be empty"}
+	}
+	return &trimmed, nil
 }
 
 func labPanelWriteParams(panels []LabPanelInput) []LabPanelWriteParams {

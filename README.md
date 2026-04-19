@@ -106,8 +106,8 @@ func main() {
 ```
 
 `client.OpenLocal(...)` opens SQLite locally, runs migrations, and calls the
-same local health service used by the runner. There is no hosted service, remote
-HTTP API, or generated API contract in the `0.1.0` release surface.
+same local health service used by the runner. There is no hosted service or
+remote HTTP API contract in the `0.1.0` release surface.
 
 ## Local Storage
 
@@ -151,9 +151,6 @@ mise exec -- go test ./...
 ./scripts/validate-agent-skill.sh skills/openhealth
 ```
 
-See `CONTRIBUTING.md` for contributor expectations and `docs/maintainers.md`
-for maintainer-only workflow details.
-
 ## Repository Contents
 
 - `CONTRIBUTING.md` explains how outside contributors should propose changes.
@@ -184,5 +181,6 @@ Outside contributors can work entirely through GitHub issues and pull requests.
 Beads is maintainer-only workflow tooling and is not required for community
 contributions.
 
-See `CONTRIBUTING.md` for contribution expectations and `CODE_OF_CONDUCT.md`
-for community standards.
+See `CONTRIBUTING.md` for contribution expectations, `CODE_OF_CONDUCT.md` for
+community standards, and `docs/maintainers.md` for maintainer-only workflow
+details.

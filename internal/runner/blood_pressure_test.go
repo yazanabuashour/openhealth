@@ -232,6 +232,11 @@ func TestRunBloodPressureTaskRejectsInvalidInputBeforeOpeningDatabase(t *testing
 			reason:  "pulse must be greater than 0",
 		},
 		{
+			name:    "systolic not greater than diastolic",
+			reading: runner.BloodPressureInput{Date: "2026-03-29", Systolic: 78, Diastolic: 78},
+			reason:  "systolic must be greater than diastolic",
+		},
+		{
 			name:    "duplicate correction date",
 			reading: runner.BloodPressureInput{Date: "2026-03-29", Systolic: 122, Diastolic: 78},
 			reason:  "duplicate correction date 2026-03-29",

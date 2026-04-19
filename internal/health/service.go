@@ -586,6 +586,9 @@ func normalizeBloodPressureRecordInput(input BloodPressureRecordInput) (BloodPre
 	if input.Diastolic <= 0 {
 		return BloodPressureRecordInput{}, &ValidationError{Message: "diastolic must be greater than 0"}
 	}
+	if input.Systolic <= input.Diastolic {
+		return BloodPressureRecordInput{}, &ValidationError{Message: "systolic must be greater than diastolic"}
+	}
 	if input.Pulse != nil && *input.Pulse <= 0 {
 		return BloodPressureRecordInput{}, &ValidationError{Message: "pulse must be greater than 0"}
 	}

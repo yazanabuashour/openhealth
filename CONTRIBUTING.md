@@ -55,7 +55,6 @@ The current production install story is the `openhealth` runner plus the
 single-file OpenHealth skill. The optional Go SDK is direct-local only. Go
 `1.26.2` is required for repository development and CI validation on
 `ubuntu-latest`; routine client-agent use should not require a Go toolchain. No
-hosted deployment target, remote HTTP API, or generated API contract is
-promised.
+hosted deployment target or remote HTTP API contract is promised.
 
 Maintainer workflow notes live in [docs/maintainers.md](docs/maintainers.md).

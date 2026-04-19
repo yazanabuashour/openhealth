@@ -54,4 +54,4 @@ If a vulnerability affects the latest supported code line, maintainers may cut a
 
 Emergency fixes publish updated binary, skill, and source releases with
 checksums, SBOMs, and GitHub attestations. The repository does not publish a
-hosted service deployment, remote HTTP API, or generated API contract.
+hosted service deployment or remote HTTP API contract.

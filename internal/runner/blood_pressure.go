@@ -201,6 +201,9 @@ func normalizeBloodPressureInput(input BloodPressureInput) (normalizedBloodPress
 	if input.Diastolic <= 0 {
 		return normalizedBloodPressureInput{}, "diastolic must be greater than 0"
 	}
+	if input.Systolic <= input.Diastolic {
+		return normalizedBloodPressureInput{}, "systolic must be greater than diastolic"
+	}
 	if input.Pulse != nil && *input.Pulse <= 0 {
 		return normalizedBloodPressureInput{}, "pulse must be greater than 0"
 	}

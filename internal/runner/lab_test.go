@@ -47,17 +47,6 @@ func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
 		t.Fatalf("repeat write statuses = %q, want already_exists", got)
 	}
 
-	conflict, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
-		Action:      runner.LabTaskActionRecord,
-		Collections: []runner.LabCollectionInput{metabolicCollection("2026-03-29", 90)},
-	})
-	if err != nil {
-		t.Fatalf("conflict lab task: %v", err)
-	}
-	if !conflict.Rejected || conflict.RejectionReason != "lab collection already exists for 2026-03-29; use correct_labs" {
-		t.Fatalf("conflict result = %#v", conflict)
-	}
-
 	latestGlucose, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
 		Action:      runner.LabTaskActionList,
 		ListMode:    runner.LabListModeLatest,
@@ -120,6 +109,222 @@ func TestRunLabTaskRecordListCorrectAndDelete(t *testing.T) {
 		t.Fatalf("delete write statuses = %q, want deleted", got)
 	}
 	assertLabCollectionDates(t, deleted.Entries, []string{"2026-03-30"})
+}
+
+func TestRunLabTaskRecordsMultipleSameDayCollections(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "openhealth.db")
+	ctx := context.Background()
+	config := client.LocalConfig{DatabasePath: dbPath}
+
+	first, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action:      runner.LabTaskActionRecord,
+		Collections: []runner.LabCollectionInput{metabolicCollection("2026-03-29", 89)},
+	})
+	if err != nil {
+		t.Fatalf("record first same-day lab: %v", err)
+	}
+	if got := labWriteStatuses(first.Writes); got != "created" {
+		t.Fatalf("first write status = %q, want created", got)
+	}
+
+	second, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action:      runner.LabTaskActionRecord,
+		Collections: []runner.LabCollectionInput{thyroidCollection("2026-03-29", "3.1")},
+	})
+	if err != nil {
+		t.Fatalf("record second same-day lab: %v", err)
+	}
+	if second.Rejected {
+		t.Fatalf("second same-day lab rejected: %#v", second)
+	}
+	if got := labWriteStatuses(second.Writes); got != "created" {
+		t.Fatalf("second write status = %q, want created", got)
+	}
+	assertLabCollectionDates(t, second.Entries, []string{"2026-03-29", "2026-03-29"})
+
+	duplicate, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action:      runner.LabTaskActionRecord,
+		Collections: []runner.LabCollectionInput{metabolicCollection("2026-03-29", 89)},
+	})
+	if err != nil {
+		t.Fatalf("repeat same-day lab: %v", err)
+	}
+	if got := labWriteStatuses(duplicate.Writes); got != "already_exists" {
+		t.Fatalf("repeat write status = %q, want already_exists", got)
+	}
+}
+
+func TestRunLabTaskPatchUpdatesOneLabResult(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "openhealth.db")
+	ctx := context.Background()
+	config := client.LocalConfig{DatabasePath: dbPath}
+
+	recorded, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action:      runner.LabTaskActionRecord,
+		Collections: []runner.LabCollectionInput{metabolicCollectionWithLipids("2026-03-29")},
+	})
+	if err != nil {
+		t.Fatalf("seed lab: %v", err)
+	}
+	if len(recorded.Writes) != 1 {
+		t.Fatalf("recorded writes = %#v, want one", recorded.Writes)
+	}
+
+	patched, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action: runner.LabTaskActionPatch,
+		Target: &runner.LabTarget{ID: recorded.Writes[0].ID},
+		ResultUpdates: []runner.LabResultUpdateInput{
+			{
+				PanelName: "metabolic",
+				Match:     runner.LabResultMatchInput{CanonicalSlug: "glucose"},
+				Result: runner.LabResultInput{
+					TestName:      "Glucose",
+					CanonicalSlug: stringPointer("glucose"),
+					ValueText:     "92",
+					ValueNumeric:  floatPointer(92),
+					Units:         stringPointer("mg/dL"),
+					RangeText:     stringPointer("70-99"),
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("patch lab: %v", err)
+	}
+	if patched.Rejected {
+		t.Fatalf("patch rejected: %#v", patched)
+	}
+	if got := labWriteStatuses(patched.Writes); got != "updated" {
+		t.Fatalf("patch write status = %q, want updated", got)
+	}
+	assertLabCollectionDates(t, patched.Entries, []string{"2026-03-29"})
+	results := patched.Entries[0].Panels[0].Results
+	if len(results) != 2 {
+		t.Fatalf("patched results = %#v, want two results", results)
+	}
+	assertLabResult(t, results[0], "Glucose", "glucose", "92")
+	assertLabResult(t, results[1], "HDL", "hdl", "51")
+}
+
+func TestRunLabTaskPatchRejectsAmbiguousDateTarget(t *testing.T) {
+	t.Parallel()
+
+	dbPath := filepath.Join(t.TempDir(), "openhealth.db")
+	ctx := context.Background()
+	config := client.LocalConfig{DatabasePath: dbPath}
+
+	_, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action: runner.LabTaskActionRecord,
+		Collections: []runner.LabCollectionInput{
+			metabolicCollection("2026-03-29", 89),
+			thyroidCollection("2026-03-29", "3.1"),
+		},
+	})
+	if err != nil {
+		t.Fatalf("seed same-day labs: %v", err)
+	}
+
+	patched, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+		Action: runner.LabTaskActionPatch,
+		Target: &runner.LabTarget{Date: "2026-03-29"},
+		ResultUpdates: []runner.LabResultUpdateInput{
+			{
+				PanelName: "Metabolic",
+				Match:     runner.LabResultMatchInput{CanonicalSlug: "glucose"},
+				Result:    runner.LabResultInput{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "92"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("patch ambiguous same-day target: %v", err)
+	}
+	if !patched.Rejected || patched.RejectionReason != "multiple matching lab collections; target is ambiguous" {
+		t.Fatalf("patch result = %#v", patched)
+	}
+}
+
+func TestRunLabTaskPatchRejectsUnsafeMatches(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		collection runner.LabCollectionInput
+		update     runner.LabResultUpdateInput
+		reason     string
+	}{
+		{
+			name:       "missing panel",
+			collection: metabolicCollectionWithLipids("2026-03-29"),
+			update: runner.LabResultUpdateInput{
+				PanelName: "Thyroid",
+				Match:     runner.LabResultMatchInput{CanonicalSlug: "glucose"},
+				Result:    runner.LabResultInput{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "92"},
+			},
+			reason: "no matching lab panel",
+		},
+		{
+			name:       "duplicate panels",
+			collection: duplicatePanelCollection("2026-03-29"),
+			update: runner.LabResultUpdateInput{
+				PanelName: "Metabolic",
+				Match:     runner.LabResultMatchInput{CanonicalSlug: "glucose"},
+				Result:    runner.LabResultInput{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "92"},
+			},
+			reason: "multiple matching lab panels; patch is ambiguous",
+		},
+		{
+			name:       "duplicate results",
+			collection: duplicateResultCollection("2026-03-29"),
+			update: runner.LabResultUpdateInput{
+				PanelName: "Metabolic",
+				Match:     runner.LabResultMatchInput{CanonicalSlug: "glucose"},
+				Result:    runner.LabResultInput{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "92"},
+			},
+			reason: "multiple matching lab results; patch is ambiguous",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dbPath := filepath.Join(t.TempDir(), "openhealth.db")
+			ctx := context.Background()
+			config := client.LocalConfig{DatabasePath: dbPath}
+
+			recorded, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+				Action:      runner.LabTaskActionRecord,
+				Collections: []runner.LabCollectionInput{tt.collection},
+			})
+			if err != nil {
+				t.Fatalf("seed lab: %v", err)
+			}
+			patched, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+				Action:        runner.LabTaskActionPatch,
+				Target:        &runner.LabTarget{ID: recorded.Writes[0].ID},
+				ResultUpdates: []runner.LabResultUpdateInput{tt.update},
+			})
+			if err != nil {
+				t.Fatalf("patch lab: %v", err)
+			}
+			if !patched.Rejected || patched.RejectionReason != tt.reason {
+				t.Fatalf("patch result = %#v, want rejection %q", patched, tt.reason)
+			}
+
+			listed, err := runner.RunLabTask(ctx, config, runner.LabTaskRequest{
+				Action: runner.LabTaskActionList,
+			})
+			if err != nil {
+				t.Fatalf("list after rejected patch: %v", err)
+			}
+			if firstValueText(listed.Entries) == "92" {
+				t.Fatalf("rejected patch mutated collection: %#v", listed.Entries)
+			}
+		})
+	}
 }
 
 func TestRunLabTaskAcceptsArbitraryLabSlugs(t *testing.T) {
@@ -328,6 +533,34 @@ func metabolicCollection(date string, value float64) runner.LabCollectionInput {
 	}
 }
 
+func metabolicCollectionWithLipids(date string) runner.LabCollectionInput {
+	return runner.LabCollectionInput{
+		Date: date,
+		Panels: []runner.LabPanelInput{
+			{
+				PanelName: "Metabolic",
+				Results: []runner.LabResultInput{
+					{
+						TestName:      "Glucose",
+						CanonicalSlug: stringPointer("glucose"),
+						ValueText:     "89",
+						ValueNumeric:  floatPointer(89),
+						Units:         stringPointer("mg/dL"),
+						RangeText:     stringPointer("70-99"),
+					},
+					{
+						TestName:      "HDL",
+						CanonicalSlug: stringPointer("hdl"),
+						ValueText:     "51",
+						ValueNumeric:  floatPointer(51),
+						Units:         stringPointer("mg/dL"),
+					},
+				},
+			},
+		},
+	}
+}
+
 func thyroidCollection(date string, value string) runner.LabCollectionInput {
 	return runner.LabCollectionInput{
 		Date: date,
@@ -341,6 +574,37 @@ func thyroidCollection(date string, value string) runner.LabCollectionInput {
 						ValueText:     value,
 						Units:         stringPointer("uIU/mL"),
 					},
+				},
+			},
+		},
+	}
+}
+
+func duplicatePanelCollection(date string) runner.LabCollectionInput {
+	return runner.LabCollectionInput{
+		Date: date,
+		Panels: []runner.LabPanelInput{
+			{
+				PanelName: "Metabolic",
+				Results:   []runner.LabResultInput{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89"}},
+			},
+			{
+				PanelName: "metabolic",
+				Results:   []runner.LabResultInput{{TestName: "HDL", CanonicalSlug: stringPointer("hdl"), ValueText: "51"}},
+			},
+		},
+	}
+}
+
+func duplicateResultCollection(date string) runner.LabCollectionInput {
+	return runner.LabCollectionInput{
+		Date: date,
+		Panels: []runner.LabPanelInput{
+			{
+				PanelName: "Metabolic",
+				Results: []runner.LabResultInput{
+					{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89"},
+					{TestName: "Glucose Repeat", CanonicalSlug: stringPointer("glucose"), ValueText: "90"},
 				},
 			},
 		},
@@ -397,10 +661,25 @@ func assertSingleLabResult(t *testing.T, entry runner.LabCollectionEntry, testNa
 	if len(entry.Panels) != 1 || len(entry.Panels[0].Results) != 1 {
 		t.Fatalf("entry = %#v, want exactly one nested result", entry)
 	}
-	result := entry.Panels[0].Results[0]
+	assertLabResult(t, entry.Panels[0].Results[0], testName, slug, valueText)
+}
+
+func assertLabResult(t *testing.T, result runner.LabResultEntry, testName string, slug string, valueText string) {
+	t.Helper()
 	if result.TestName != testName || result.CanonicalSlug == nil || *result.CanonicalSlug != slug || result.ValueText != valueText {
 		t.Fatalf("result = %#v, want %s %s %s", result, testName, slug, valueText)
 	}
+}
+
+func firstValueText(entries []runner.LabCollectionEntry) string {
+	for _, entry := range entries {
+		for _, panel := range entry.Panels {
+			for _, result := range panel.Results {
+				return result.ValueText
+			}
+		}
+	}
+	return ""
 }
 
 func assertLabCollectionDates(t *testing.T, got []runner.LabCollectionEntry, want []string) {

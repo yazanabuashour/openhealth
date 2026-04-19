@@ -68,6 +68,7 @@ func TestOpenHealthSkillUsesInstalledRunner(t *testing.T) {
 		"delete_medication",
 		"record_labs",
 		"correct_labs",
+		"patch_labs",
 		"delete_labs",
 		"Do not run repo-wide file discovery or broad searches",
 		"reject directly without running code",
@@ -80,6 +81,9 @@ func TestOpenHealthSkillUsesInstalledRunner(t *testing.T) {
 		"subcutaneous injection",
 		"topical cream",
 		"1 patch every 24 hours",
+		"systolic not greater than diastolic",
+		"result_updates",
+		"date is ambiguous",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("skill missing %q", want)
@@ -102,8 +106,8 @@ func TestOpenHealthSkillUsesInstalledRunner(t *testing.T) {
 		"CLI fallback",
 		"Generated Client Fallback",
 		"generated files",
-		"unsupported lab analyte slug",
-		"Supported `canonical_slug` and `analyte_slug` values",
+		"unsupported lab " + "analyte " + "slug",
+		"Supported `canonical_" + "slug` and `analyte_" + "slug` values",
 	} {
 		if strings.Contains(text, forbidden) {
 			t.Fatalf("skill contains forbidden text %q", forbidden)

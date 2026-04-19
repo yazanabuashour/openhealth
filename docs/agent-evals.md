@@ -18,11 +18,12 @@ The `oh-5yr` harness covers routine local user-data tasks:
 
 - weight add/reapply/correction, latest/history/range listing, and invalid input
   rejection
-- blood-pressure record/correction, latest/history/range listing, and invalid
+- blood-pressure record/correction, latest/history/range listing, relation
+  validation, and invalid input rejection
+- medication record/correction/delete/list, non-oral dosage text, and invalid
   input rejection
-- medication record/correction/delete/list and invalid input rejection
-- lab record/correction/delete/latest/history/range/analyte listing and invalid
-  input rejection
+- lab record/correction/patch/delete/latest/history/range/analyte listing,
+  arbitrary slugs, multiple same-day collections, and invalid input rejection
 - mixed-domain requests in one user task
 - true multi-turn requests that require clarification or conversational context
 
@@ -33,6 +34,9 @@ SQLite access, or retired human CLI usage.
 Every scenario uses a fresh ephemeral agent session, an isolated copied repo, a
 fresh local database path, and reduced JSON/Markdown artifacts. Raw event logs
 are not committed; reduced reports refer to them with `<run-root>` placeholders.
+Committed reduced reports should only be updated after the production eval or an
+explicit smoke subset has actually run; harness-only changes do not update eval
+result artifacts.
 The copied repo intentionally omits root `AGENTS.md`, stale `.agents` content,
 eval assets/results, and the eval harness before installing the selected
 variant skill.

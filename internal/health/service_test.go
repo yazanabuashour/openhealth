@@ -198,6 +198,32 @@ func TestServiceNonWeightValidationAndNotFound(t *testing.T) {
 		t.Fatalf("blood pressure validation error = %v, want validation", err)
 	}
 
+	_, err = service.RecordBloodPressure(ctx, health.BloodPressureRecordInput{
+		RecordedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		Systolic:   80,
+		Diastolic:  80,
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("blood pressure relation validation error = %v, want validation", err)
+	}
+
+	validBP, err := service.RecordBloodPressure(ctx, health.BloodPressureRecordInput{
+		RecordedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		Systolic:   120,
+		Diastolic:  80,
+	})
+	if err != nil {
+		t.Fatalf("record valid blood pressure: %v", err)
+	}
+	_, err = service.ReplaceBloodPressure(ctx, validBP.ID, health.BloodPressureRecordInput{
+		RecordedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		Systolic:   75,
+		Diastolic:  80,
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("blood pressure replace relation validation error = %v, want validation", err)
+	}
+
 	_, err = service.CreateMedicationCourse(ctx, health.MedicationCourseInput{
 		Name:      "Expired",
 		StartDate: "2026-04-15",

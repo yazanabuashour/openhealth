@@ -1234,6 +1234,11 @@ func scenarios() []scenario {
 			Prompt: "Please add this local OpenHealth blood pressure reading: 03/31/2026 0/-5 pulse 0.",
 		},
 		{
+			ID:     "bp-invalid-relation",
+			Title:  "Reject blood-pressure systolic not greater than diastolic",
+			Prompt: "Please add this local OpenHealth blood pressure reading: 03/31/2026 78/78. Do not write it if systolic must be greater than diastolic.",
+		},
+		{
 			ID:     "bp-non-iso-date-reject",
 			Title:  "Reject non-ISO blood-pressure date without writing",
 			Prompt: "Please add this local OpenHealth blood pressure reading exactly as written: 2026/03/31 122/78. Do not normalize or rewrite the date if OpenHealth requires another date format.",
@@ -1274,6 +1279,11 @@ func scenarios() []scenario {
 			Prompt: "Use the configured local OpenHealth data path. Record these medications: Levothyroxine 25 mcg starting 01/01/2026 and Vitamin D starting 02/01/2026 ending 03/01/2026. Then list my active medications only.",
 		},
 		{
+			ID:     "medication-non-oral-dosage",
+			Title:  "Record a non-oral medication dosage text",
+			Prompt: "Use the configured local OpenHealth data path. Record Semaglutide 2.5 mg subcutaneous injection weekly starting 02/01/2026. Then list my active medications.",
+		},
+		{
 			ID:     "medication-correct",
 			Title:  "Correct an existing medication course",
 			Prompt: "Use the configured local OpenHealth data path. Correct my Levothyroxine medication that started 01/01/2026 so the dosage is 50 mcg. Tell me what is stored now.",
@@ -1299,6 +1309,16 @@ func scenarios() []scenario {
 			Prompt: "Use the configured local OpenHealth data path. Record a lab collection for 03/29/2026 with a Metabolic panel containing Glucose 89 mg/dL, canonical analyte glucose, range 70-99. Then show my latest lab collection.",
 		},
 		{
+			ID:     "lab-arbitrary-slug",
+			Title:  "Record and list an arbitrary lab analyte slug",
+			Prompt: "Use the configured local OpenHealth data path. Record a lab collection for 03/29/2026 with a Micronutrients panel containing Vitamin D 32 ng/mL, canonical analyte vitamin-d. Then show my latest Vitamin D lab result.",
+		},
+		{
+			ID:     "lab-same-day-multiple",
+			Title:  "Record multiple distinct same-day lab collections",
+			Prompt: "Use the configured local OpenHealth data path. Record two lab collections for 03/29/2026: one Metabolic panel with Glucose 89 mg/dL canonical analyte glucose, and one Thyroid panel with TSH 3.1 uIU/mL canonical analyte tsh. Then list lab collections newest first.",
+		},
+		{
 			ID:     "lab-range",
 			Title:  "List a bounded lab date range",
 			Prompt: "Use the configured local OpenHealth data path. Show my OpenHealth lab collections for Mar 29 and Mar 30, 2026 only, newest first. Do not mention entries outside that requested range.",
@@ -1312,6 +1332,11 @@ func scenarios() []scenario {
 			ID:     "lab-correct",
 			Title:  "Correct an existing lab collection",
 			Prompt: "Use the configured local OpenHealth data path. Correct my lab collection dated 03/29/2026 so it has a Thyroid panel with TSH 3.1 uIU/mL, canonical analyte tsh. Tell me what is stored now.",
+		},
+		{
+			ID:     "lab-patch",
+			Title:  "Patch one lab result while preserving sibling results",
+			Prompt: "Use the configured local OpenHealth data path. In my existing 03/29/2026 lab collection, correct only the Glucose result to 92 mg/dL and preserve the other lab results. Tell me what is stored now.",
 		},
 		{
 			ID:     "lab-delete",
@@ -1524,6 +1549,13 @@ func seedScenario(dbPath string, sc scenario) error {
 			{Date: "2026-03-28", Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "91", ValueNumeric: floatPointer(91), Units: stringPointer("mg/dL")}}},
 			{Date: "2026-03-29", Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}},
 			{Date: "2026-03-30", Results: []labResultState{{TestName: "TSH", CanonicalSlug: stringPointer("tsh"), ValueText: "3.4", ValueNumeric: floatPointer(3.4), Units: stringPointer("uIU/mL")}}},
+		})
+	case "lab-patch":
+		return recordLabs(ctx, api, []labCollectionState{
+			{Date: "2026-03-29", Results: []labResultState{
+				{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")},
+				{TestName: "HDL", CanonicalSlug: stringPointer("hdl"), ValueText: "51", ValueNumeric: floatPointer(51), Units: stringPointer("mg/dL")},
+			}},
 		})
 	default:
 		return nil
@@ -1897,6 +1929,10 @@ func verifyBloodPressureScenario(dbPath string, sc scenario, finalMessage string
 		result.DatabasePass = len(states) == 0
 		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"invalid", "positive", "cannot", "can't", "systolic", "diastolic", "pulse", "reject"})
 		result.Details = fmt.Sprintf("expected no write and an invalid blood-pressure rejection; observed %s", describeBloodPressures(states))
+	case "bp-invalid-relation":
+		result.DatabasePass = len(states) == 0
+		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"invalid", "systolic", "diastolic", "greater", "cannot", "can't", "reject"})
+		result.Details = fmt.Sprintf("expected no write and a systolic-greater-than-diastolic rejection; observed %s", describeBloodPressures(states))
 	case "bp-non-iso-date-reject":
 		result.DatabasePass = len(states) == 0
 		result.AssistantPass = nonISODateRejectAssistantPass(finalMessage)
@@ -1926,6 +1962,11 @@ func verifyMedicationScenario(dbPath string, sc scenario, finalMessage string) (
 		result.DatabasePass = medicationsEqual(states, expected)
 		result.AssistantPass = containsAll(finalMessage, []string{"Levothyroxine", "25 mcg"}) && !strings.Contains(strings.ToLower(finalMessage), "vitamin d")
 		result.Details = fmt.Sprintf("expected two stored medications and active output limited to Levothyroxine; observed %s", describeMedications(states))
+	case "medication-non-oral-dosage":
+		expected := []medicationState{{Name: "Semaglutide", DosageText: stringPointer("2.5 mg subcutaneous injection weekly"), StartDate: "2026-02-01"}}
+		result.DatabasePass = medicationsEqual(states, expected)
+		result.AssistantPass = containsAll(finalMessage, []string{"Semaglutide", "subcutaneous", "weekly"})
+		result.Details = fmt.Sprintf("expected Semaglutide non-oral dosage text; observed %s", describeMedications(states))
 	case "medication-correct":
 		expected := []medicationState{
 			{Name: "Vitamin D", StartDate: "2026-02-01", EndDate: stringPointer("2026-03-01")},
@@ -1968,6 +2009,19 @@ func verifyLabScenario(dbPath string, sc scenario, finalMessage string) (verific
 		result.DatabasePass = labsEqual(states, expected)
 		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "Glucose", "89"})
 		result.Details = fmt.Sprintf("expected one glucose lab collection; observed %s", describeLabs(states))
+	case "lab-arbitrary-slug":
+		expected := []labCollectionState{{Date: "2026-03-29", Results: []labResultState{{TestName: "Vitamin D", CanonicalSlug: stringPointer("vitamin-d"), ValueText: "32", ValueNumeric: floatPointer(32), Units: stringPointer("ng/mL")}}}}
+		result.DatabasePass = labsEqual(states, expected)
+		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "Vitamin D", "32"})
+		result.Details = fmt.Sprintf("expected one Vitamin D lab collection with arbitrary slug; observed %s", describeLabs(states))
+	case "lab-same-day-multiple":
+		expected := []labCollectionState{
+			{Date: "2026-03-29", Results: []labResultState{{TestName: "TSH", CanonicalSlug: stringPointer("tsh"), ValueText: "3.1", ValueNumeric: floatPointer(3.1), Units: stringPointer("uIU/mL")}}},
+			{Date: "2026-03-29", Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}},
+		}
+		result.DatabasePass = labsEqual(states, expected)
+		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "TSH", "3.1", "Glucose", "89"})
+		result.Details = fmt.Sprintf("expected two distinct same-day lab collections; observed %s", describeLabs(states))
 	case "lab-range":
 		expected := []labCollectionState{
 			{Date: "2026-03-30", Results: []labResultState{{TestName: "TSH", CanonicalSlug: stringPointer("tsh"), ValueText: "3.4", ValueNumeric: floatPointer(3.4), Units: stringPointer("uIU/mL")}}},
@@ -1995,6 +2049,14 @@ func verifyLabScenario(dbPath string, sc scenario, finalMessage string) (verific
 		result.DatabasePass = labsEqual(states, expected)
 		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "TSH", "3.1"})
 		result.Details = fmt.Sprintf("expected 2026-03-29 lab correction; observed %s", describeLabs(states))
+	case "lab-patch":
+		expected := []labCollectionState{{Date: "2026-03-29", Results: []labResultState{
+			{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "92", ValueNumeric: floatPointer(92), Units: stringPointer("mg/dL")},
+			{TestName: "HDL", CanonicalSlug: stringPointer("hdl"), ValueText: "51", ValueNumeric: floatPointer(51), Units: stringPointer("mg/dL")},
+		}}}
+		result.DatabasePass = labsEqual(states, expected)
+		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "Glucose", "92", "HDL", "51"})
+		result.Details = fmt.Sprintf("expected one patched glucose result with sibling HDL preserved; observed %s", describeLabs(states))
 	case "lab-delete":
 		expected := []labCollectionState{
 			{Date: "2026-03-30", Results: []labResultState{{TestName: "TSH", CanonicalSlug: stringPointer("tsh"), ValueText: "3.4", ValueNumeric: floatPointer(3.4), Units: stringPointer("uIU/mL")}}},
@@ -3545,6 +3607,8 @@ func promptSummary(sc scenario) string {
 		return "naturally ask for 2026-03-29 and 2026-03-30 blood-pressure rows from preseeded rows"
 	case "bp-invalid-input":
 		return "reject invalid 0/-5 pulse 0 blood-pressure reading"
+	case "bp-invalid-relation":
+		return "reject systolic not greater than diastolic without tools"
 	case "bp-non-iso-date-reject":
 		return "reject non-ISO blood-pressure date 2026/03/31"
 	case "bp-correct-existing":
@@ -3561,6 +3625,8 @@ func promptSummary(sc scenario) string {
 		return "reject invalid mixed weight and blood-pressure values without tools"
 	case "medication-add-list":
 		return "record two medications, then list active medications"
+	case "medication-non-oral-dosage":
+		return "record Semaglutide subcutaneous injection dosage text"
 	case "medication-correct":
 		return "correct Levothyroxine dosage from 25 mcg to 50 mcg"
 	case "medication-delete":
@@ -3571,12 +3637,18 @@ func promptSummary(sc scenario) string {
 		return "reject medication end date before start date without tools"
 	case "lab-record-list":
 		return "record one glucose lab collection and list latest labs"
+	case "lab-arbitrary-slug":
+		return "record one Vitamin D lab collection with arbitrary slug"
+	case "lab-same-day-multiple":
+		return "record two distinct same-day lab collections"
 	case "lab-range":
 		return "list only 2026-03-29 through 2026-03-30 lab collections"
 	case "lab-latest-analyte":
 		return "list only the latest glucose lab result"
 	case "lab-correct":
 		return "correct 2026-03-29 lab collection to TSH"
+	case "lab-patch":
+		return "patch one glucose lab result while preserving HDL"
 	case "lab-delete":
 		return "delete 2026-03-29 lab collection"
 	case "lab-invalid-slug":

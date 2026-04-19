@@ -1,6 +1,6 @@
 ---
 name: openhealth
-description: Use this skill for local-first OpenHealth weight, blood-pressure, medication, or lab data. For valid requests, pipe JSON directly to the installed openhealth runner; do not call --help or search source, docs, module cache, or SQLite first. Normalize MM/DD/YYYY dates to YYYY-MM-DD, but reject short dates without a year and year-first slash dates. For filtered list answers, do not mention omitted rows. For invalid values, unsupported units/statuses, invalid lab slug shapes, empty optional text fields, unsafe corrections/deletes, or medication end dates before start dates, reject directly without tools.
+description: Use this skill for local-first OpenHealth weight, blood-pressure, medication, or lab data. For valid requests, pipe JSON directly to the installed openhealth runner; do not call --help or search source, docs, module cache, or SQLite first. Normalize MM/DD/YYYY dates to YYYY-MM-DD, but reject short dates without a year and year-first slash dates. For filtered list answers, do not mention omitted rows. For invalid values, unsupported units/statuses, invalid lab slug shapes, empty optional text fields, unsafe corrections/deletes, medication end dates before start dates, or systolic values not greater than diastolic values, reject directly without tools.
 license: MIT
 compatibility: Requires local filesystem access and an installed openhealth binary on PATH.
 ---
@@ -29,6 +29,7 @@ the CLI when the request has:
 | ambiguous short date without year context, like `03/29` | ask for the year |
 | year-first slash date, like `2026/03/31` | require `YYYY-MM-DD` |
 | non-positive weight, systolic, diastolic, or pulse | reject as invalid |
+| systolic not greater than diastolic | reject as invalid |
 | unsupported weight unit, like `stone` | reject; pounds only |
 | invalid lab analyte slug shape, like punctuation-only text | reject as invalid |
 | unsupported medication status | reject as invalid |
@@ -118,6 +119,7 @@ Labs:
 ```json
 {"action":"record_labs","collections":[{"date":"2026-03-29","panels":[{"panel_name":"Metabolic","results":[{"test_name":"Glucose","canonical_slug":"glucose","value_text":"89","value_numeric":89,"units":"mg/dL","range_text":"70-99"}]}]}]}
 {"action":"correct_labs","target":{"date":"2026-03-29"},"collection":{"date":"2026-03-29","panels":[{"panel_name":"Thyroid","results":[{"test_name":"TSH","canonical_slug":"tsh","value_text":"3.1","value_numeric":3.1,"units":"uIU/mL"}]}]}}
+{"action":"patch_labs","target":{"id":123},"result_updates":[{"panel_name":"Metabolic","match":{"canonical_slug":"glucose"},"result":{"test_name":"Glucose","canonical_slug":"glucose","value_text":"92","value_numeric":92,"units":"mg/dL"}}]}
 {"action":"delete_labs","target":{"date":"2026-03-29"}}
 {"action":"list_labs","list_mode":"latest"}
 {"action":"list_labs","list_mode":"history","limit":2}
@@ -125,23 +127,28 @@ Labs:
 {"action":"list_labs","list_mode":"latest","analyte_slug":"glucose"}
 ```
 
-Request JSON fields are `action`, `collections`, `collection`, `target`,
-`list_mode`, `from_date`, `to_date`, `limit`, and `analyte_slug`. Each
-collection request has `date`, nested `panels`, and nested `results`. Each panel
-has `panel_name` and `results`. Each result has `test_name`, optional
-`canonical_slug`, `value_text`, optional `value_numeric`, optional `units`,
-optional `range_text`, and optional `flag`.
+Request JSON fields are `action`, `collections`, `collection`,
+`result_updates`, `target`, `list_mode`, `from_date`, `to_date`, `limit`, and
+`analyte_slug`. Each collection request has `date`, nested `panels`, and nested
+`results`. Each panel has `panel_name` and `results`. Each result has
+`test_name`, optional `canonical_slug`, `value_text`, optional `value_numeric`,
+optional `units`, optional `range_text`, and optional `flag`.
 
 Use lowercase kebab-case `canonical_slug` and `analyte_slug` values derived from
 the lab or test name, such as `vitamin-d`, `hemoglobin-a1c`, `ferritin`, and
 `urine-albumin-creatinine-ratio`. The runner normalizes spaces and underscores
 to hyphens and rejects empty or non-kebab-case slug shapes.
 Use `record_labs` with one or more date-only collections. Repeating an exact
-same-date collection is idempotent and returns `already_exists`; a same-date
-collection with different panels or results is rejected and should be corrected
-with `correct_labs`. Use `correct_labs` or `delete_labs` with a target by `id`,
-or by `date`. The target must match exactly one lab collection; zero or multiple
-matches return `rejected` with `rejection_reason`.
+same-date collection is idempotent and returns `already_exists`; a different
+same-date collection is stored as a separate collection. Use `correct_labs` for
+full collection replacement. Use `patch_labs` for one-result corrections that
+should preserve sibling panels and results. A `patch_labs` update requires
+`panel_name`, a `match` with exactly one of `canonical_slug` or `test_name`, and
+a full replacement `result`. Use `correct_labs`, `patch_labs`, or `delete_labs`
+with a target by `id`, or by `date` only when exactly one collection exists on
+that date. Zero or multiple target matches return `rejected` with
+`rejection_reason`; if a date is ambiguous, list labs first and use the returned
+collection `id`.
 
 For "two most recent" or any count greater than one, use `history` with
 `limit`; `latest` returns one matching collection. `analyte_slug` filters nested

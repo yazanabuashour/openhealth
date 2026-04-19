@@ -49,6 +49,16 @@ func containsArgPair(args []string, key string, value string) bool {
 	return false
 }
 
+func openEvalTestClient(t *testing.T, databasePath string) *client.LocalClient {
+	t.Helper()
+
+	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: databasePath})
+	if err != nil {
+		t.Fatalf("OpenLocal: %v", err)
+	}
+	return api
+}
+
 func TestPrepareRunDirResetsAndCreatesRuntimeDirs(t *testing.T) {
 	t.Parallel()
 
@@ -992,6 +1002,11 @@ func TestBloodPressureScenariosVerifyExpectedOutput(t *testing.T) {
 			wantReadings: []bloodPressureState{},
 		},
 		{
+			scenarioID:   "bp-invalid-relation",
+			finalMessage: "Invalid blood pressure: systolic must be greater than diastolic.",
+			wantReadings: []bloodPressureState{},
+		},
+		{
 			scenarioID:   "bp-non-iso-date-reject",
 			finalMessage: "Invalid date: use YYYY-MM-DD.",
 			wantReadings: []bloodPressureState{},
@@ -1063,6 +1078,143 @@ func TestBloodPressureScenariosVerifyExpectedOutput(t *testing.T) {
 			}
 			if !bloodPressuresEqual(verification.BloodPressures, tt.wantReadings) {
 				t.Fatalf("blood pressures = %s, want %s", describeBloodPressures(verification.BloodPressures), describeBloodPressures(tt.wantReadings))
+			}
+		})
+	}
+}
+
+func TestMedicationScenarioExpandedCoverageVerifiesExpectedOutput(t *testing.T) {
+	t.Parallel()
+
+	sc, ok := scenarioByID("medication-non-oral-dosage")
+	if !ok {
+		t.Fatal("missing medication-non-oral-dosage scenario")
+	}
+	databasePath := filepath.Join(t.TempDir(), "openhealth.db")
+	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: databasePath})
+	if err != nil {
+		t.Fatalf("OpenLocal: %v", err)
+	}
+	if err := recordMedications(context.Background(), api, []medicationState{
+		{Name: "Semaglutide", DosageText: stringPointer("2.5 mg subcutaneous injection weekly"), StartDate: "2026-02-01"},
+	}); err != nil {
+		t.Fatalf("recordMedications: %v", err)
+	}
+	_ = api.Close()
+
+	verification, err := verifyScenario(databasePath, sc, "Semaglutide 2.5 mg subcutaneous injection weekly")
+	if err != nil {
+		t.Fatalf("verifyScenario: %v", err)
+	}
+	if !verification.Passed {
+		t.Fatalf("verification failed: %#v", verification)
+	}
+	want := []medicationState{{Name: "Semaglutide", DosageText: stringPointer("2.5 mg subcutaneous injection weekly"), StartDate: "2026-02-01"}}
+	if !medicationsEqual(verification.Medications, want) {
+		t.Fatalf("medications = %s, want %s", describeMedications(verification.Medications), describeMedications(want))
+	}
+}
+
+func TestLabScenarioExpandedCoverageVerifiesExpectedOutput(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		scenarioID   string
+		finalMessage string
+		seed         func(t *testing.T, databasePath string)
+		wantLabs     []labCollectionState
+	}{
+		{
+			scenarioID:   "lab-arbitrary-slug",
+			finalMessage: "2026-03-29 Vitamin D 32 ng/mL",
+			seed: func(t *testing.T, databasePath string) {
+				t.Helper()
+				api := openEvalTestClient(t, databasePath)
+				defer func() { _ = api.Close() }()
+				if err := recordLabs(context.Background(), api, []labCollectionState{
+					{Date: "2026-03-29", Results: []labResultState{{TestName: "Vitamin D", CanonicalSlug: stringPointer("vitamin-d"), ValueText: "32", ValueNumeric: floatPointer(32), Units: stringPointer("ng/mL")}}},
+				}); err != nil {
+					t.Fatalf("recordLabs: %v", err)
+				}
+			},
+			wantLabs: []labCollectionState{{Date: "2026-03-29", Results: []labResultState{{TestName: "Vitamin D", CanonicalSlug: stringPointer("vitamin-d"), ValueText: "32", ValueNumeric: floatPointer(32), Units: stringPointer("ng/mL")}}}},
+		},
+		{
+			scenarioID:   "lab-same-day-multiple",
+			finalMessage: "2026-03-29 TSH 3.1 uIU/mL and 2026-03-29 Glucose 89 mg/dL",
+			seed: func(t *testing.T, databasePath string) {
+				t.Helper()
+				api := openEvalTestClient(t, databasePath)
+				defer func() { _ = api.Close() }()
+				if err := recordLabs(context.Background(), api, []labCollectionState{
+					{Date: "2026-03-29", Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}},
+					{Date: "2026-03-29", Results: []labResultState{{TestName: "TSH", CanonicalSlug: stringPointer("tsh"), ValueText: "3.1", ValueNumeric: floatPointer(3.1), Units: stringPointer("uIU/mL")}}},
+				}); err != nil {
+					t.Fatalf("recordLabs: %v", err)
+				}
+			},
+			wantLabs: []labCollectionState{
+				{Date: "2026-03-29", Results: []labResultState{{TestName: "TSH", CanonicalSlug: stringPointer("tsh"), ValueText: "3.1", ValueNumeric: floatPointer(3.1), Units: stringPointer("uIU/mL")}}},
+				{Date: "2026-03-29", Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}},
+			},
+		},
+		{
+			scenarioID:   "lab-patch",
+			finalMessage: "2026-03-29 Glucose 92 mg/dL; HDL 51 mg/dL",
+			seed: func(t *testing.T, databasePath string) {
+				t.Helper()
+				sc, ok := scenarioByID("lab-patch")
+				if !ok {
+					t.Fatal("missing lab-patch scenario")
+				}
+				if err := seedScenario(databasePath, sc); err != nil {
+					t.Fatalf("seedScenario: %v", err)
+				}
+				api := openEvalTestClient(t, databasePath)
+				defer func() { _ = api.Close() }()
+				collections, err := api.ListLabCollections(context.Background())
+				if err != nil {
+					t.Fatalf("ListLabCollections: %v", err)
+				}
+				if len(collections) != 1 {
+					t.Fatalf("collections = %#v, want one", collections)
+				}
+				if _, err := api.ReplaceLabCollection(context.Background(), collections[0].ID, client.LabCollectionInput{
+					CollectedAt: collections[0].CollectedAt,
+					Panels: []client.LabPanelInput{{PanelName: "Panel", Results: []client.LabResultInput{
+						{TestName: "Glucose", CanonicalSlug: clientAnalyteSlug(stringPointer("glucose")), ValueText: "92", ValueNumeric: floatPointer(92), Units: stringPointer("mg/dL")},
+						{TestName: "HDL", CanonicalSlug: clientAnalyteSlug(stringPointer("hdl")), ValueText: "51", ValueNumeric: floatPointer(51), Units: stringPointer("mg/dL")},
+					}}},
+				}); err != nil {
+					t.Fatalf("ReplaceLabCollection: %v", err)
+				}
+			},
+			wantLabs: []labCollectionState{{Date: "2026-03-29", Results: []labResultState{
+				{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "92", ValueNumeric: floatPointer(92), Units: stringPointer("mg/dL")},
+				{TestName: "HDL", CanonicalSlug: stringPointer("hdl"), ValueText: "51", ValueNumeric: floatPointer(51), Units: stringPointer("mg/dL")},
+			}}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.scenarioID, func(t *testing.T) {
+			t.Parallel()
+			sc, ok := scenarioByID(tt.scenarioID)
+			if !ok {
+				t.Fatalf("missing scenario %q", tt.scenarioID)
+			}
+			databasePath := filepath.Join(t.TempDir(), "openhealth.db")
+			tt.seed(t, databasePath)
+
+			verification, err := verifyScenario(databasePath, sc, tt.finalMessage)
+			if err != nil {
+				t.Fatalf("verifyScenario: %v", err)
+			}
+			if !verification.Passed {
+				t.Fatalf("verification failed: %#v", verification)
+			}
+			if !labsEqual(verification.Labs, tt.wantLabs) {
+				t.Fatalf("labs = %s, want %s", describeLabs(verification.Labs), describeLabs(tt.wantLabs))
 			}
 		})
 	}

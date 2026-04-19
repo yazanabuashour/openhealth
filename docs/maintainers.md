@@ -3,8 +3,8 @@
 This repository uses **Beads** (`bd`) in embedded mode for maintainer task tracking.
 
 This repository is public and includes a production `openhealth` runner binary,
-a single-file OpenHealth skill, an optional direct-local Go SDK, and a local
-SQLite runtime. Keep maintainer docs honest about the actual supported surface.
+a single-file OpenHealth skill, a direct-local Go package, and a local SQLite
+runtime. Keep maintainer docs honest about the actual supported surface.
 
 ## Initial Setup
 

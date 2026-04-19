@@ -1,7 +1,6 @@
 # Release Verification
 
-Tagged OpenHealth releases publish integrity-focused assets alongside the Git
-tag:
+Tagged OpenHealth releases publish:
 
 - `openhealth_<version>_<os>_<arch>.tar.gz`
 - `openhealth_<version>_skill.tar.gz`
@@ -10,19 +9,16 @@ tag:
 - `openhealth_<version>_sbom.spdx.json`
 - `install.sh`
 
-The platform archives contain the production `openhealth` binary. The
-skill archive contains the single shipped `SKILL.md` payload. The source archive
-is the canonical source artifact for the Go module and local runtime. The
-installer script downloads and verifies the matching platform archive before
-installing the same-tag runner and printing its `openhealth --version` output.
-It then prints the required second step:
-register the same-tag skill source or archive with the user's agent using that
-agent's native skill system. The skill archive is the portable release artifact
-for agents that install from files instead of GitHub paths. The checksums file and
-GitHub attestations let users verify that the assets were produced by this
-repository's release workflow.
+The platform archives contain the production `openhealth` binary. The skill
+archive contains the shipped `SKILL.md`. The source archive is the canonical Go
+module and local runtime source artifact.
 
-## Verify a release
+The installer verifies the matching platform archive, installs the same-tag
+runner, prints `openhealth --version`, and tells users to register the same-tag
+skill source or archive with their agent. Checksums and GitHub attestations
+verify that release assets were produced by this repository's workflow.
+
+## Verify a Release
 
 Download the assets from the GitHub Release page for the tag you want to verify,
 then run:
@@ -38,7 +34,7 @@ gh attestation verify install.sh --repo yazanabuashour/openhealth
 If these commands succeed, the assets match the published checksums and have
 valid GitHub attestations for this repository.
 
-## Smoke-test an install
+## Smoke-Test an Install
 
 Install into a temporary directory, then verify the runner version and domains:
 

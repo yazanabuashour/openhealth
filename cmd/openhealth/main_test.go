@@ -5,11 +5,72 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"testing"
 
 	runner "github.com/yazanabuashour/openhealth/internal/runner"
 )
+
+func TestRunVersion(t *testing.T) {
+	var stdout bytes.Buffer
+	if err := run([]string{"--version"}, strings.NewReader(""), &stdout, ioDiscard{}); err != nil {
+		t.Fatalf("run --version: %v", err)
+	}
+	if got := strings.TrimSpace(stdout.String()); !strings.HasPrefix(got, "openhealth ") {
+		t.Fatalf("--version output = %q, want openhealth prefix", got)
+	}
+
+	stdout.Reset()
+	if err := run([]string{"version"}, strings.NewReader(""), &stdout, ioDiscard{}); err != nil {
+		t.Fatalf("run version: %v", err)
+	}
+	if got := strings.TrimSpace(stdout.String()); !strings.HasPrefix(got, "openhealth ") {
+		t.Fatalf("version output = %q, want openhealth prefix", got)
+	}
+}
+
+func TestResolvedVersion(t *testing.T) {
+	tests := []struct {
+		name          string
+		linkerVersion string
+		info          *debug.BuildInfo
+		ok            bool
+		want          string
+	}{
+		{
+			name:          "linker version wins",
+			linkerVersion: "v0.2.1",
+			info:          &debug.BuildInfo{Main: debug.Module{Version: "v0.2.0"}},
+			ok:            true,
+			want:          "v0.2.1",
+		},
+		{
+			name: "module version",
+			info: &debug.BuildInfo{Main: debug.Module{Version: "v0.2.1"}},
+			ok:   true,
+			want: "v0.2.1",
+		},
+		{
+			name: "development fallback",
+			info: &debug.BuildInfo{Main: debug.Module{Version: "(devel)"}},
+			ok:   true,
+			want: "dev",
+		},
+		{
+			name: "missing build info fallback",
+			want: "dev",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolvedVersion(tt.linkerVersion, tt.info, tt.ok); got != tt.want {
+				t.Fatalf("resolvedVersion = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
 
 func TestRunWeightJSONRoundTrip(t *testing.T) {
 	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
@@ -214,6 +275,26 @@ func TestRunRejectsBadJSONAndUnknownDomain(t *testing.T) {
 	}
 	if err := run([]string{"unknown"}, strings.NewReader("{}"), &stdout, ioDiscard{}); err == nil || !strings.Contains(err.Error(), `unknown OpenHealth runner domain "unknown"`) {
 		t.Fatalf("unknown domain error = %v, want unknown domain", err)
+	}
+}
+
+func TestRunHelpListsVersionAndDomains(t *testing.T) {
+	var stdout bytes.Buffer
+	if err := run([]string{"--help"}, strings.NewReader(""), &stdout, ioDiscard{}); err != nil {
+		t.Fatalf("run --help: %v", err)
+	}
+	for _, want := range []string{
+		"openhealth --version",
+		"openhealth weight",
+		"openhealth blood-pressure",
+		"openhealth medications",
+		"openhealth labs",
+		"openhealth body-composition",
+		"openhealth imaging",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Fatalf("--help output missing %q:\n%s", want, stdout.String())
+		}
 	}
 }
 

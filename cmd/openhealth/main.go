@@ -8,10 +8,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime/debug"
 
 	client "github.com/yazanabuashour/openhealth/internal/runclient"
 	runner "github.com/yazanabuashour/openhealth/internal/runner"
 )
+
+var version string
 
 func main() {
 	if err := run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr); err != nil {
@@ -29,6 +32,8 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) err
 	switch args[0] {
 	case "help", "-h", "--help":
 		return writeUsage(stdout)
+	case "version", "--version":
+		return writeVersion(stdout)
 	case "weight":
 		return runWeight(args[1:], stdin, stdout)
 	case "blood-pressure":
@@ -193,6 +198,7 @@ func encodeResult[T any](stdout io.Writer, result T) error {
 
 func writeUsage(w io.Writer) error {
 	_, err := fmt.Fprint(w, `Usage:
+  openhealth --version
   openhealth weight [-db path] < request.json
   openhealth blood-pressure [-db path] < request.json
   openhealth medications [-db path] < request.json
@@ -201,4 +207,24 @@ func writeUsage(w io.Writer) error {
   openhealth imaging [-db path] < request.json
 `)
 	return err
+}
+
+func writeVersion(w io.Writer) error {
+	info, ok := readBuildInfo()
+	_, err := fmt.Fprintf(w, "openhealth %s\n", resolvedVersion(version, info, ok))
+	return err
+}
+
+func readBuildInfo() (*debug.BuildInfo, bool) {
+	return debug.ReadBuildInfo()
+}
+
+func resolvedVersion(linkerVersion string, info *debug.BuildInfo, ok bool) string {
+	if linkerVersion != "" {
+		return linkerVersion
+	}
+	if ok && info != nil && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return "dev"
 }

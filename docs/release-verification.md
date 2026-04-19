@@ -14,7 +14,8 @@ The platform archives contain the production `openhealth` binary. The
 skill archive contains the single shipped `SKILL.md` payload. The source archive
 is the canonical source artifact for the Go module and local runtime. The
 installer script downloads and verifies the matching platform archive before
-installing the same-tag runner. It then prints the required second step:
+installing the same-tag runner and printing its `openhealth --version` output.
+It then prints the required second step:
 register the same-tag skill source or archive with the user's agent using that
 agent's native skill system. The skill archive is the portable release artifact
 for agents that install from files instead of GitHub paths. The checksums file and
@@ -36,6 +37,29 @@ gh attestation verify install.sh --repo yazanabuashour/openhealth
 
 If these commands succeed, the assets match the published checksums and have
 valid GitHub attestations for this repository.
+
+## Smoke-test an install
+
+Install into a temporary directory, then verify the runner version and domains:
+
+```bash
+install_dir="$(mktemp -d)"
+OPENHEALTH_INSTALL_DIR="$install_dir" \
+  OPENHEALTH_VERSION=v0.2.1 \
+  sh -c "$(curl -fsSL https://github.com/yazanabuashour/openhealth/releases/download/v0.2.1/install.sh)"
+
+export PATH="$install_dir:$PATH"
+command -v openhealth
+openhealth --version
+openhealth --help
+```
+
+The valid runner domains are `weight`, `blood-pressure`, `medications`, `labs`,
+`body-composition`, and `imaging`.
+
+If `command -v openhealth` points at a Mise shim and `openhealth --version`
+does not show the expected version, run `mise reshim` if you intentionally
+installed through Mise-managed Go tooling. Do not copy binaries over shim files.
 
 ## SBOM
 

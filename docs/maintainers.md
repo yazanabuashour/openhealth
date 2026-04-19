@@ -89,9 +89,10 @@ When changing GitHub settings, keep the repo aligned with:
 Public releases use annotated semantic version tags in the `v0.y.z` range. The
 release contract is a tagged release for the `openhealth` binary, the
 single-file OpenHealth skill, and the direct local runtime. Tag a version like
-`v0.2.0`, push the tag, and let the release workflow:
+`v0.2.1`, push the tag, and let the release workflow:
 
 - validate storage codegen, formatting, and tests before publish
+- build binaries with `openhealth --version` set from the tag
 - create or reuse the GitHub Release
 - attach platform binary archives, the skill archive, the canonical source
   archive, release installer, SHA256 checksums, and SPDX SBOM

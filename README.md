@@ -12,21 +12,21 @@ OpenHealth is a local-first health data runtime for agents. It ships a small
 ```text
 Install OpenHealth from https://github.com/yazanabuashour/openhealth.
 Complete both required steps before reporting success:
-1. Install and verify the openhealth runner binary.
+1. Install and verify the openhealth runner binary with `openhealth --version`.
 2. Register the OpenHealth skill from skills/openhealth/SKILL.md using your native skill system.
 ```
 
 ### Agent Install Contract
 
 OpenHealth install is incomplete if only `SKILL.md` was copied.
-OpenHealth install is incomplete if `openhealth --help` is not callable.
+OpenHealth install is incomplete if `openhealth --version` is not callable.
 Agents should run the release installer for the runner, then register
 `skills/openhealth/SKILL.md` in their native skill location.
 
 ### Manual Install, Latest Release
 
 ```bash
-curl -fsSL https://github.com/yazanabuashour/openhealth/releases/latest/download/install.sh | sh
+sh -c "$(curl -fsSL https://github.com/yazanabuashour/openhealth/releases/latest/download/install.sh)"
 ```
 
 Use this for quick local setup when you want the current release.
@@ -34,11 +34,12 @@ Use this for quick local setup when you want the current release.
 ### Manual Install, Pinned Version
 
 ```bash
-curl -fsSL https://github.com/yazanabuashour/openhealth/releases/download/v0.2.0/install.sh | sh
+OPENHEALTH_VERSION=v0.2.1 sh -c "$(curl -fsSL https://github.com/yazanabuashour/openhealth/releases/download/v0.2.1/install.sh)"
 ```
 
 Use this for reproducible setup. Both manual install commands install and
-verify the matching `openhealth` runner binary. To complete OpenHealth
+verify the matching `openhealth` runner binary with `openhealth --version`.
+To complete OpenHealth
 installation, install or register the matching OpenHealth skill with your agent
 using that agent's native skill manager:
 
@@ -46,6 +47,23 @@ using that agent's native skill manager:
 - release archive: `openhealth_<version>_skill.tar.gz`
 
 OpenHealth does not require a specific skill path or agent implementation.
+
+### Upgrades, Mise, and Shims
+
+Use the release installer as the primary upgrade path for the runner. Advanced
+Go users can still use `go install github.com/yazanabuashour/openhealth/cmd/openhealth@vX.Y.Z`,
+but `go install` may place the new binary in Go's install bin directory while
+`openhealth` still resolves through an older shim.
+
+Verify upgrades with:
+
+```bash
+command -v openhealth
+openhealth --version
+```
+
+If you intentionally use Mise shims, run `mise reshim` after installing through
+Mise-managed Go tooling. Do not copy binaries over shim files.
 
 ### Runner Interface
 
@@ -119,7 +137,7 @@ func main() {
 
 `client.OpenLocal(...)` opens SQLite locally, runs migrations, and calls the
 same local health service used by the runner. There is no hosted service or
-remote HTTP API contract in the `0.2.0` release surface.
+remote HTTP API contract in the `0.2.1` release surface.
 
 ## Local Storage
 
@@ -176,7 +194,7 @@ mise exec -- go test ./...
 
 ## Release Contract
 
-The `0.2.0` release deliverables are:
+The `0.2.1` release deliverables are:
 
 - platform archives for the `openhealth` binary
 - the single-file `openhealth` skill archive

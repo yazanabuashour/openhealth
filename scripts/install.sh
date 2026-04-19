@@ -161,6 +161,26 @@ cp "openhealth_${asset_version}_${os}_${arch}/openhealth" "${install_dir}/openhe
 chmod 755 "${install_dir}/openhealth"
 
 log "Runner installed to ${install_dir}/openhealth"
+installed_version="$("${install_dir}/openhealth" --version)"
+log "Runner version: ${installed_version}"
+
+active_path="$(command -v openhealth 2>/dev/null || true)"
+if path_contains_dir "$install_dir"; then
+  [ -n "$active_path" ] || fail "openhealth is not callable even though ${install_dir} is on PATH"
+  active_version="$(openhealth --version 2>/dev/null || true)"
+  if [ "$active_version" != "$installed_version" ]; then
+    log ""
+    log "Warning: active openhealth resolves to ${active_path}, not ${install_dir}/openhealth."
+    log "Your current shell may still invoke another binary or shim."
+    case "$active_path" in
+      */mise/*)
+        log "If you intentionally manage OpenHealth through Mise-managed Go tooling, run 'mise reshim' and verify with 'openhealth --version'."
+        ;;
+    esac
+    fail "active openhealth reports ${active_version:-unavailable}; expected ${installed_version}"
+  fi
+fi
+
 log ""
 log "To complete OpenHealth installation, register the OpenHealth skill with your agent:"
 log "  Source: https://github.com/${repo}/tree/${tag}/skills/openhealth"
@@ -169,7 +189,7 @@ log "Use your agent's native skill location or installer."
 log "Do not report OpenHealth installed until both the runner and skill are installed."
 
 if path_contains_dir "$install_dir"; then
-  openhealth --help
+  "${install_dir}/openhealth" --help
 else
   "${install_dir}/openhealth" --help
   log ""

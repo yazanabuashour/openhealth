@@ -95,7 +95,7 @@ jobs:
             IFS=/ read -r os arch <<< "${target}"
             name="openhealth_${version}_${os}_${arch}"
             mkdir -p "dist/${name}"
-            GOOS="${os}" GOARCH="${arch}" go build -trimpath -ldflags="-s -w" -o "dist/${name}/openhealth" ./cmd/openhealth
+            GOOS="${os}" GOARCH="${arch}" go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" -o "dist/${name}/openhealth" ./cmd/openhealth
             tar -C dist -czf "dist/${name}.tar.gz" "${name}"
             rm -rf "dist/${name}"
           done

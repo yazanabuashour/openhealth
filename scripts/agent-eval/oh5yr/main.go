@@ -1927,7 +1927,7 @@ func verifyMixedOrMultiTurnScenario(dbPath string, sc scenario, turnIndex int, f
 		expectedBody := []bodyCompositionState{{Date: "2026-03-29", BodyFatPercent: floatPointer(18.7), WeightValue: floatPointer(154.2), WeightUnit: stringPointer("lb")}}
 		expectedMedications := []medicationState{{Name: "Semaglutide", DosageText: stringPointer("0.25 mg subcutaneous injection weekly"), StartDate: "2026-02-01", Note: stringPointer("coverage approved after prior authorization")}}
 		expectedLabs := []labCollectionState{{Date: "2026-03-29", Note: stringPointer("labs look stable, keep moving"), Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}}}
-		expectedImaging := []imagingState{{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Summary: "No acute cardiopulmonary abnormality", Impression: stringPointer("Normal chest radiograph")}}
+		expectedImaging := []imagingState{{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality", Impression: stringPointer("Normal chest radiograph")}}
 		result.DatabasePass = weightsEqual(weightStates, expectedWeights) &&
 			bodyCompositionEqual(bodyCompositionStates, expectedBody) &&
 			medicationsEqual(medicationStates, expectedMedications) &&
@@ -1989,7 +1989,7 @@ func verifyMixedOrMultiTurnScenario(dbPath string, sc scenario, turnIndex int, f
 			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
 		}
 		result.DatabasePass = len(weightStates) == 0 && bloodPressuresEqual(bloodPressureStates, expectedReadings)
-		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-30", "117/75"})
+		result.AssistantPass = includedBloodPressureResultLineIndex(finalMessage, bloodPressureState{Date: "2026-03-30", Systolic: 117, Diastolic: 75}) >= 0
 		result.Details = fmt.Sprintf("expected latest blood-pressure correction on 2026-03-30; observed weights %s and blood pressures %s", describeWeights(weightStates), describeBloodPressures(bloodPressureStates))
 	default:
 		return verificationResult{}, fmt.Errorf("unknown mixed or multi-turn scenario %q", sc.ID)
@@ -3459,6 +3459,21 @@ func equalStringPointer(left *string, right *string) bool {
 	return *left == *right
 }
 
+func equalClinicalSentence(left string, right string) bool {
+	return normalizeClinicalSentence(left) == normalizeClinicalSentence(right)
+}
+
+func equalClinicalSentencePointer(left *string, right *string) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return equalClinicalSentence(*left, *right)
+}
+
+func normalizeClinicalSentence(value string) string {
+	return strings.TrimRight(strings.TrimSpace(value), ".")
+}
+
 func equalFloatPointer(left *float64, right *float64) bool {
 	if left == nil || right == nil {
 		return left == right
@@ -3556,10 +3571,10 @@ func imagingEqual(got []imagingState, want []imagingState) bool {
 	for i := range got {
 		if got[i].Date != want[i].Date ||
 			got[i].Modality != want[i].Modality ||
-			got[i].Summary != want[i].Summary ||
+			!equalClinicalSentence(got[i].Summary, want[i].Summary) ||
 			!equalStringPointer(got[i].BodySite, want[i].BodySite) ||
 			!equalStringPointer(got[i].Title, want[i].Title) ||
-			!equalStringPointer(got[i].Impression, want[i].Impression) ||
+			!equalClinicalSentencePointer(got[i].Impression, want[i].Impression) ||
 			!equalStringPointer(got[i].Note, want[i].Note) {
 			return false
 		}
@@ -3759,7 +3774,7 @@ func bloodPressureHistoryLimitTwoAssistantPass(message string) bool {
 }
 
 func mixedLatestAssistantPass(message string) bool {
-	return mentionsIncludedDate(message, "2026-03-31") &&
+	return dateMentionIndex(message, "2026-03-31") >= 0 &&
 		containsAll(message, []string{"150.8", "119/77"}) &&
 		containsAny(strings.ToLower(message), []string{"pulse 62", "62"})
 }

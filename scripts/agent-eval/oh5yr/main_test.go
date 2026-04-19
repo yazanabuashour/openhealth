@@ -1317,7 +1317,7 @@ func TestImagingScenariosVerifyExpectedOutput(t *testing.T) {
 				api := openEvalTestClient(t, databasePath)
 				defer func() { _ = api.Close() }()
 				if err := recordImaging(context.Background(), api, []imagingState{
-					{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality", Impression: stringPointer("Normal chest radiograph"), Note: stringPointer("ordered for cough")},
+					{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality.", Impression: stringPointer("Normal chest radiograph."), Note: stringPointer("ordered for cough")},
 				}); err != nil {
 					t.Fatalf("recordImaging: %v", err)
 				}
@@ -1421,7 +1421,7 @@ func TestMixedImportFileCoverageScenarioVerifiesExpectedOutput(t *testing.T) {
 	if err := recordLabs(context.Background(), api, []labCollectionState{{Date: "2026-03-29", Note: stringPointer("labs look stable, keep moving"), Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}}}); err != nil {
 		t.Fatalf("recordLabs: %v", err)
 	}
-	if err := recordImaging(context.Background(), api, []imagingState{{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Summary: "No acute cardiopulmonary abnormality", Impression: stringPointer("Normal chest radiograph")}}); err != nil {
+	if err := recordImaging(context.Background(), api, []imagingState{{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality.", Impression: stringPointer("Normal chest radiograph.")}}); err != nil {
 		t.Fatalf("recordImaging: %v", err)
 	}
 	if err := recordMedications(context.Background(), api, []medicationState{{Name: "Semaglutide", DosageText: stringPointer("0.25 mg subcutaneous injection weekly"), StartDate: "2026-02-01", Note: stringPointer("coverage approved after prior authorization")}}); err != nil {
@@ -1452,7 +1452,7 @@ func TestMixedAndMultiTurnScenariosVerifyExpectedOutput(t *testing.T) {
 		{
 			scenarioID:   "mixed-add-latest",
 			turnIndex:    1,
-			finalMessage: "Latest weight: 2026-03-31 150.8 lb. Latest blood pressure: 2026-03-31 119/77 pulse 62.",
+			finalMessage: "Recorded on 2026-03-31.\n\nLatest weight: 150.8 lb\nLatest blood pressure: 119/77, pulse 62",
 			wantWeights:  []weightState{{Date: "2026-03-31", Value: 150.8, Unit: "lb"}},
 			wantReadings: []bloodPressureState{{Date: "2026-03-31", Systolic: 119, Diastolic: 77, Pulse: intPointer(62)}},
 			manualSeed:   true,
@@ -1518,7 +1518,7 @@ func TestMixedAndMultiTurnScenariosVerifyExpectedOutput(t *testing.T) {
 		{
 			scenarioID:   "mt-bp-latest-then-correct",
 			turnIndex:    2,
-			finalMessage: "Updated 2026-03-30 to 117/75 pulse 63.",
+			finalMessage: `{"date":"2026-03-30","systolic":117,"diastolic":75,"pulse":63}`,
 			wantWeights:  []weightState{},
 			wantReadings: []bloodPressureState{
 				{Date: "2026-03-30", Systolic: 117, Diastolic: 75, Pulse: intPointer(63)},

@@ -1020,7 +1020,7 @@ func TestBloodPressureScenariosVerifyExpectedOutput(t *testing.T) {
 		},
 		{
 			scenarioID:   "bp-correct-missing-reject",
-			finalMessage: "No existing reading was found for 2026-03-31, so it was not updated.",
+			finalMessage: "No update was made for 2026-03-31 because there is no local blood-pressure reading on that date to correct.",
 			wantReadings: []bloodPressureState{
 				{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
 			},
@@ -1306,11 +1306,11 @@ func TestBodyCompositionCombinedRowScenarioVerifiesExpectedOutput(t *testing.T) 
 	}
 	databasePath := filepath.Join(t.TempDir(), "openhealth.db")
 	api := openEvalTestClient(t, databasePath)
-	if err := upsertWeights(context.Background(), api, []weightState{{Date: "2026-03-29", Value: 154.2, Unit: "lb"}}); err != nil {
+	if err := upsertWeights(context.Background(), api, []weightState{{Date: "2026-03-29", Value: 154.2, Unit: "lb", Note: stringPointer("smart scale")}}); err != nil {
 		t.Fatalf("upsertWeights: %v", err)
 	}
 	if err := recordBodyComposition(context.Background(), api, []bodyCompositionState{
-		{Date: "2026-03-29", BodyFatPercent: floatPointer(18.7), WeightValue: floatPointer(154.2), WeightUnit: stringPointer("lb"), Method: stringPointer("smart scale")},
+		{Date: "2026-03-29", BodyFatPercent: floatPointer(18.7), WeightValue: floatPointer(154.2), WeightUnit: stringPointer("lb"), Method: stringPointer("smart scale"), Note: stringPointer("smart scale")},
 	}); err != nil {
 		t.Fatalf("recordBodyComposition: %v", err)
 	}

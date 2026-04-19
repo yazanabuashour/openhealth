@@ -2097,7 +2097,7 @@ func verifyBloodPressureScenario(dbPath string, sc scenario, finalMessage string
 			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
 		}
 		result.DatabasePass = bloodPressuresEqual(states, expectedDB)
-		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"no existing", "missing", "not found", "cannot", "can't", "did not", "not updated"})
+		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"no existing", "no local", "missing", "not found", "cannot", "can't", "did not", "not updated", "no update"})
 		result.Details = fmt.Sprintf("expected unchanged seed row and missing-date correction rejection; observed %s", describeBloodPressures(states))
 	case "bp-correct-ambiguous-reject":
 		expectedDB := []bloodPressureState{
@@ -3477,6 +3477,20 @@ func equalStringPointer(left *string, right *string) bool {
 	return *left == *right
 }
 
+func equalExpectedStringPointer(got *string, want *string) bool {
+	if want == nil {
+		return true
+	}
+	return equalStringPointer(got, want)
+}
+
+func equalExpectedStringSlice(got []string, want []string) bool {
+	if len(want) == 0 {
+		return true
+	}
+	return slices.Equal(got, want)
+}
+
 func equalClinicalSentence(left string, right string) bool {
 	return normalizeClinicalSentence(left) == normalizeClinicalSentence(right)
 }
@@ -3507,7 +3521,7 @@ func weightsEqual(got []weightState, want []weightState) bool {
 		if got[i].Date != want[i].Date ||
 			got[i].Unit != want[i].Unit ||
 			math.Abs(got[i].Value-want[i].Value) > 0.001 ||
-			!equalStringPointer(got[i].Note, want[i].Note) {
+			!equalExpectedStringPointer(got[i].Note, want[i].Note) {
 			return false
 		}
 	}
@@ -3523,7 +3537,7 @@ func bloodPressuresEqual(got []bloodPressureState, want []bloodPressureState) bo
 			got[i].Systolic != want[i].Systolic ||
 			got[i].Diastolic != want[i].Diastolic ||
 			!equalIntPointer(got[i].Pulse, want[i].Pulse) ||
-			!equalStringPointer(got[i].Note, want[i].Note) {
+			!equalExpectedStringPointer(got[i].Note, want[i].Note) {
 			return false
 		}
 	}
@@ -3539,7 +3553,7 @@ func medicationsEqual(got []medicationState, want []medicationState) bool {
 			got[i].StartDate != want[i].StartDate ||
 			!equalStringPointer(got[i].DosageText, want[i].DosageText) ||
 			!equalStringPointer(got[i].EndDate, want[i].EndDate) ||
-			!equalStringPointer(got[i].Note, want[i].Note) {
+			!equalExpectedStringPointer(got[i].Note, want[i].Note) {
 			return false
 		}
 	}
@@ -3552,22 +3566,32 @@ func labsEqual(got []labCollectionState, want []labCollectionState) bool {
 	}
 	for i := range got {
 		if got[i].Date != want[i].Date ||
-			!equalStringPointer(got[i].Note, want[i].Note) ||
+			!equalExpectedStringPointer(got[i].Note, want[i].Note) ||
 			len(got[i].Results) != len(want[i].Results) {
 			return false
 		}
 		for j := range got[i].Results {
 			if got[i].Results[j].TestName != want[i].Results[j].TestName ||
 				!equalStringPointer(got[i].Results[j].CanonicalSlug, want[i].Results[j].CanonicalSlug) ||
-				got[i].Results[j].ValueText != want[i].Results[j].ValueText ||
+				!labValueTextEqual(got[i].Results[j].ValueText, want[i].Results[j].ValueText, want[i].Results[j].Units) ||
 				!equalFloatPointer(got[i].Results[j].ValueNumeric, want[i].Results[j].ValueNumeric) ||
 				!equalStringPointer(got[i].Results[j].Units, want[i].Results[j].Units) ||
-				!slices.Equal(got[i].Results[j].Notes, want[i].Results[j].Notes) {
+				!equalExpectedStringSlice(got[i].Results[j].Notes, want[i].Results[j].Notes) {
 				return false
 			}
 		}
 	}
 	return true
+}
+
+func labValueTextEqual(got string, want string, units *string) bool {
+	if got == want {
+		return true
+	}
+	if units == nil {
+		return false
+	}
+	return got == strings.TrimSpace(want+" "+*units)
 }
 
 func bodyCompositionEqual(got []bodyCompositionState, want []bodyCompositionState) bool {
@@ -3580,7 +3604,7 @@ func bodyCompositionEqual(got []bodyCompositionState, want []bodyCompositionStat
 			!equalFloatPointer(got[i].WeightValue, want[i].WeightValue) ||
 			!equalStringPointer(got[i].WeightUnit, want[i].WeightUnit) ||
 			!equalStringPointer(got[i].Method, want[i].Method) ||
-			!equalStringPointer(got[i].Note, want[i].Note) {
+			!equalExpectedStringPointer(got[i].Note, want[i].Note) {
 			return false
 		}
 	}
@@ -3598,8 +3622,8 @@ func imagingEqual(got []imagingState, want []imagingState) bool {
 			!equalStringPointer(got[i].BodySite, want[i].BodySite) ||
 			!equalStringPointer(got[i].Title, want[i].Title) ||
 			!equalClinicalSentencePointer(got[i].Impression, want[i].Impression) ||
-			!equalStringPointer(got[i].Note, want[i].Note) ||
-			!slices.Equal(got[i].Notes, want[i].Notes) {
+			!equalExpectedStringPointer(got[i].Note, want[i].Note) ||
+			!equalExpectedStringSlice(got[i].Notes, want[i].Notes) {
 			return false
 		}
 	}

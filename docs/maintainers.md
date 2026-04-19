@@ -95,15 +95,20 @@ single-file OpenHealth skill, and the direct local runtime. Tag a version like
 - build binaries with `openhealth --version` set from the tag
 - require `docs/release-notes/<tag>.md` and a matching `CHANGELOG.md` entry
   before publishing
-- create or reuse the GitHub Release
+- create or reuse only a draft GitHub Release before assets are attached
 - use `docs/release-notes/<tag>.md`, for example
   `docs/release-notes/v0.3.0.md`, as the GitHub Release body
 - keep release-note paragraphs and list items on one source line so GitHub
   Releases and API clients do not show hard-wrapped prose
 - attach platform binary archives, the skill archive, the canonical source
   archive, release installer, SHA256 checksums, and SPDX SBOM
+- verify the draft release has the expected asset set before publication
 - generate GitHub attestations for the published assets
+- publish the draft only after all assets and attestations are ready, then
+  verify the release is latest
 
 The `release` environment should remain protected so only approved maintainers can publish release assets.
 
 Before tagging, add `docs/release-notes/<tag>.md`, update `CHANGELOG.md`, and run `./scripts/validate-release-docs.sh <tag>` locally. The release workflow runs the same check before publishing and does not fall back to generated GitHub release notes.
+
+After this draft-first workflow is active, enable GitHub release immutability in repository settings for future releases. Published release tags and assets should then be treated as immutable; fix bad artifacts with a new patch release instead of replacing assets on an existing release. Existing releases such as `v0.3.0` are left as already published.

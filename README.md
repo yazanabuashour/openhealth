@@ -186,7 +186,8 @@ mise exec -- go test ./...
 
 Tagged `v0.y.z` releases publish platform binary archives, the skill archive,
 the installer, source archive, SHA256 checksums, an SPDX SBOM, and GitHub
-attestations. See
+attestations. Published release assets are intended to be immutable going
+forward. See
 [`docs/release-verification.md`](docs/release-verification.md) for verification
 steps.
 

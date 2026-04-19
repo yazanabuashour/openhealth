@@ -67,6 +67,17 @@ jobs:
           checksum="openhealth_${version}_checksums.txt"
           sbom="openhealth_${version}_sbom.spdx.json"
           installer="install.sh"
+          assets_json="$(printf '%s\n' \
+            "${installer}" \
+            "${checksum}" \
+            "openhealth_${version}_darwin_amd64.tar.gz" \
+            "openhealth_${version}_darwin_arm64.tar.gz" \
+            "openhealth_${version}_linux_amd64.tar.gz" \
+            "openhealth_${version}_linux_arm64.tar.gz" \
+            "${sbom}" \
+            "${skill}" \
+            "${archive}" \
+            | jq -R . | jq -cs .)"
 
           {
             echo "archive=${archive}"
@@ -74,6 +85,7 @@ jobs:
             echo "checksum=${checksum}"
             echo "sbom=${sbom}"
             echo "installer=${installer}"
+            echo "assets_json=${assets_json}"
           } >> "${GITHUB_OUTPUT}"
 
       - name: Generate release SBOM
@@ -119,16 +131,23 @@ jobs:
             shasum -a 256 *.tar.gz "${{ steps.meta.outputs.sbom }}" "${{ steps.meta.outputs.installer }}" > "${{ steps.meta.outputs.checksum }}"
           )
 
-      - name: Create GitHub Release from tag
+      - name: Create draft GitHub Release from tag
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           notes_file="docs/release-notes/${GITHUB_REF_NAME}.md"
-          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+          release_json="$(gh release view "${GITHUB_REF_NAME}" --json isDraft 2>/dev/null || true)"
+          if [ -n "${release_json}" ]; then
+            is_draft="$(printf '%s\n' "${release_json}" | jq -r '.isDraft')"
+            if [ "${is_draft}" != "true" ]; then
+              echo "Release ${GITHUB_REF_NAME} already exists and is not a draft; refusing to mutate a published release." >&2
+              exit 1
+            fi
             echo "Release already exists for ${GITHUB_REF_NAME}"
             gh release edit "${GITHUB_REF_NAME}" --notes-file "${notes_file}"
           else
             gh release create "${GITHUB_REF_NAME}" \
+              --draft \
               --verify-tag \
               --notes-file "${notes_file}"
           fi
@@ -141,6 +160,24 @@ jobs:
             dist/* \
             --clobber
 
+      - name: Verify draft GitHub Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_ASSETS: ${{ steps.meta.outputs.assets_json }}
+        run: |
+          release_json="$(gh release view "${GITHUB_REF_NAME}" --json isDraft,assets)"
+          is_draft="$(printf '%s\n' "${release_json}" | jq -r '.isDraft')"
+          [ "${is_draft}" = "true" ] || { echo "Release ${GITHUB_REF_NAME} is not draft before publish" >&2; exit 1; }
+
+          actual_assets="$(printf '%s\n' "${release_json}" | jq -c '[.assets[].name] | sort')"
+          expected_assets="$(printf '%s\n' "${EXPECTED_ASSETS}" | jq -c 'sort')"
+          [ "${actual_assets}" = "${expected_assets}" ] || {
+            echo "Draft release assets do not match expected set" >&2
+            echo "expected: ${expected_assets}" >&2
+            echo "actual:   ${actual_assets}" >&2
+            exit 1
+          }
+
       - name: Attest build provenance
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661
         with:
@@ -152,3 +189,21 @@ jobs:
         with:
           subject-path: dist/${{ steps.meta.outputs.archive }}
           sbom-path: dist/${{ steps.meta.outputs.sbom }}
+
+      - name: Publish draft GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "${GITHUB_REF_NAME}" --draft=false --latest
+
+      - name: Verify published GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_json="$(gh release view "${GITHUB_REF_NAME}" --json isDraft,isPrerelease)"
+          is_draft="$(printf '%s\n' "${release_json}" | jq -r '.isDraft')"
+          is_prerelease="$(printf '%s\n' "${release_json}" | jq -r '.isPrerelease')"
+          [ "${is_draft}" = "false" ] || { echo "Release ${GITHUB_REF_NAME} is still draft" >&2; exit 1; }
+          [ "${is_prerelease}" = "false" ] || { echo "Release ${GITHUB_REF_NAME} is prerelease" >&2; exit 1; }
+
+          latest_tag="$(gh release view --json tagName --jq '.tagName')"
+          [ "${latest_tag}" = "${GITHUB_REF_NAME}" ] || { echo "Latest release is ${latest_tag}, expected ${GITHUB_REF_NAME}" >&2; exit 1; }

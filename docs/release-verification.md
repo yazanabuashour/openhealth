@@ -18,6 +18,10 @@ runner, prints `openhealth --version`, and tells users to register the same-tag
 skill source or archive with their agent. Checksums and GitHub attestations
 verify that release assets were produced by this repository's workflow.
 
+The release workflow publishes through a draft-first path and verifies the
+draft asset set before publication, so future GitHub immutable releases can
+lock tags and assets only after every release asset and attestation is ready.
+
 ## Verify a Release
 
 Download the assets from the GitHub Release page for the tag you want to verify,
@@ -33,6 +37,17 @@ gh attestation verify install.sh --repo yazanabuashour/openhealth
 
 If these commands succeed, the assets match the published checksums and have
 valid GitHub attestations for this repository.
+
+For the latest release, verify GitHub's latest pointer resolves to the expected
+tag:
+
+```bash
+gh release view --repo yazanabuashour/openhealth --json tagName --jq .tagName
+```
+
+When repository-level release immutability is enabled, published release tags
+and assets cannot be replaced after publication. If an artifact is wrong, ship a
+new patch release instead of mutating the existing release.
 
 ## Smoke-Test an Install
 

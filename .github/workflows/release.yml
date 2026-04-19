@@ -116,12 +116,27 @@ jobs:
             shasum -a 256 *.tar.gz "${{ steps.meta.outputs.sbom }}" "${{ steps.meta.outputs.installer }}" > "${{ steps.meta.outputs.checksum }}"
           )
 
+      - name: Prepare release notes
+        id: notes
+        run: |
+          notes_file="docs/release-notes/${GITHUB_REF_NAME}.md"
+          if [ -f "${notes_file}" ]; then
+            echo "notes_file=${notes_file}" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Create GitHub Release from tag
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
             echo "Release already exists for ${GITHUB_REF_NAME}"
+            if [ -n "${{ steps.notes.outputs.notes_file }}" ]; then
+              gh release edit "${GITHUB_REF_NAME}" --notes-file "${{ steps.notes.outputs.notes_file }}"
+            fi
+          elif [ -n "${{ steps.notes.outputs.notes_file }}" ]; then
+            gh release create "${GITHUB_REF_NAME}" \
+              --verify-tag \
+              --notes-file "${{ steps.notes.outputs.notes_file }}"
           else
             gh release create "${GITHUB_REF_NAME}" \
               --verify-tag \

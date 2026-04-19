@@ -45,8 +45,8 @@ Install into a temporary directory, then verify the runner version and domains:
 ```bash
 install_dir="$(mktemp -d)"
 OPENHEALTH_INSTALL_DIR="$install_dir" \
-  OPENHEALTH_VERSION=v0.2.1 \
-  sh -c "$(curl -fsSL https://github.com/yazanabuashour/openhealth/releases/download/v0.2.1/install.sh)"
+  OPENHEALTH_VERSION=v0.2.2 \
+  sh -c "$(curl -fsSL https://github.com/yazanabuashour/openhealth/releases/download/v0.2.2/install.sh)"
 
 export PATH="$install_dir:$PATH"
 command -v openhealth
@@ -56,10 +56,6 @@ openhealth --help
 
 The valid runner domains are `weight`, `blood-pressure`, `medications`, `labs`,
 `body-composition`, and `imaging`.
-
-If `command -v openhealth` points at a Mise shim and `openhealth --version`
-does not show the expected version, run `mise reshim` if you intentionally
-installed through Mise-managed Go tooling. Do not copy binaries over shim files.
 
 ## SBOM
 

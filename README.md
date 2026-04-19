@@ -34,7 +34,7 @@ Use this for quick local setup when you want the current release.
 ### Manual Install, Pinned Version
 
 ```bash
-OPENHEALTH_VERSION=v0.2.1 sh -c "$(curl -fsSL https://github.com/yazanabuashour/openhealth/releases/download/v0.2.1/install.sh)"
+OPENHEALTH_VERSION=v0.2.2 sh -c "$(curl -fsSL https://github.com/yazanabuashour/openhealth/releases/download/v0.2.2/install.sh)"
 ```
 
 Use this for reproducible setup. Both manual install commands install and
@@ -48,12 +48,24 @@ using that agent's native skill manager:
 
 OpenHealth does not require a specific skill path or agent implementation.
 
-### Upgrades, Mise, and Shims
+### Agent Upgrade
 
-Use the release installer as the primary upgrade path for the runner. Advanced
-Go users can still use `go install github.com/yazanabuashour/openhealth/cmd/openhealth@vX.Y.Z`,
-but `go install` may place the new binary in Go's install bin directory while
-`openhealth` still resolves through an older shim.
+#### Tell Your Agent
+
+```text
+Upgrade OpenHealth from https://github.com/yazanabuashour/openhealth.
+Complete both required steps before reporting success:
+1. Upgrade and verify the openhealth runner binary with `openhealth --version`.
+2. Re-register the OpenHealth skill from skills/openhealth/SKILL.md using your native skill system.
+```
+
+### Manual Upgrade
+
+Use the release installer to upgrade the runner:
+
+```bash
+sh -c "$(curl -fsSL https://github.com/yazanabuashour/openhealth/releases/latest/download/install.sh)"
+```
 
 Verify upgrades with:
 
@@ -62,8 +74,8 @@ command -v openhealth
 openhealth --version
 ```
 
-If you intentionally use Mise shims, run `mise reshim` after installing through
-Mise-managed Go tooling. Do not copy binaries over shim files.
+After upgrading the runner, re-register the matching OpenHealth skill with your
+agent using that agent's native skill manager.
 
 ### Runner Interface
 
@@ -137,7 +149,7 @@ func main() {
 
 `client.OpenLocal(...)` opens SQLite locally, runs migrations, and calls the
 same local health service used by the runner. There is no hosted service or
-remote HTTP API contract in the `0.2.1` release surface.
+remote HTTP API contract in the `0.2.2` release surface.
 
 ## Local Storage
 
@@ -194,7 +206,7 @@ mise exec -- go test ./...
 
 ## Release Contract
 
-The `0.2.1` release deliverables are:
+The `0.2.2` release deliverables are:
 
 - platform archives for the `openhealth` binary
 - the single-file `openhealth` skill archive

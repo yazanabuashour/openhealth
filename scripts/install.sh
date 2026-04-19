@@ -171,12 +171,7 @@ if path_contains_dir "$install_dir"; then
   if [ "$active_version" != "$installed_version" ]; then
     log ""
     log "Warning: active openhealth resolves to ${active_path}, not ${install_dir}/openhealth."
-    log "Your current shell may still invoke another binary or shim."
-    case "$active_path" in
-      */mise/*)
-        log "If you intentionally manage OpenHealth through Mise-managed Go tooling, run 'mise reshim' and verify with 'openhealth --version'."
-        ;;
-    esac
+    log "Your current shell may still invoke another openhealth binary."
     fail "active openhealth reports ${active_version:-unavailable}; expected ${installed_version}"
   fi
 fi

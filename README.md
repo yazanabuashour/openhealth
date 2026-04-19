@@ -14,6 +14,8 @@ Install https://github.com/yazanabuashour/openhealth
 ```
 
 This installs the `openhealth` runner binary and the OpenHealth skill.
+Your agent should register `skills/openhealth/SKILL.md` using its own native
+skill system.
 
 ### Manual Install, Latest Release
 
@@ -30,12 +32,16 @@ curl -fsSL https://github.com/yazanabuashour/openhealth/releases/download/v0.1.0
 ```
 
 Use this for reproducible setup. Both manual install commands install the
-matching `openhealth` runner binary, put it on `PATH` when possible, and then
-install the same-tag skills.sh skill with:
+matching `openhealth` runner binary and put it on `PATH` when possible.
+Then install or register the matching OpenHealth skill with your agent using
+that agent's native skill manager:
 
-```bash
-npx -y skills add https://github.com/yazanabuashour/openhealth/tree/<tag>/skills/openhealth --skill openhealth --agent codex --global --yes
-```
+- skill source: `https://github.com/yazanabuashour/openhealth/tree/<tag>/skills/openhealth`
+- release archive: `openhealth_<version>_skill.tar.gz`
+
+OpenHealth does not require a specific skill path such as Codex
+`.agents/skills`, Claude `.claude/skills`, Hermes `~/.hermes/skills`, or any
+other implementation-specific location.
 
 ### Runner Interface
 

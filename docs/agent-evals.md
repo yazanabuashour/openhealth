@@ -41,9 +41,11 @@ The copied repo intentionally omits root `AGENTS.md`, stale `.agents` content,
 eval assets/results, and the eval harness before installing the selected
 variant skill.
 
-The production skill is copied byte-for-byte to
-`.agents/skills/openhealth/SKILL.md`. The harness does not generate an
-OpenHealth-specific eval `AGENTS.md` or paste skill content into `AGENTS.md`.
+The production skill is copied byte-for-byte to the Codex eval harness install
+path, `.agents/skills/openhealth/SKILL.md`. That path is not part of the
+OpenHealth release contract and does not constrain other agents. The harness
+does not generate an OpenHealth-specific eval `AGENTS.md` or paste skill content
+into `AGENTS.md`.
 
 Before each production job, the harness builds `openhealth` into the
 job's private `bin/` directory and prepends that directory to `PATH`. This
@@ -52,7 +54,7 @@ simulates the client-agent install path without requiring the agent to use
 
 The harness renders model-visible context with `codex debug prompt-input` and
 fails preflight unless `openhealth` appears as an available project skill, the
-skill path points at `.agents/skills/openhealth/SKILL.md`, the installed skill
+skill path points at the Codex eval harness install path, the installed skill
 bytes match `skills/openhealth/SKILL.md`, and no model-visible `AGENTS.md` block
 contains OpenHealth runner commands, JSON shapes, validation rules, or
 product-agent behavior.

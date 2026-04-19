@@ -132,7 +132,6 @@ path_contains_dir() {
 
 need_cmd curl
 need_cmd tar
-need_cmd npx
 
 os="$(detect_os)"
 arch="$(detect_arch)"
@@ -162,8 +161,11 @@ cp "openhealth_${asset_version}_${os}_${arch}/openhealth" "${install_dir}/openhe
 chmod 755 "${install_dir}/openhealth"
 
 log "Installed openhealth runner to ${install_dir}/openhealth"
-log "Installing openhealth skill ${tag} with skills.sh"
-npx -y skills add "https://github.com/${repo}/tree/${tag}/skills/openhealth" --skill openhealth --agent codex --global --yes
+log ""
+log "OpenHealth skill ${tag}:"
+log "  Source: https://github.com/${repo}/tree/${tag}/skills/openhealth"
+log "  Archive: ${release_url}/openhealth_${asset_version}_skill.tar.gz"
+log "Install or register that skill with your agent using its native skill location or installer."
 
 if path_contains_dir "$install_dir"; then
   openhealth --help

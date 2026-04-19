@@ -125,8 +125,10 @@ The database path override wins over the data directory override.
 
 ## Eval Evidence
 
-The production runner passed the release eval gate. In the CLI comparison run
-documented in
+The production runner passed the latest release eval gate across 43 production
+scenarios, documented in
+[`docs/agent-eval-results/oh-5yr-2026-04-19.md`](docs/agent-eval-results/oh-5yr-2026-04-19.md).
+In the CLI comparison run documented in
 [`docs/agent-eval-results/oh-5yr-maturity-throughput-final.md`](docs/agent-eval-results/oh-5yr-maturity-throughput-final.md),
 the runner matched or improved correctness while using fewer tools, fewer
 non-cached input tokens, and less wall time than CLI:

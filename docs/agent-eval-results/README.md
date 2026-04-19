@@ -7,12 +7,15 @@ Current recommendation:
   tasks.
 - Keep the CLI as human-facing tooling and as the eval baseline. It is not a
   production skill fallback.
-- Current maturity/throughput verdict: the runner passed the release eval gate
-  and matched or improved correctness while using fewer tools, fewer non-cached
+- Current release gate: the production runner/skill passed all 43 production
+  scenarios in `docs/agent-eval-results/oh-5yr-2026-04-19.md`.
+- Current maturity/throughput verdict: in the CLI comparison report, the runner
+  matched or improved correctness while using fewer tools, fewer non-cached
   input tokens, and less wall time than CLI.
 
 Current top-level reports:
 
+- `docs/agent-eval-results/oh-5yr-2026-04-19.md`
 - `docs/agent-eval-results/oh-5yr-maturity-throughput-final.md`
 - `docs/agent-eval-results/oh-5yr-2026-04-18.md`
 

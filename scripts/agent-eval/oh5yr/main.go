@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -199,13 +201,15 @@ type weightState struct {
 	Date  string  `json:"date"`
 	Value float64 `json:"value"`
 	Unit  string  `json:"unit"`
+	Note  *string `json:"note,omitempty"`
 }
 
 type bloodPressureState struct {
-	Date      string `json:"date"`
-	Systolic  int    `json:"systolic"`
-	Diastolic int    `json:"diastolic"`
-	Pulse     *int   `json:"pulse,omitempty"`
+	Date      string  `json:"date"`
+	Systolic  int     `json:"systolic"`
+	Diastolic int     `json:"diastolic"`
+	Pulse     *int    `json:"pulse,omitempty"`
+	Note      *string `json:"note,omitempty"`
 }
 
 type medicationState struct {
@@ -232,13 +236,14 @@ type bodyCompositionState struct {
 }
 
 type imagingState struct {
-	Date       string  `json:"date"`
-	Modality   string  `json:"modality"`
-	BodySite   *string `json:"body_site,omitempty"`
-	Title      *string `json:"title,omitempty"`
-	Summary    string  `json:"summary"`
-	Impression *string `json:"impression,omitempty"`
-	Note       *string `json:"note,omitempty"`
+	Date       string   `json:"date"`
+	Modality   string   `json:"modality"`
+	BodySite   *string  `json:"body_site,omitempty"`
+	Title      *string  `json:"title,omitempty"`
+	Summary    string   `json:"summary"`
+	Impression *string  `json:"impression,omitempty"`
+	Note       *string  `json:"note,omitempty"`
+	Notes      []string `json:"notes,omitempty"`
 }
 
 type labResultState struct {
@@ -247,6 +252,7 @@ type labResultState struct {
 	ValueText     string   `json:"value_text"`
 	ValueNumeric  *float64 `json:"value_numeric,omitempty"`
 	Units         *string  `json:"units,omitempty"`
+	Notes         []string `json:"notes,omitempty"`
 }
 
 type codexEvent struct {
@@ -1234,7 +1240,7 @@ func scenarios() []scenario {
 		{
 			ID:     "bp-add-two",
 			Title:  "Record two blood-pressure readings and verify newest-first output",
-			Prompt: "I need to update my local OpenHealth blood pressure history. Use the configured local OpenHealth data path, and use year 2026 for these short dates: 03/29 122/78 pulse 64 and 03/30 118/76. Then tell me the newest-first entries you see.",
+			Prompt: "I need to update my local OpenHealth blood pressure history. Use the configured local OpenHealth data path, and use year 2026 for these short dates: 03/29 122/78 pulse 64 with note home cuff, and 03/30 118/76. Then tell me the newest-first entries you see.",
 		},
 		{
 			ID:     "bp-latest-only",
@@ -1349,7 +1355,7 @@ func scenarios() []scenario {
 		{
 			ID:     "lab-note",
 			Title:  "Record lab collection with clinician note",
-			Prompt: "Use the configured local OpenHealth data path. Record a lab collection for 03/29/2026 with note \"labs look stable, keep moving\" and a Metabolic panel containing Glucose 89 mg/dL, canonical analyte glucose. Then show my latest lab collection.",
+			Prompt: "Use the configured local OpenHealth data path. Record a lab collection for 03/29/2026 with collection note \"labs look stable, keep moving\" and a Metabolic panel containing Glucose 89 mg/dL, canonical analyte glucose, with result notes \"HIV 4th gen narrative\" and \"A1C context\". Then show my latest lab collection.",
 		},
 		{
 			ID:     "lab-same-day-multiple",
@@ -1394,7 +1400,7 @@ func scenarios() []scenario {
 		{
 			ID:     "imaging-record-list",
 			Title:  "Record an imaging summary and list it",
-			Prompt: "Use the configured local OpenHealth data path. Record imaging from 03/29/2026: modality X-ray, body site chest, title Chest X-ray, summary No acute cardiopulmonary abnormality, impression Normal chest radiograph, note ordered for cough. Then list my latest imaging records.",
+			Prompt: "Use the configured local OpenHealth data path. Record imaging from 03/29/2026: modality X-ray, body site chest, title Chest X-ray, summary No acute cardiopulmonary abnormality, impression Normal chest radiograph, note ordered for cough, result notes \"XR TOE RIGHT narrative\" and \"US Head/Neck findings\". Then list my latest imaging records.",
 		},
 		{
 			ID:     "imaging-correct",
@@ -1409,7 +1415,7 @@ func scenarios() []scenario {
 		{
 			ID:     "mixed-import-file-coverage",
 			Title:  "Import file-style data that previously risked skipped rows",
-			Prompt: "Use the configured local OpenHealth data path. Import this health-file data and do not skip supported fields: weight 154.2 lb with body-fat 18.7% on 03/29/2026; lab collection 03/29/2026 Glucose 89 mg/dL canonical analyte glucose with note \"labs look stable, keep moving\"; chest X-ray 03/29/2026 summary No acute cardiopulmonary abnormality impression Normal chest radiograph; medication Semaglutide 0.25 mg subcutaneous injection weekly starting 02/01/2026 with note coverage approved after prior authorization. Then summarize what is stored.",
+			Prompt: "Use the configured local OpenHealth data path. Import this health-file data and do not skip supported fields: weight 154.2 lb with note morning scale and body-fat 18.7% on 03/29/2026; lab collection 03/29/2026 Glucose 89 mg/dL canonical analyte glucose with collection note \"labs look stable, keep moving\" and result notes \"HIV 4th gen narrative\" and \"A1C context\"; chest X-ray 03/29/2026 summary No acute cardiopulmonary abnormality impression Normal chest radiograph with result notes \"XR TOE RIGHT narrative\" and \"US Head/Neck findings\"; medication Semaglutide 0.25 mg subcutaneous injection weekly starting 02/01/2026 with note coverage approved after prior authorization. Then summarize what is stored.",
 		},
 		{
 			ID:    "mt-weight-clarify-then-add",
@@ -1634,6 +1640,7 @@ func upsertWeights(ctx context.Context, api *client.LocalClient, weights []weigh
 			RecordedAt: recordedAt,
 			Value:      weight.Value,
 			Unit:       client.WeightUnit(weight.Unit),
+			Note:       weight.Note,
 		}); err != nil {
 			return err
 		}
@@ -1652,6 +1659,7 @@ func recordBloodPressures(ctx context.Context, api *client.LocalClient, readings
 			Systolic:   reading.Systolic,
 			Diastolic:  reading.Diastolic,
 			Pulse:      reading.Pulse,
+			Note:       reading.Note,
 		}); err != nil {
 			return err
 		}
@@ -1688,6 +1696,7 @@ func recordLabs(ctx context.Context, api *client.LocalClient, collections []labC
 				ValueText:     result.ValueText,
 				ValueNumeric:  result.ValueNumeric,
 				Units:         result.Units,
+				Notes:         append([]string(nil), result.Notes...),
 			})
 		}
 		if _, err := api.CreateLabCollection(ctx, client.LabCollectionInput{
@@ -1740,6 +1749,7 @@ func recordImaging(ctx context.Context, api *client.LocalClient, records []imagi
 			Summary:     record.Summary,
 			Impression:  record.Impression,
 			Note:        record.Note,
+			Notes:       append([]string(nil), record.Notes...),
 		}); err != nil {
 			return err
 		}
@@ -1923,18 +1933,18 @@ func verifyMixedOrMultiTurnScenario(dbPath string, sc scenario, turnIndex int, f
 		result.AssistantPass = containsAll(finalMessage, []string{"Levothyroxine", "25 mcg", "Glucose", "89"})
 		result.Details = fmt.Sprintf("expected one medication and one glucose lab; observed medications %s and labs %s", describeMedications(medicationStates), describeLabs(labStates))
 	case "mixed-import-file-coverage":
-		expectedWeights := []weightState{{Date: "2026-03-29", Value: 154.2, Unit: "lb"}}
+		expectedWeights := []weightState{{Date: "2026-03-29", Value: 154.2, Unit: "lb", Note: stringPointer("morning scale")}}
 		expectedBody := []bodyCompositionState{{Date: "2026-03-29", BodyFatPercent: floatPointer(18.7), WeightValue: floatPointer(154.2), WeightUnit: stringPointer("lb")}}
 		expectedMedications := []medicationState{{Name: "Semaglutide", DosageText: stringPointer("0.25 mg subcutaneous injection weekly"), StartDate: "2026-02-01", Note: stringPointer("coverage approved after prior authorization")}}
-		expectedLabs := []labCollectionState{{Date: "2026-03-29", Note: stringPointer("labs look stable, keep moving"), Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}}}
-		expectedImaging := []imagingState{{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality", Impression: stringPointer("Normal chest radiograph")}}
+		expectedLabs := []labCollectionState{{Date: "2026-03-29", Note: stringPointer("labs look stable, keep moving"), Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL"), Notes: []string{"HIV 4th gen narrative", "A1C context"}}}}}
+		expectedImaging := []imagingState{{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality", Impression: stringPointer("Normal chest radiograph"), Notes: []string{"XR TOE RIGHT narrative", "US Head/Neck findings"}}}
 		result.DatabasePass = weightsEqual(weightStates, expectedWeights) &&
 			bodyCompositionEqual(bodyCompositionStates, expectedBody) &&
 			medicationsEqual(medicationStates, expectedMedications) &&
 			labsEqual(labStates, expectedLabs) &&
 			imagingEqual(imagingStates, expectedImaging) &&
 			len(bloodPressureStates) == 0
-		result.AssistantPass = containsAll(finalMessage, []string{"154.2", "18.7", "Glucose", "89", "Semaglutide", "X-ray"})
+		result.AssistantPass = containsAll(finalMessage, []string{"154.2", "18.7", "Glucose", "89", "Semaglutide", "X-ray", "narrative"})
 		result.Details = fmt.Sprintf("expected no skipped import-file rows; observed weights %s, body composition %s, medications %s, labs %s, imaging %s", describeWeights(weightStates), describeBodyComposition(bodyCompositionStates), describeMedications(medicationStates), describeLabs(labStates), describeImaging(imagingStates))
 	case "mt-weight-clarify-then-add":
 		if turnIndex == 1 {
@@ -2042,7 +2052,7 @@ func verifyBloodPressureScenario(dbPath string, sc scenario, finalMessage string
 	case "bp-add-two":
 		expected := []bloodPressureState{
 			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
-			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64), Note: stringPointer("home cuff")},
 		}
 		result.DatabasePass = bloodPressuresEqual(states, expected)
 		result.AssistantPass = true
@@ -2192,9 +2202,9 @@ func verifyLabScenario(dbPath string, sc scenario, finalMessage string) (verific
 		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "Vitamin D", "32"})
 		result.Details = fmt.Sprintf("expected one Vitamin D lab collection with arbitrary slug; observed %s", describeLabs(states))
 	case "lab-note":
-		expected := []labCollectionState{{Date: "2026-03-29", Note: stringPointer("labs look stable, keep moving"), Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}}}
+		expected := []labCollectionState{{Date: "2026-03-29", Note: stringPointer("labs look stable, keep moving"), Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL"), Notes: []string{"HIV 4th gen narrative", "A1C context"}}}}}
 		result.DatabasePass = labsEqual(states, expected)
-		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "Glucose", "89", "stable"})
+		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "Glucose", "89", "stable", "A1C"})
 		result.Details = fmt.Sprintf("expected lab collection note; observed %s", describeLabs(states))
 	case "lab-same-day-multiple":
 		expected := []labCollectionState{
@@ -2268,9 +2278,9 @@ func verifyImagingScenario(dbPath string, sc scenario, finalMessage string) (ver
 
 	switch sc.ID {
 	case "imaging-record-list":
-		expected := []imagingState{{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality", Impression: stringPointer("Normal chest radiograph"), Note: stringPointer("ordered for cough")}}
+		expected := []imagingState{{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality", Impression: stringPointer("Normal chest radiograph"), Note: stringPointer("ordered for cough"), Notes: []string{"XR TOE RIGHT narrative", "US Head/Neck findings"}}}
 		result.DatabasePass = imagingEqual(states, expected)
-		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "X-ray", "chest"})
+		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "X-ray", "chest", "narrative"})
 		result.Details = fmt.Sprintf("expected one chest X-ray imaging record; observed %s", describeImaging(states))
 	case "imaging-correct":
 		expected := []imagingState{{Date: "2026-03-29", Modality: "CT", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "Stable small pulmonary nodule.", Impression: stringPointer("Normal chest radiograph."), Note: stringPointer("ordered for cough")}}
@@ -2364,7 +2374,7 @@ func listRawWeights(dbPath string) ([]weightState, error) {
 	}()
 
 	rows, err := db.QueryContext(context.Background(), `
-SELECT recorded_at, value, unit
+SELECT recorded_at, value, unit, note
 FROM health_weight_entry
 WHERE deleted_at IS NULL
 ORDER BY recorded_at DESC, id DESC
@@ -2379,10 +2389,14 @@ ORDER BY recorded_at DESC, id DESC
 	states := []weightState{}
 	for rows.Next() {
 		var state weightState
-		if err := rows.Scan(&state.Date, &state.Value, &state.Unit); err != nil {
+		var note sql.NullString
+		if err := rows.Scan(&state.Date, &state.Value, &state.Unit, &note); err != nil {
 			return nil, err
 		}
 		state.Value = roundWeight(state.Value)
+		if note.Valid {
+			state.Note = &note.String
+		}
 		states = append(states, state)
 	}
 	return states, rows.Err()
@@ -2395,6 +2409,7 @@ func weightStates(weights []client.WeightEntry) []weightState {
 			Date:  weight.RecordedAt.Format(time.DateOnly),
 			Value: roundWeight(weight.Value),
 			Unit:  string(weight.Unit),
+			Note:  weight.Note,
 		})
 	}
 	return states
@@ -2408,6 +2423,7 @@ func bloodPressureStates(readings []client.BloodPressureEntry) []bloodPressureSt
 			Systolic:  reading.Systolic,
 			Diastolic: reading.Diastolic,
 			Pulse:     reading.Pulse,
+			Note:      reading.Note,
 		})
 	}
 	return states
@@ -2447,6 +2463,7 @@ func labCollectionStates(collections []client.LabCollection) []labCollectionStat
 					ValueText:     result.ValueText,
 					ValueNumeric:  result.ValueNumeric,
 					Units:         result.Units,
+					Notes:         append([]string(nil), result.Notes...),
 				})
 			}
 		}
@@ -2486,6 +2503,7 @@ func imagingStates(records []client.ImagingRecord) []imagingState {
 			Summary:    record.Summary,
 			Impression: record.Impression,
 			Note:       record.Note,
+			Notes:      append([]string(nil), record.Notes...),
 		})
 	}
 	return states
@@ -3486,7 +3504,10 @@ func weightsEqual(got []weightState, want []weightState) bool {
 		return false
 	}
 	for i := range got {
-		if got[i].Date != want[i].Date || got[i].Unit != want[i].Unit || math.Abs(got[i].Value-want[i].Value) > 0.001 {
+		if got[i].Date != want[i].Date ||
+			got[i].Unit != want[i].Unit ||
+			math.Abs(got[i].Value-want[i].Value) > 0.001 ||
+			!equalStringPointer(got[i].Note, want[i].Note) {
 			return false
 		}
 	}
@@ -3501,7 +3522,8 @@ func bloodPressuresEqual(got []bloodPressureState, want []bloodPressureState) bo
 		if got[i].Date != want[i].Date ||
 			got[i].Systolic != want[i].Systolic ||
 			got[i].Diastolic != want[i].Diastolic ||
-			!equalIntPointer(got[i].Pulse, want[i].Pulse) {
+			!equalIntPointer(got[i].Pulse, want[i].Pulse) ||
+			!equalStringPointer(got[i].Note, want[i].Note) {
 			return false
 		}
 	}
@@ -3539,7 +3561,8 @@ func labsEqual(got []labCollectionState, want []labCollectionState) bool {
 				!equalStringPointer(got[i].Results[j].CanonicalSlug, want[i].Results[j].CanonicalSlug) ||
 				got[i].Results[j].ValueText != want[i].Results[j].ValueText ||
 				!equalFloatPointer(got[i].Results[j].ValueNumeric, want[i].Results[j].ValueNumeric) ||
-				!equalStringPointer(got[i].Results[j].Units, want[i].Results[j].Units) {
+				!equalStringPointer(got[i].Results[j].Units, want[i].Results[j].Units) ||
+				!slices.Equal(got[i].Results[j].Notes, want[i].Results[j].Notes) {
 				return false
 			}
 		}
@@ -3575,7 +3598,8 @@ func imagingEqual(got []imagingState, want []imagingState) bool {
 			!equalStringPointer(got[i].BodySite, want[i].BodySite) ||
 			!equalStringPointer(got[i].Title, want[i].Title) ||
 			!equalClinicalSentencePointer(got[i].Impression, want[i].Impression) ||
-			!equalStringPointer(got[i].Note, want[i].Note) {
+			!equalStringPointer(got[i].Note, want[i].Note) ||
+			!slices.Equal(got[i].Notes, want[i].Notes) {
 			return false
 		}
 	}
@@ -3588,7 +3612,11 @@ func describeWeights(weights []weightState) string {
 	}
 	parts := make([]string, 0, len(weights))
 	for _, weight := range weights {
-		parts = append(parts, fmt.Sprintf("%s %.1f %s", weight.Date, weight.Value, weight.Unit))
+		note := ""
+		if weight.Note != nil {
+			note = " note " + *weight.Note
+		}
+		parts = append(parts, fmt.Sprintf("%s %.1f %s%s", weight.Date, weight.Value, weight.Unit, note))
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
 }
@@ -3603,7 +3631,11 @@ func describeBloodPressures(readings []bloodPressureState) string {
 		if reading.Pulse != nil {
 			pulse = fmt.Sprintf(" pulse %d", *reading.Pulse)
 		}
-		parts = append(parts, fmt.Sprintf("%s %d/%d%s", reading.Date, reading.Systolic, reading.Diastolic, pulse))
+		note := ""
+		if reading.Note != nil {
+			note = " note " + *reading.Note
+		}
+		parts = append(parts, fmt.Sprintf("%s %d/%d%s%s", reading.Date, reading.Systolic, reading.Diastolic, pulse, note))
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
 }
@@ -3639,7 +3671,11 @@ func describeLabs(collections []labCollectionState) string {
 	for _, collection := range collections {
 		results := make([]string, 0, len(collection.Results))
 		for _, result := range collection.Results {
-			results = append(results, fmt.Sprintf("%s %s", result.TestName, result.ValueText))
+			note := ""
+			if len(result.Notes) > 0 {
+				note = " notes " + strings.Join(result.Notes, " / ")
+			}
+			results = append(results, fmt.Sprintf("%s %s%s", result.TestName, result.ValueText, note))
 		}
 		note := ""
 		if collection.Note != nil {
@@ -3681,7 +3717,11 @@ func describeImaging(records []imagingState) string {
 		if record.BodySite != nil {
 			site = " " + *record.BodySite
 		}
-		parts = append(parts, fmt.Sprintf("%s %s%s: %s", record.Date, record.Modality, site, record.Summary))
+		note := ""
+		if len(record.Notes) > 0 {
+			note = " notes " + strings.Join(record.Notes, " / ")
+		}
+		parts = append(parts, fmt.Sprintf("%s %s%s: %s%s", record.Date, record.Modality, site, record.Summary, note))
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
 }

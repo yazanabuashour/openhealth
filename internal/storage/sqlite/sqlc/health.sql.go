@@ -29,6 +29,7 @@ INSERT INTO health_blood_pressure_entry (
   systolic,
   diastolic,
   pulse,
+  note,
   source,
   source_record_hash,
   created_at,
@@ -41,7 +42,8 @@ INSERT INTO health_blood_pressure_entry (
   ?5,
   ?6,
   ?7,
-  ?8
+  ?8,
+  ?9
 )
 RETURNING
   id,
@@ -49,6 +51,7 @@ RETURNING
   systolic,
   diastolic,
   pulse,
+  note,
   source,
   source_record_hash,
   created_at,
@@ -61,30 +64,47 @@ type CreateBloodPressureEntryParams struct {
 	Systolic         int64
 	Diastolic        int64
 	Pulse            *int64
+	Note             *string
 	Source           string
 	SourceRecordHash string
 	CreatedAt        string
 	UpdatedAt        string
 }
 
-func (q *Queries) CreateBloodPressureEntry(ctx context.Context, arg CreateBloodPressureEntryParams) (HealthBloodPressureEntry, error) {
+type CreateBloodPressureEntryRow struct {
+	ID               int64
+	RecordedAt       string
+	Systolic         int64
+	Diastolic        int64
+	Pulse            *int64
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        string
+	UpdatedAt        string
+	DeletedAt        *string
+}
+
+func (q *Queries) CreateBloodPressureEntry(ctx context.Context, arg CreateBloodPressureEntryParams) (CreateBloodPressureEntryRow, error) {
 	row := q.db.QueryRowContext(ctx, createBloodPressureEntry,
 		arg.RecordedAt,
 		arg.Systolic,
 		arg.Diastolic,
 		arg.Pulse,
+		arg.Note,
 		arg.Source,
 		arg.SourceRecordHash,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
-	var i HealthBloodPressureEntry
+	var i CreateBloodPressureEntryRow
 	err := row.Scan(
 		&i.ID,
 		&i.RecordedAt,
 		&i.Systolic,
 		&i.Diastolic,
 		&i.Pulse,
+		&i.Note,
 		&i.Source,
 		&i.SourceRecordHash,
 		&i.CreatedAt,
@@ -266,6 +286,41 @@ func (q *Queries) CreateImagingRecord(ctx context.Context, arg CreateImagingReco
 	return i, err
 }
 
+const createImagingRecordNote = `-- name: CreateImagingRecordNote :one
+INSERT INTO health_imaging_record_note (
+  imaging_record_id,
+  note_text,
+  display_order
+) VALUES (
+  ?1,
+  ?2,
+  ?3
+)
+RETURNING
+  id,
+  imaging_record_id,
+  note_text,
+  display_order
+`
+
+type CreateImagingRecordNoteParams struct {
+	ImagingRecordID int64
+	NoteText        string
+	DisplayOrder    int64
+}
+
+func (q *Queries) CreateImagingRecordNote(ctx context.Context, arg CreateImagingRecordNoteParams) (HealthImagingRecordNote, error) {
+	row := q.db.QueryRowContext(ctx, createImagingRecordNote, arg.ImagingRecordID, arg.NoteText, arg.DisplayOrder)
+	var i HealthImagingRecordNote
+	err := row.Scan(
+		&i.ID,
+		&i.ImagingRecordID,
+		&i.NoteText,
+		&i.DisplayOrder,
+	)
+	return i, err
+}
+
 const createLabCollection = `-- name: CreateLabCollection :one
 INSERT INTO health_lab_collection (
   collected_at,
@@ -434,6 +489,41 @@ func (q *Queries) CreateLabResult(ctx context.Context, arg CreateLabResultParams
 		&i.Units,
 		&i.RangeText,
 		&i.Flag,
+		&i.DisplayOrder,
+	)
+	return i, err
+}
+
+const createLabResultNote = `-- name: CreateLabResultNote :one
+INSERT INTO health_lab_result_note (
+  lab_result_id,
+  note_text,
+  display_order
+) VALUES (
+  ?1,
+  ?2,
+  ?3
+)
+RETURNING
+  id,
+  lab_result_id,
+  note_text,
+  display_order
+`
+
+type CreateLabResultNoteParams struct {
+	LabResultID  int64
+	NoteText     string
+	DisplayOrder int64
+}
+
+func (q *Queries) CreateLabResultNote(ctx context.Context, arg CreateLabResultNoteParams) (HealthLabResultNote, error) {
+	row := q.db.QueryRowContext(ctx, createLabResultNote, arg.LabResultID, arg.NoteText, arg.DisplayOrder)
+	var i HealthLabResultNote
+	err := row.Scan(
+		&i.ID,
+		&i.LabResultID,
+		&i.NoteText,
 		&i.DisplayOrder,
 	)
 	return i, err
@@ -661,6 +751,16 @@ func (q *Queries) DeleteImagingRecord(ctx context.Context, arg DeleteImagingReco
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const deleteImagingRecordNotesByRecord = `-- name: DeleteImagingRecordNotesByRecord :exec
+DELETE FROM health_imaging_record_note
+WHERE imaging_record_id = ?1
+`
+
+func (q *Queries) DeleteImagingRecordNotesByRecord(ctx context.Context, imagingRecordID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteImagingRecordNotesByRecord, imagingRecordID)
+	return err
 }
 
 const deleteLabCollection = `-- name: DeleteLabCollection :one
@@ -897,6 +997,7 @@ SELECT
   systolic,
   diastolic,
   pulse,
+  note,
   source,
   source_record_hash,
   created_at,
@@ -919,21 +1020,36 @@ type ListBloodPressureEntriesParams struct {
 	LimitCount     interface{}
 }
 
-func (q *Queries) ListBloodPressureEntries(ctx context.Context, arg ListBloodPressureEntriesParams) ([]HealthBloodPressureEntry, error) {
+type ListBloodPressureEntriesRow struct {
+	ID               int64
+	RecordedAt       string
+	Systolic         int64
+	Diastolic        int64
+	Pulse            *int64
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        string
+	UpdatedAt        string
+	DeletedAt        *string
+}
+
+func (q *Queries) ListBloodPressureEntries(ctx context.Context, arg ListBloodPressureEntriesParams) ([]ListBloodPressureEntriesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listBloodPressureEntries, arg.FromRecordedAt, arg.ToRecordedAt, arg.LimitCount)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []HealthBloodPressureEntry
+	var items []ListBloodPressureEntriesRow
 	for rows.Next() {
-		var i HealthBloodPressureEntry
+		var i ListBloodPressureEntriesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.RecordedAt,
 			&i.Systolic,
 			&i.Diastolic,
 			&i.Pulse,
+			&i.Note,
 			&i.Source,
 			&i.SourceRecordHash,
 			&i.CreatedAt,
@@ -1006,6 +1122,44 @@ func (q *Queries) ListBodyCompositionEntries(ctx context.Context, arg ListBodyCo
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listImagingRecordNotes = `-- name: ListImagingRecordNotes :many
+SELECT
+  id,
+  imaging_record_id,
+  note_text,
+  display_order
+FROM health_imaging_record_note
+ORDER BY imaging_record_id ASC, display_order ASC, id ASC
+`
+
+func (q *Queries) ListImagingRecordNotes(ctx context.Context) ([]HealthImagingRecordNote, error) {
+	rows, err := q.db.QueryContext(ctx, listImagingRecordNotes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []HealthImagingRecordNote
+	for rows.Next() {
+		var i HealthImagingRecordNote
+		if err := rows.Scan(
+			&i.ID,
+			&i.ImagingRecordID,
+			&i.NoteText,
+			&i.DisplayOrder,
 		); err != nil {
 			return nil, err
 		}
@@ -1177,6 +1331,44 @@ func (q *Queries) ListLabPanels(ctx context.Context) ([]HealthLabPanel, error) {
 			&i.ID,
 			&i.CollectionID,
 			&i.PanelName,
+			&i.DisplayOrder,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listLabResultNotes = `-- name: ListLabResultNotes :many
+SELECT
+  id,
+  lab_result_id,
+  note_text,
+  display_order
+FROM health_lab_result_note
+ORDER BY lab_result_id ASC, display_order ASC, id ASC
+`
+
+func (q *Queries) ListLabResultNotes(ctx context.Context) ([]HealthLabResultNote, error) {
+	rows, err := q.db.QueryContext(ctx, listLabResultNotes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []HealthLabResultNote
+	for rows.Next() {
+		var i HealthLabResultNote
+		if err := rows.Scan(
+			&i.ID,
+			&i.LabResultID,
+			&i.NoteText,
 			&i.DisplayOrder,
 		); err != nil {
 			return nil, err
@@ -1452,8 +1644,9 @@ SET
   systolic = ?2,
   diastolic = ?3,
   pulse = ?4,
-  updated_at = ?5
-WHERE id = ?6
+  note = ?5,
+  updated_at = ?6
+WHERE id = ?7
   AND deleted_at IS NULL
 RETURNING
   id,
@@ -1461,6 +1654,7 @@ RETURNING
   systolic,
   diastolic,
   pulse,
+  note,
   source,
   source_record_hash,
   created_at,
@@ -1473,26 +1667,43 @@ type UpdateBloodPressureEntryParams struct {
 	Systolic   int64
 	Diastolic  int64
 	Pulse      *int64
+	Note       *string
 	UpdatedAt  string
 	ID         int64
 }
 
-func (q *Queries) UpdateBloodPressureEntry(ctx context.Context, arg UpdateBloodPressureEntryParams) (HealthBloodPressureEntry, error) {
+type UpdateBloodPressureEntryRow struct {
+	ID               int64
+	RecordedAt       string
+	Systolic         int64
+	Diastolic        int64
+	Pulse            *int64
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        string
+	UpdatedAt        string
+	DeletedAt        *string
+}
+
+func (q *Queries) UpdateBloodPressureEntry(ctx context.Context, arg UpdateBloodPressureEntryParams) (UpdateBloodPressureEntryRow, error) {
 	row := q.db.QueryRowContext(ctx, updateBloodPressureEntry,
 		arg.RecordedAt,
 		arg.Systolic,
 		arg.Diastolic,
 		arg.Pulse,
+		arg.Note,
 		arg.UpdatedAt,
 		arg.ID,
 	)
-	var i HealthBloodPressureEntry
+	var i UpdateBloodPressureEntryRow
 	err := row.Scan(
 		&i.ID,
 		&i.RecordedAt,
 		&i.Systolic,
 		&i.Diastolic,
 		&i.Pulse,
+		&i.Note,
 		&i.Source,
 		&i.SourceRecordHash,
 		&i.CreatedAt,
@@ -1775,8 +1986,9 @@ SET
   recorded_at = COALESCE(?1, recorded_at),
   value = COALESCE(?2, value),
   unit = COALESCE(?3, unit),
-  updated_at = ?4
-WHERE id = ?5
+  note = COALESCE(?4, note),
+  updated_at = ?5
+WHERE id = ?6
   AND deleted_at IS NULL
 RETURNING
   id,
@@ -1795,6 +2007,7 @@ type UpdateWeightEntryParams struct {
 	RecordedAt *string
 	Value      *float64
 	Unit       *string
+	Note       *string
 	UpdatedAt  string
 	ID         int64
 }
@@ -1804,6 +2017,7 @@ func (q *Queries) UpdateWeightEntry(ctx context.Context, arg UpdateWeightEntryPa
 		arg.RecordedAt,
 		arg.Value,
 		arg.Unit,
+		arg.Note,
 		arg.UpdatedAt,
 		arg.ID,
 	)

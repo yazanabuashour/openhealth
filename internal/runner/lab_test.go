@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -197,6 +198,8 @@ func TestRunLabTaskPatchUpdatesOneLabResult(t *testing.T) {
 					ValueNumeric:  floatPointer(92),
 					Units:         stringPointer("mg/dL"),
 					RangeText:     stringPointer("70-99"),
+					Flag:          stringPointer("normal"),
+					Notes:         []string{" Fasting specimen\nreviewed by clinician ", "A1C context unchanged"},
 				},
 			},
 		},
@@ -217,6 +220,15 @@ func TestRunLabTaskPatchUpdatesOneLabResult(t *testing.T) {
 	}
 	assertLabResult(t, results[0], "Glucose", "glucose", "92")
 	assertLabResult(t, results[1], "HDL", "hdl", "51")
+	if results[0].Flag == nil || *results[0].Flag != "normal" {
+		t.Fatalf("patched glucose flag = %#v, want normal", results[0].Flag)
+	}
+	if !slices.Equal(results[0].Notes, []string{"Fasting specimen\nreviewed by clinician", "A1C context unchanged"}) {
+		t.Fatalf("patched glucose notes = %#v", results[0].Notes)
+	}
+	if len(results[1].Notes) != 0 {
+		t.Fatalf("sibling notes = %#v, want unchanged empty notes", results[1].Notes)
+	}
 }
 
 func TestRunLabTaskPatchRejectsAmbiguousDateTarget(t *testing.T) {
@@ -483,6 +495,26 @@ func TestRunLabTaskRejectsInvalidInputBeforeOpeningDatabase(t *testing.T) {
 				Collections: []runner.LabCollectionInput{{Date: "2026-03-29", Panels: []runner.LabPanelInput{{PanelName: "Metabolic", Results: []runner.LabResultInput{{TestName: "Glucose", ValueText: "89", Units: stringPointer(" ")}}}}}},
 			},
 			reason: "units must not be empty",
+		},
+		{
+			name: "empty result note",
+			request: runner.LabTaskRequest{
+				Action: runner.LabTaskActionRecord,
+				Collections: []runner.LabCollectionInput{
+					{
+						Date: "2026-03-29",
+						Panels: []runner.LabPanelInput{
+							{
+								PanelName: "Metabolic",
+								Results: []runner.LabResultInput{
+									{TestName: "Glucose", ValueText: "89", Notes: []string{"valid", " "}},
+								},
+							},
+						},
+					},
+				},
+			},
+			reason: "notes must not contain empty values",
 		},
 		{
 			name: "invalid list analyte shape",

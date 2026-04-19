@@ -107,6 +107,7 @@ type BloodPressureEntry struct {
 	Systolic         int
 	Diastolic        int
 	Pulse            *int
+	Note             *string
 	Source           string
 	SourceRecordHash string
 	CreatedAt        time.Time
@@ -137,6 +138,7 @@ type LabResult struct {
 	Units         *string
 	RangeText     *string
 	Flag          *string
+	Notes         []string
 	DisplayOrder  int
 }
 
@@ -190,6 +192,7 @@ type ImagingRecord struct {
 	Summary          string
 	Impression       *string
 	Note             *string
+	Notes            []string
 	Source           string
 	SourceRecordHash string
 	CreatedAt        time.Time
@@ -240,6 +243,7 @@ type WeightRecordInput struct {
 	RecordedAt time.Time
 	Value      float64
 	Unit       WeightUnit
+	Note       *string
 }
 
 type BloodPressureRecordInput struct {
@@ -247,6 +251,7 @@ type BloodPressureRecordInput struct {
 	Systolic   int
 	Diastolic  int
 	Pulse      *int
+	Note       *string
 }
 
 type MedicationCourseInput struct {
@@ -265,6 +270,7 @@ type LabResultInput struct {
 	Units         *string
 	RangeText     *string
 	Flag          *string
+	Notes         []string
 }
 
 type LabPanelInput struct {
@@ -295,12 +301,14 @@ type ImagingRecordInput struct {
 	Summary     string
 	Impression  *string
 	Note        *string
+	Notes       []string
 }
 
 type WeightUpdateInput struct {
 	RecordedAt *time.Time
 	Value      *float64
 	Unit       *WeightUnit
+	Note       *string
 }
 
 type WeightTrendParams struct {
@@ -333,6 +341,7 @@ type UpdateWeightEntryParams struct {
 	RecordedAt *time.Time
 	Value      *float64
 	Unit       *WeightUnit
+	Note       *string
 	UpdatedAt  time.Time
 }
 
@@ -347,6 +356,7 @@ type CreateBloodPressureEntryParams struct {
 	Systolic         int
 	Diastolic        int
 	Pulse            *int
+	Note             *string
 	Source           string
 	SourceRecordHash string
 	CreatedAt        time.Time
@@ -359,6 +369,7 @@ type UpdateBloodPressureEntryParams struct {
 	Systolic   int
 	Diastolic  int
 	Pulse      *int
+	Note       *string
 	UpdatedAt  time.Time
 }
 
@@ -403,6 +414,7 @@ type LabResultWriteParams struct {
 	Units         *string
 	RangeText     *string
 	Flag          *string
+	Notes         []string
 	DisplayOrder  int
 }
 
@@ -467,6 +479,7 @@ type CreateImagingRecordParams struct {
 	Summary          string
 	Impression       *string
 	Note             *string
+	Notes            []string
 	Source           string
 	SourceRecordHash string
 	CreatedAt        time.Time
@@ -482,6 +495,7 @@ type UpdateImagingRecordParams struct {
 	Summary     string
 	Impression  *string
 	Note        *string
+	Notes       []string
 	UpdatedAt   time.Time
 }
 

@@ -1083,6 +1083,39 @@ func TestBloodPressureScenariosVerifyExpectedOutput(t *testing.T) {
 	}
 }
 
+func TestBloodPressureNoteScenarioVerifiesExpectedOutput(t *testing.T) {
+	t.Parallel()
+
+	sc, ok := scenarioByID("bp-add-two")
+	if !ok {
+		t.Fatal("missing bp-add-two scenario")
+	}
+	databasePath := filepath.Join(t.TempDir(), "openhealth.db")
+	api := openEvalTestClient(t, databasePath)
+	if err := recordBloodPressures(context.Background(), api, []bloodPressureState{
+		{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64), Note: stringPointer("home cuff")},
+		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+	}); err != nil {
+		t.Fatalf("recordBloodPressures: %v", err)
+	}
+	_ = api.Close()
+
+	verification, err := verifyScenario(databasePath, sc, "Stored 2026-03-29 122/78 pulse 64 home cuff and 2026-03-30 118/76.")
+	if err != nil {
+		t.Fatalf("verifyScenario: %v", err)
+	}
+	if !verification.Passed {
+		t.Fatalf("verification failed: %#v", verification)
+	}
+	want := []bloodPressureState{
+		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
+		{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64), Note: stringPointer("home cuff")},
+	}
+	if !bloodPressuresEqual(verification.BloodPressures, want) {
+		t.Fatalf("blood pressures = %s, want %s", describeBloodPressures(verification.BloodPressures), describeBloodPressures(want))
+	}
+}
+
 func TestMedicationScenarioExpandedCoverageVerifiesExpectedOutput(t *testing.T) {
 	t.Parallel()
 
@@ -1170,18 +1203,18 @@ func TestLabScenarioExpandedCoverageVerifiesExpectedOutput(t *testing.T) {
 		},
 		{
 			scenarioID:   "lab-note",
-			finalMessage: "2026-03-29 Glucose 89 mg/dL; labs look stable",
+			finalMessage: "2026-03-29 Glucose 89 mg/dL; labs look stable; A1C context",
 			seed: func(t *testing.T, databasePath string) {
 				t.Helper()
 				api := openEvalTestClient(t, databasePath)
 				defer func() { _ = api.Close() }()
 				if err := recordLabs(context.Background(), api, []labCollectionState{
-					{Date: "2026-03-29", Note: stringPointer("labs look stable, keep moving"), Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}},
+					{Date: "2026-03-29", Note: stringPointer("labs look stable, keep moving"), Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL"), Notes: []string{"HIV 4th gen narrative", "A1C context"}}}},
 				}); err != nil {
 					t.Fatalf("recordLabs: %v", err)
 				}
 			},
-			wantLabs: []labCollectionState{{Date: "2026-03-29", Note: stringPointer("labs look stable, keep moving"), Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}}},
+			wantLabs: []labCollectionState{{Date: "2026-03-29", Note: stringPointer("labs look stable, keep moving"), Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL"), Notes: []string{"HIV 4th gen narrative", "A1C context"}}}}},
 		},
 		{
 			scenarioID:   "lab-same-day-multiple",
@@ -1311,18 +1344,18 @@ func TestImagingScenariosVerifyExpectedOutput(t *testing.T) {
 	}{
 		{
 			scenarioID:   "imaging-record-list",
-			finalMessage: "2026-03-29 chest X-ray",
+			finalMessage: "2026-03-29 chest X-ray narrative",
 			seed: func(t *testing.T, databasePath string) {
 				t.Helper()
 				api := openEvalTestClient(t, databasePath)
 				defer func() { _ = api.Close() }()
 				if err := recordImaging(context.Background(), api, []imagingState{
-					{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality.", Impression: stringPointer("Normal chest radiograph."), Note: stringPointer("ordered for cough")},
+					{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality.", Impression: stringPointer("Normal chest radiograph."), Note: stringPointer("ordered for cough"), Notes: []string{"XR TOE RIGHT narrative", "US Head/Neck findings"}},
 				}); err != nil {
 					t.Fatalf("recordImaging: %v", err)
 				}
 			},
-			wantImaging: []imagingState{{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality", Impression: stringPointer("Normal chest radiograph"), Note: stringPointer("ordered for cough")}},
+			wantImaging: []imagingState{{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality", Impression: stringPointer("Normal chest radiograph"), Note: stringPointer("ordered for cough"), Notes: []string{"XR TOE RIGHT narrative", "US Head/Neck findings"}}},
 		},
 		{
 			scenarioID:   "imaging-correct",
@@ -1412,16 +1445,16 @@ func TestMixedImportFileCoverageScenarioVerifiesExpectedOutput(t *testing.T) {
 	}
 	databasePath := filepath.Join(t.TempDir(), "openhealth.db")
 	api := openEvalTestClient(t, databasePath)
-	if err := upsertWeights(context.Background(), api, []weightState{{Date: "2026-03-29", Value: 154.2, Unit: "lb"}}); err != nil {
+	if err := upsertWeights(context.Background(), api, []weightState{{Date: "2026-03-29", Value: 154.2, Unit: "lb", Note: stringPointer("morning scale")}}); err != nil {
 		t.Fatalf("upsertWeights: %v", err)
 	}
 	if err := recordBodyComposition(context.Background(), api, []bodyCompositionState{{Date: "2026-03-29", BodyFatPercent: floatPointer(18.7), WeightValue: floatPointer(154.2), WeightUnit: stringPointer("lb")}}); err != nil {
 		t.Fatalf("recordBodyComposition: %v", err)
 	}
-	if err := recordLabs(context.Background(), api, []labCollectionState{{Date: "2026-03-29", Note: stringPointer("labs look stable, keep moving"), Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL")}}}}); err != nil {
+	if err := recordLabs(context.Background(), api, []labCollectionState{{Date: "2026-03-29", Note: stringPointer("labs look stable, keep moving"), Results: []labResultState{{TestName: "Glucose", CanonicalSlug: stringPointer("glucose"), ValueText: "89", ValueNumeric: floatPointer(89), Units: stringPointer("mg/dL"), Notes: []string{"HIV 4th gen narrative", "A1C context"}}}}}); err != nil {
 		t.Fatalf("recordLabs: %v", err)
 	}
-	if err := recordImaging(context.Background(), api, []imagingState{{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality.", Impression: stringPointer("Normal chest radiograph.")}}); err != nil {
+	if err := recordImaging(context.Background(), api, []imagingState{{Date: "2026-03-29", Modality: "X-ray", BodySite: stringPointer("chest"), Title: stringPointer("Chest X-ray"), Summary: "No acute cardiopulmonary abnormality.", Impression: stringPointer("Normal chest radiograph."), Notes: []string{"XR TOE RIGHT narrative", "US Head/Neck findings"}}}); err != nil {
 		t.Fatalf("recordImaging: %v", err)
 	}
 	if err := recordMedications(context.Background(), api, []medicationState{{Name: "Semaglutide", DosageText: stringPointer("0.25 mg subcutaneous injection weekly"), StartDate: "2026-02-01", Note: stringPointer("coverage approved after prior authorization")}}); err != nil {
@@ -1429,7 +1462,7 @@ func TestMixedImportFileCoverageScenarioVerifiesExpectedOutput(t *testing.T) {
 	}
 	_ = api.Close()
 
-	verification, err := verifyScenario(databasePath, sc, "154.2 18.7 Glucose 89 Semaglutide X-ray")
+	verification, err := verifyScenario(databasePath, sc, "154.2 18.7 Glucose 89 Semaglutide X-ray narrative")
 	if err != nil {
 		t.Fatalf("verifyScenario: %v", err)
 	}

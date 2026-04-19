@@ -3,6 +3,7 @@ package runner_test
 import (
 	"context"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	client "github.com/yazanabuashour/openhealth/internal/runclient"
@@ -26,6 +27,7 @@ func TestRunImagingTaskRecordListCorrectAndDelete(t *testing.T) {
 			Summary:    "No acute cardiopulmonary abnormality.",
 			Impression: stringPointer("Normal chest radiograph."),
 			Note:       stringPointer("Imported from scan summary"),
+			Notes:      []string{" XR TOE RIGHT narrative\nsecond line ", "Compared with prior study."},
 		}},
 	})
 	if err != nil {
@@ -45,6 +47,7 @@ func TestRunImagingTaskRecordListCorrectAndDelete(t *testing.T) {
 		Summary:    "No acute cardiopulmonary abnormality.",
 		Impression: stringPointer("Normal chest radiograph."),
 		Note:       stringPointer("Imported from scan summary"),
+		Notes:      []string{"XR TOE RIGHT narrative\nsecond line", "Compared with prior study."},
 	}})
 
 	again, err := runner.RunImagingTask(ctx, config, runner.ImagingTaskRequest{
@@ -57,6 +60,7 @@ func TestRunImagingTaskRecordListCorrectAndDelete(t *testing.T) {
 			Summary:    "No acute cardiopulmonary abnormality.",
 			Impression: stringPointer("Normal chest radiograph."),
 			Note:       stringPointer("Imported from scan summary"),
+			Notes:      []string{"XR TOE RIGHT narrative\nsecond line", "Compared with prior study."},
 		}},
 	})
 	if err != nil {
@@ -119,6 +123,7 @@ func TestRunImagingTaskRecordListCorrectAndDelete(t *testing.T) {
 			BodySite:   stringPointer("Knee"),
 			Summary:    "Mild patellar tendinosis, no tear.",
 			Impression: stringPointer("No meniscal tear."),
+			Notes:      []string{"MRI narrative"},
 		},
 	})
 	if err != nil {
@@ -136,6 +141,33 @@ func TestRunImagingTaskRecordListCorrectAndDelete(t *testing.T) {
 	}
 	if correctedEntry == nil || correctedEntry.Title == nil || *correctedEntry.Title != "Chest X-ray" || correctedEntry.Note == nil || *correctedEntry.Note != "Imported from scan summary" {
 		t.Fatalf("corrected entry = %#v, want preserved title and note", correctedEntry)
+	}
+	if !slices.Equal(correctedEntry.Notes, []string{"MRI narrative"}) {
+		t.Fatalf("corrected notes = %#v, want replacement imaging notes", correctedEntry.Notes)
+	}
+
+	correctedWithoutNotes, err := runner.RunImagingTask(ctx, config, runner.ImagingTaskRequest{
+		Action: runner.ImagingTaskActionCorrect,
+		Target: &runner.ImagingTarget{ID: idTarget},
+		Record: &runner.ImagingInput{
+			Date:     "2026-03-30",
+			Modality: "MRI",
+			BodySite: stringPointer("Knee"),
+			Summary:  "Mild patellar tendinosis without tear.",
+		},
+	})
+	if err != nil {
+		t.Fatalf("correct imaging without notes: %v", err)
+	}
+	var preservedNotesEntry *runner.ImagingTaskEntry
+	for index := range correctedWithoutNotes.Entries {
+		if correctedWithoutNotes.Entries[index].ID == idTarget {
+			preservedNotesEntry = &correctedWithoutNotes.Entries[index]
+			break
+		}
+	}
+	if preservedNotesEntry == nil || !slices.Equal(preservedNotesEntry.Notes, []string{"MRI narrative"}) {
+		t.Fatalf("corrected notes after omitted notes = %#v, want preserved MRI narrative", preservedNotesEntry)
 	}
 
 	deleted, err := runner.RunImagingTask(ctx, config, runner.ImagingTaskRequest{
@@ -161,6 +193,7 @@ func TestRunImagingTaskRejectsInvalidInput(t *testing.T) {
 		{name: "missing modality", input: runner.ImagingInput{Date: "2026-03-29", Summary: "Normal."}, reason: "modality is required"},
 		{name: "missing summary", input: runner.ImagingInput{Date: "2026-03-29", Modality: "X-ray"}, reason: "summary is required"},
 		{name: "empty note", input: runner.ImagingInput{Date: "2026-03-29", Modality: "X-ray", Summary: "Normal.", Note: stringPointer(" ")}, reason: "note must not be empty"},
+		{name: "empty notes item", input: runner.ImagingInput{Date: "2026-03-29", Modality: "X-ray", Summary: "Normal.", Notes: []string{"finding", " "}}, reason: "notes must not contain empty values"},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -203,7 +236,8 @@ func assertImagingEntries(t *testing.T, got []runner.ImagingTaskEntry, want []ru
 			!equalStringPointers(got[i].BodySite, want[i].BodySite) ||
 			!equalStringPointers(got[i].Title, want[i].Title) ||
 			!equalStringPointers(got[i].Impression, want[i].Impression) ||
-			!equalStringPointers(got[i].Note, want[i].Note) {
+			!equalStringPointers(got[i].Note, want[i].Note) ||
+			!slices.Equal(got[i].Notes, want[i].Notes) {
 			t.Fatalf("entry %d = %#v, want %#v", i, got[i], want[i])
 		}
 	}

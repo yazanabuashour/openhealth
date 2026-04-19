@@ -31,6 +31,7 @@ type WeightInput struct {
 	Date  string  `json:"date"`
 	Value float64 `json:"value"`
 	Unit  string  `json:"unit"`
+	Note  *string `json:"note,omitempty"`
 }
 
 type WeightTaskResult struct {
@@ -45,6 +46,7 @@ type WeightWrite struct {
 	Date   string  `json:"date"`
 	Value  float64 `json:"value"`
 	Unit   string  `json:"unit"`
+	Note   *string `json:"note,omitempty"`
 	Status string  `json:"status"`
 }
 
@@ -52,6 +54,7 @@ type WeightTaskEntry struct {
 	Date  string  `json:"date"`
 	Value float64 `json:"value"`
 	Unit  string  `json:"unit"`
+	Note  *string `json:"note,omitempty"`
 }
 
 func RunWeightTask(ctx context.Context, config client.LocalConfig, request WeightTaskRequest) (WeightTaskResult, error) {
@@ -99,6 +102,7 @@ type normalizedWeightInput struct {
 	RecordedAt time.Time
 	Value      float64
 	Unit       client.WeightUnit
+	Note       *string
 }
 
 func normalizeWeightTaskRequest(request WeightTaskRequest) (normalizedWeightTaskRequest, string) {
@@ -187,10 +191,15 @@ func normalizeWeightInput(input WeightInput) (normalizedWeightInput, string) {
 	if rejection != "" {
 		return normalizedWeightInput{}, rejection
 	}
+	note, rejection := normalizeOptionalLabText(input.Note, "note")
+	if rejection != "" {
+		return normalizedWeightInput{}, rejection
+	}
 	return normalizedWeightInput{
 		RecordedAt: recordedAt,
 		Value:      input.Value,
 		Unit:       unit,
+		Note:       note,
 	}, ""
 }
 
@@ -221,6 +230,7 @@ func runWeightUpsert(ctx context.Context, api *client.LocalClient, request norma
 			RecordedAt: weight.RecordedAt,
 			Value:      weight.Value,
 			Unit:       weight.Unit,
+			Note:       weight.Note,
 		})
 		if err != nil {
 			return WeightTaskResult{}, err
@@ -229,6 +239,7 @@ func runWeightUpsert(ctx context.Context, api *client.LocalClient, request norma
 			Date:   written.Entry.RecordedAt.Format(time.DateOnly),
 			Value:  written.Entry.Value,
 			Unit:   string(written.Entry.Unit),
+			Note:   written.Entry.Note,
 			Status: string(written.Status),
 		})
 	}
@@ -263,6 +274,7 @@ func weightTaskEntries(entries []client.WeightEntry) []WeightTaskEntry {
 			Date:  entry.RecordedAt.Format(time.DateOnly),
 			Value: entry.Value,
 			Unit:  string(entry.Unit),
+			Note:  entry.Note,
 		})
 	}
 	return out

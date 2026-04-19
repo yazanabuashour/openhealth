@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -136,12 +137,16 @@ func TestLocalClientWeightHelpers(t *testing.T) {
 		RecordedAt: march29,
 		Value:      152.2,
 		Unit:       client.WeightUnitLb,
+		Note:       stringPointer("morning scale"),
 	})
 	if err != nil {
 		t.Fatalf("upsert weight: %v", err)
 	}
 	if created.Status != client.WeightWriteStatusCreated || created.Entry.Value != 152.2 {
 		t.Fatalf("created weight = %#v", created)
+	}
+	if created.Entry.Note == nil || *created.Entry.Note != "morning scale" {
+		t.Fatalf("created weight note = %#v", created.Entry.Note)
 	}
 
 	again, err := api.UpsertWeight(ctx, client.WeightRecordInput{
@@ -210,6 +215,7 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 		Systolic:   118,
 		Diastolic:  76,
 		Pulse:      intPointer(64),
+		Note:       stringPointer("home cuff"),
 	})
 	if err != nil {
 		t.Fatalf("record blood pressure: %v", err)
@@ -218,12 +224,16 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 		RecordedAt: recordedAt.Add(time.Hour),
 		Systolic:   119,
 		Diastolic:  77,
+		Note:       stringPointer("manual correction"),
 	})
 	if err != nil {
 		t.Fatalf("replace blood pressure: %v", err)
 	}
 	if bp.Systolic != 119 || bp.Pulse != nil {
 		t.Fatalf("blood pressure = %#v, want systolic 119 and nil pulse", bp)
+	}
+	if bp.Note == nil || *bp.Note != "manual correction" {
+		t.Fatalf("blood pressure note = %#v", bp.Note)
 	}
 	bps, err := api.ListBloodPressure(ctx, client.BloodPressureListOptions{Limit: 1})
 	if err != nil {
@@ -275,6 +285,7 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 						ValueText:     "89",
 						ValueNumeric:  float64Pointer(89),
 						Units:         stringPointer("mg/dL"),
+						Notes:         []string{"HIV 4th gen narrative", "Hep C Ab reviewed"},
 					},
 				},
 			},
@@ -293,6 +304,7 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 					{
 						TestName:  "TSH",
 						ValueText: "3.1",
+						Notes:     []string{"A1C context"},
 					},
 				},
 			},
@@ -303,6 +315,9 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 	}
 	if lab.Panels[0].PanelName != "Thyroid" || lab.Panels[0].Results[0].TestName != "TSH" || lab.Note == nil || *lab.Note != "collection corrected" {
 		t.Fatalf("lab collection = %#v, want replacement panel/result", lab)
+	}
+	if !slices.Equal(lab.Panels[0].Results[0].Notes, []string{"A1C context"}) {
+		t.Fatalf("lab result notes = %#v", lab.Panels[0].Results[0].Notes)
 	}
 	labs, err := api.ListLabCollections(ctx)
 	if err != nil {
@@ -351,6 +366,7 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 		Summary:     "No acute cardiopulmonary abnormality.",
 		Impression:  stringPointer("Normal chest radiograph."),
 		Note:        stringPointer("ordered for cough"),
+		Notes:       []string{"XR TOE RIGHT narrative", "US Head/Neck findings"},
 	})
 	if err != nil {
 		t.Fatalf("create imaging: %v", err)
@@ -360,12 +376,16 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 		Modality:    "CT",
 		BodySite:    stringPointer("chest"),
 		Summary:     "Stable small pulmonary nodule.",
+		Notes:       []string{"US abdominal findings"},
 	})
 	if err != nil {
 		t.Fatalf("replace imaging: %v", err)
 	}
 	if imaging.Modality != "CT" || imaging.Title != nil || imaging.Summary != "Stable small pulmonary nodule." {
 		t.Fatalf("imaging = %#v, want replacement values", imaging)
+	}
+	if !slices.Equal(imaging.Notes, []string{"US abdominal findings"}) {
+		t.Fatalf("imaging notes = %#v", imaging.Notes)
 	}
 	images, err := api.ListImaging(ctx, client.ImagingListOptions{Modality: stringPointer("ct"), BodySite: stringPointer("CHEST")})
 	if err != nil {

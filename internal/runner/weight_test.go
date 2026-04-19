@@ -20,7 +20,7 @@ func TestRunWeightTaskUpsertAndList(t *testing.T) {
 	result, err := runner.RunWeightTask(ctx, config, runner.WeightTaskRequest{
 		Action: runner.WeightTaskActionUpsert,
 		Weights: []runner.WeightInput{
-			{Date: "2026-03-29", Value: 152.2, Unit: "lbs"},
+			{Date: "2026-03-29", Value: 152.2, Unit: "lbs", Note: stringPointer(" morning, after run ")},
 			{Date: "2026-03-30", Value: 151.6, Unit: "pounds"},
 		},
 	})
@@ -35,13 +35,13 @@ func TestRunWeightTaskUpsertAndList(t *testing.T) {
 	}
 	assertEntries(t, result.Entries, []runner.WeightTaskEntry{
 		{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
-		{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
+		{Date: "2026-03-29", Value: 152.2, Unit: "lb", Note: stringPointer("morning, after run")},
 	})
 
 	again, err := runner.RunWeightTask(ctx, config, runner.WeightTaskRequest{
 		Action: runner.WeightTaskActionUpsert,
 		Weights: []runner.WeightInput{
-			{Date: "2026-03-29", Value: 152.2, Unit: "lb"},
+			{Date: "2026-03-29", Value: 152.2, Unit: "lb", Note: stringPointer("morning, after run")},
 			{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
 		},
 	})
@@ -55,7 +55,7 @@ func TestRunWeightTaskUpsertAndList(t *testing.T) {
 	corrected, err := runner.RunWeightTask(ctx, config, runner.WeightTaskRequest{
 		Action: runner.WeightTaskActionUpsert,
 		Weights: []runner.WeightInput{
-			{Date: "2026-03-29", Value: 151.6, Unit: "lb"},
+			{Date: "2026-03-29", Value: 151.6, Unit: "lb", Note: stringPointer("calibrated scale")},
 		},
 	})
 	if err != nil {
@@ -74,7 +74,7 @@ func TestRunWeightTaskUpsertAndList(t *testing.T) {
 	}
 	assertEntries(t, listed.Entries, []runner.WeightTaskEntry{
 		{Date: "2026-03-30", Value: 151.6, Unit: "lb"},
-		{Date: "2026-03-29", Value: 151.6, Unit: "lb"},
+		{Date: "2026-03-29", Value: 151.6, Unit: "lb", Note: stringPointer("calibrated scale")},
 	})
 }
 
@@ -151,6 +151,11 @@ func TestRunWeightTaskRejectsInvalidInputBeforeOpeningDatabase(t *testing.T) {
 			input:  runner.WeightInput{Date: "2026-03-29", Value: 152.2},
 			reason: "unit must be lb",
 		},
+		{
+			name:   "empty note",
+			input:  runner.WeightInput{Date: "2026-03-29", Value: 152.2, Unit: "lb", Note: stringPointer(" ")},
+			reason: "note must not be empty",
+		},
 	}
 
 	for _, tt := range tests {
@@ -191,7 +196,10 @@ func assertEntries(t *testing.T, got []runner.WeightTaskEntry, want []runner.Wei
 		t.Fatalf("entry count = %d (%#v), want %d (%#v)", len(got), got, len(want), want)
 	}
 	for i := range want {
-		if got[i] != want[i] {
+		if got[i].Date != want[i].Date ||
+			got[i].Value != want[i].Value ||
+			got[i].Unit != want[i].Unit ||
+			!equalStringPointers(got[i].Note, want[i].Note) {
 			t.Fatalf("entry %d = %#v, want %#v", i, got[i], want[i])
 		}
 	}

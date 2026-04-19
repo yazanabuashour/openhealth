@@ -31,6 +31,7 @@ type BloodPressureRecordInput struct {
 	Systolic   int
 	Diastolic  int
 	Pulse      *int
+	Note       *string
 }
 
 type BloodPressureListOptions struct {
@@ -45,6 +46,7 @@ type BloodPressureEntry struct {
 	Systolic         int
 	Diastolic        int
 	Pulse            *int
+	Note             *string
 	Source           string
 	SourceRecordHash string
 	CreatedAt        time.Time
@@ -85,6 +87,7 @@ type LabResultInput struct {
 	Units         *string
 	RangeText     *string
 	Flag          *string
+	Notes         []string
 }
 
 type LabPanelInput struct {
@@ -108,6 +111,7 @@ type LabResult struct {
 	Units         *string
 	RangeText     *string
 	Flag          *string
+	Notes         []string
 	DisplayOrder  int
 }
 
@@ -168,6 +172,7 @@ type ImagingRecordInput struct {
 	Summary     string
 	Impression  *string
 	Note        *string
+	Notes       []string
 }
 
 type ImagingListOptions struct {
@@ -187,6 +192,7 @@ type ImagingRecord struct {
 	Summary          string
 	Impression       *string
 	Note             *string
+	Notes            []string
 	Source           string
 	SourceRecordHash string
 	CreatedAt        time.Time
@@ -439,6 +445,7 @@ func toHealthBloodPressureRecordInput(input BloodPressureRecordInput) health.Blo
 		Systolic:   input.Systolic,
 		Diastolic:  input.Diastolic,
 		Pulse:      input.Pulse,
+		Note:       input.Note,
 	}
 }
 
@@ -493,6 +500,7 @@ func toHealthLabResultInput(input LabResultInput) health.LabResultInput {
 		Units:        input.Units,
 		RangeText:    input.RangeText,
 		Flag:         input.Flag,
+		Notes:        input.Notes,
 	}
 	if input.CanonicalSlug != nil {
 		slug := health.AnalyteSlug(*input.CanonicalSlug)
@@ -516,6 +524,7 @@ func fromHealthBloodPressureEntry(entry health.BloodPressureEntry) BloodPressure
 		Systolic:         entry.Systolic,
 		Diastolic:        entry.Diastolic,
 		Pulse:            entry.Pulse,
+		Note:             entry.Note,
 		Source:           entry.Source,
 		SourceRecordHash: entry.SourceRecordHash,
 		CreatedAt:        entry.CreatedAt,
@@ -620,6 +629,7 @@ func fromHealthImagingRecord(item health.ImagingRecord) ImagingRecord {
 		Summary:          item.Summary,
 		Impression:       item.Impression,
 		Note:             item.Note,
+		Notes:            append([]string(nil), item.Notes...),
 		Source:           item.Source,
 		SourceRecordHash: item.SourceRecordHash,
 		CreatedAt:        item.CreatedAt,
@@ -652,6 +662,7 @@ func fromHealthLabResult(item health.LabResult) LabResult {
 		Units:        item.Units,
 		RangeText:    item.RangeText,
 		Flag:         item.Flag,
+		Notes:        append([]string(nil), item.Notes...),
 		DisplayOrder: item.DisplayOrder,
 	}
 	if item.CanonicalSlug != nil {

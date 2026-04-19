@@ -78,6 +78,7 @@ SET
   recorded_at = COALESCE(sqlc.narg('recorded_at'), recorded_at),
   value = COALESCE(sqlc.narg('value'), value),
   unit = COALESCE(sqlc.narg('unit'), unit),
+  note = COALESCE(sqlc.narg('note'), note),
   updated_at = sqlc.arg('updated_at')
 WHERE id = sqlc.arg('id')
   AND deleted_at IS NULL
@@ -109,6 +110,7 @@ SELECT
   systolic,
   diastolic,
   pulse,
+  note,
   source,
   source_record_hash,
   created_at,
@@ -130,6 +132,7 @@ INSERT INTO health_blood_pressure_entry (
   systolic,
   diastolic,
   pulse,
+  note,
   source,
   source_record_hash,
   created_at,
@@ -139,6 +142,7 @@ INSERT INTO health_blood_pressure_entry (
   sqlc.arg('systolic'),
   sqlc.arg('diastolic'),
   sqlc.narg('pulse'),
+  sqlc.narg('note'),
   sqlc.arg('source'),
   sqlc.arg('source_record_hash'),
   sqlc.arg('created_at'),
@@ -150,6 +154,7 @@ RETURNING
   systolic,
   diastolic,
   pulse,
+  note,
   source,
   source_record_hash,
   created_at,
@@ -163,6 +168,7 @@ SET
   systolic = sqlc.arg('systolic'),
   diastolic = sqlc.arg('diastolic'),
   pulse = sqlc.narg('pulse'),
+  note = sqlc.narg('note'),
   updated_at = sqlc.arg('updated_at')
 WHERE id = sqlc.arg('id')
   AND deleted_at IS NULL
@@ -172,6 +178,7 @@ RETURNING
   systolic,
   diastolic,
   pulse,
+  note,
   source,
   source_record_hash,
   created_at,
@@ -409,6 +416,15 @@ SELECT
 FROM health_lab_result
 ORDER BY panel_id ASC, display_order ASC, id ASC;
 
+-- name: ListLabResultNotes :many
+SELECT
+  id,
+  lab_result_id,
+  note_text,
+  display_order
+FROM health_lab_result_note
+ORDER BY lab_result_id ASC, display_order ASC, id ASC;
+
 -- name: CreateLabResult :one
 INSERT INTO health_lab_result (
   panel_id,
@@ -441,6 +457,22 @@ RETURNING
   units,
   range_text,
   flag,
+  display_order;
+
+-- name: CreateLabResultNote :one
+INSERT INTO health_lab_result_note (
+  lab_result_id,
+  note_text,
+  display_order
+) VALUES (
+  sqlc.arg('lab_result_id'),
+  sqlc.arg('note_text'),
+  sqlc.arg('display_order')
+)
+RETURNING
+  id,
+  lab_result_id,
+  note_text,
   display_order;
 
 -- name: ListLabResultsWithCollection :many
@@ -589,6 +621,15 @@ LIMIT CASE
   ELSE sqlc.narg('limit_count')
 END;
 
+-- name: ListImagingRecordNotes :many
+SELECT
+  id,
+  imaging_record_id,
+  note_text,
+  display_order
+FROM health_imaging_record_note
+ORDER BY imaging_record_id ASC, display_order ASC, id ASC;
+
 -- name: CreateImagingRecord :one
 INSERT INTO health_imaging_record (
   performed_at,
@@ -629,6 +670,26 @@ RETURNING
   created_at,
   updated_at,
   deleted_at;
+
+-- name: CreateImagingRecordNote :one
+INSERT INTO health_imaging_record_note (
+  imaging_record_id,
+  note_text,
+  display_order
+) VALUES (
+  sqlc.arg('imaging_record_id'),
+  sqlc.arg('note_text'),
+  sqlc.arg('display_order')
+)
+RETURNING
+  id,
+  imaging_record_id,
+  note_text,
+  display_order;
+
+-- name: DeleteImagingRecordNotesByRecord :exec
+DELETE FROM health_imaging_record_note
+WHERE imaging_record_id = sqlc.arg('imaging_record_id');
 
 -- name: UpdateImagingRecord :one
 UPDATE health_imaging_record

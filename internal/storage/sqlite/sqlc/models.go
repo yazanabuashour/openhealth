@@ -15,6 +15,7 @@ type HealthBloodPressureEntry struct {
 	CreatedAt        string
 	UpdatedAt        string
 	DeletedAt        *string
+	Note             *string
 }
 
 type HealthBodyCompositionEntry struct {
@@ -48,6 +49,13 @@ type HealthImagingRecord struct {
 	DeletedAt        *string
 }
 
+type HealthImagingRecordNote struct {
+	ID              int64
+	ImagingRecordID int64
+	NoteText        string
+	DisplayOrder    int64
+}
+
 type HealthLabCollection struct {
 	ID          int64
 	CollectedAt string
@@ -76,6 +84,13 @@ type HealthLabResult struct {
 	RangeText     *string
 	Flag          *string
 	DisplayOrder  int64
+}
+
+type HealthLabResultNote struct {
+	ID           int64
+	LabResultID  int64
+	NoteText     string
+	DisplayOrder int64
 }
 
 type HealthMedicationCourse struct {

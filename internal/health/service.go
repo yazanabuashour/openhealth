@@ -174,17 +174,23 @@ func (s *service) upsertExistingWeight(ctx context.Context, input WeightRecordIn
 }
 
 func upsertWeightEntryValue(s *service, ctx context.Context, existing WeightEntry, input WeightRecordInput) (WeightWriteResult, error) {
-	if equalWeightValue(existing.Value, input.Value) {
+	noteChanged := input.Note != nil && !equalStringPointer(existing.Note, input.Note)
+	if equalWeightValue(existing.Value, input.Value) && !noteChanged {
 		return WeightWriteResult{
 			Entry:  existing,
 			Status: WeightWriteStatusAlreadyExists,
 		}, nil
 	}
 
-	value := input.Value
-	entry, err := s.UpdateWeight(ctx, existing.ID, WeightUpdateInput{
-		Value: &value,
-	})
+	update := WeightUpdateInput{}
+	if !equalWeightValue(existing.Value, input.Value) {
+		value := input.Value
+		update.Value = &value
+	}
+	if noteChanged {
+		update.Note = input.Note
+	}
+	entry, err := s.UpdateWeight(ctx, existing.ID, update)
 	if err != nil {
 		return WeightWriteResult{}, err
 	}
@@ -210,6 +216,7 @@ func (s *service) createManualWeight(ctx context.Context, input WeightRecordInpu
 		Unit:             input.Unit,
 		Source:           manualWeightSource,
 		SourceRecordHash: sourceRecordHash,
+		Note:             input.Note,
 		CreatedAt:        now,
 		UpdatedAt:        now,
 	})
@@ -238,6 +245,13 @@ func (s *service) UpdateWeight(ctx context.Context, id int, input WeightUpdateIn
 	if input.Unit != nil {
 		unit := *input.Unit
 		params.Unit = &unit
+	}
+	if input.Note != nil {
+		note, err := normalizeOptionalText(input.Note, "note")
+		if err != nil {
+			return WeightEntry{}, err
+		}
+		params.Note = note
 	}
 
 	return s.repo.UpdateWeightEntry(ctx, params)
@@ -307,6 +321,7 @@ func (s *service) RecordBloodPressure(ctx context.Context, input BloodPressureRe
 		Systolic:         normalized.Systolic,
 		Diastolic:        normalized.Diastolic,
 		Pulse:            normalized.Pulse,
+		Note:             normalized.Note,
 		Source:           manualSource,
 		SourceRecordHash: sourceRecordHash,
 		CreatedAt:        now,
@@ -328,6 +343,7 @@ func (s *service) ReplaceBloodPressure(ctx context.Context, id int, input BloodP
 		Systolic:   normalized.Systolic,
 		Diastolic:  normalized.Diastolic,
 		Pulse:      normalized.Pulse,
+		Note:       normalized.Note,
 		UpdatedAt:  s.now().UTC(),
 	})
 }
@@ -648,6 +664,7 @@ func (s *service) CreateImaging(ctx context.Context, input ImagingRecordInput) (
 		Summary:          normalized.Summary,
 		Impression:       normalized.Impression,
 		Note:             normalized.Note,
+		Notes:            normalized.Notes,
 		Source:           manualSource,
 		SourceRecordHash: sourceRecordHash,
 		CreatedAt:        now,
@@ -672,6 +689,7 @@ func (s *service) ReplaceImaging(ctx context.Context, id int, input ImagingRecor
 		Summary:     normalized.Summary,
 		Impression:  normalized.Impression,
 		Note:        normalized.Note,
+		Notes:       normalized.Notes,
 		UpdatedAt:   s.now().UTC(),
 	})
 }
@@ -707,6 +725,11 @@ func normalizeWeightRecordInput(input WeightRecordInput) (WeightRecordInput, err
 	if err := validateWeightRecordInput(input); err != nil {
 		return WeightRecordInput{}, err
 	}
+	note, err := normalizeOptionalText(input.Note, "note")
+	if err != nil {
+		return WeightRecordInput{}, err
+	}
+	input.Note = note
 	input.RecordedAt = input.RecordedAt.UTC()
 	return input, nil
 }
@@ -740,7 +763,12 @@ func normalizeBloodPressureRecordInput(input BloodPressureRecordInput) (BloodPre
 	if input.Pulse != nil && *input.Pulse <= 0 {
 		return BloodPressureRecordInput{}, &ValidationError{Message: "pulse must be greater than 0"}
 	}
+	note, err := normalizeOptionalText(input.Note, "note")
+	if err != nil {
+		return BloodPressureRecordInput{}, err
+	}
 	input.RecordedAt = input.RecordedAt.UTC()
+	input.Note = note
 	return input, nil
 }
 
@@ -815,6 +843,11 @@ func normalizeLabCollectionInput(input LabCollectionInput) (LabCollectionInput, 
 				}
 				result.CanonicalSlug = &validSlug
 			}
+			notes, err := normalizeNotes(result.Notes, "notes")
+			if err != nil {
+				return LabCollectionInput{}, err
+			}
+			result.Notes = notes
 		}
 	}
 	return input, nil
@@ -878,8 +911,26 @@ func normalizeImagingRecordInput(input ImagingRecordInput) (ImagingRecordInput, 
 	if input.Note, err = normalizeOptionalText(input.Note, "note"); err != nil {
 		return ImagingRecordInput{}, err
 	}
+	if input.Notes, err = normalizeNotes(input.Notes, "notes"); err != nil {
+		return ImagingRecordInput{}, err
+	}
 	input.PerformedAt = input.PerformedAt.UTC()
 	return input, nil
+}
+
+func normalizeNotes(values []string, field string) ([]string, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	notes := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return nil, &ValidationError{Message: field + " must not contain empty values"}
+		}
+		notes = append(notes, trimmed)
+	}
+	return notes, nil
 }
 
 func normalizeOptionalText(value *string, field string) (*string, error) {
@@ -906,6 +957,7 @@ func labPanelWriteParams(panels []LabPanelInput) []LabPanelWriteParams {
 				Units:         result.Units,
 				RangeText:     result.RangeText,
 				Flag:          result.Flag,
+				Notes:         result.Notes,
 				DisplayOrder:  resultIndex,
 			})
 		}
@@ -923,7 +975,7 @@ func equalWeightValue(left float64, right float64) bool {
 }
 
 func validateWeightUpdateInput(input WeightUpdateInput) error {
-	if input.RecordedAt == nil && input.Value == nil && input.Unit == nil {
+	if input.RecordedAt == nil && input.Value == nil && input.Unit == nil && input.Note == nil {
 		return &ValidationError{Message: "At least one field must be provided"}
 	}
 	if input.Value != nil && *input.Value <= 0 {
@@ -932,7 +984,17 @@ func validateWeightUpdateInput(input WeightUpdateInput) error {
 	if input.Unit != nil && *input.Unit != WeightUnitLb {
 		return &ValidationError{Message: "unit must be 'lb'"}
 	}
+	if _, err := normalizeOptionalText(input.Note, "note"); err != nil {
+		return err
+	}
 	return nil
+}
+
+func equalStringPointer(left *string, right *string) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
 }
 
 func validateWeightID(id int) error {

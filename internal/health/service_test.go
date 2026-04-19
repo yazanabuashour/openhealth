@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -127,12 +128,16 @@ func TestServiceWeightWriteIdempotency(t *testing.T) {
 		RecordedAt: recordedAt,
 		Value:      152.2,
 		Unit:       health.WeightUnitLb,
+		Note:       stringPointer(" morning scale "),
 	})
 	if err != nil {
 		t.Fatalf("create weight through upsert: %v", err)
 	}
 	if created.Status != health.WeightWriteStatusCreated {
 		t.Fatalf("created status = %q, want %q", created.Status, health.WeightWriteStatusCreated)
+	}
+	if created.Entry.Note == nil || *created.Entry.Note != "morning scale" {
+		t.Fatalf("created weight note = %#v, want trimmed note", created.Entry.Note)
 	}
 
 	again, err := service.UpsertWeight(ctx, health.WeightRecordInput{
@@ -151,12 +156,16 @@ func TestServiceWeightWriteIdempotency(t *testing.T) {
 		RecordedAt: sameDate,
 		Value:      151.6,
 		Unit:       health.WeightUnitLb,
+		Note:       stringPointer("calibrated scale"),
 	})
 	if err != nil {
 		t.Fatalf("update weight through upsert: %v", err)
 	}
 	if updated.Status != health.WeightWriteStatusUpdated || updated.Entry.ID != created.Entry.ID || updated.Entry.Value != 151.6 {
 		t.Fatalf("updated result = %#v, want updated id %d value 151.6", updated, created.Entry.ID)
+	}
+	if updated.Entry.Note == nil || *updated.Entry.Note != "calibrated scale" {
+		t.Fatalf("updated weight note = %#v, want calibrated note", updated.Entry.Note)
 	}
 
 	weights, err := service.ListWeight(ctx, health.HistoryFilter{})
@@ -211,9 +220,13 @@ func TestServiceNonWeightValidationAndNotFound(t *testing.T) {
 		RecordedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
 		Systolic:   120,
 		Diastolic:  80,
+		Note:       stringPointer(" seated home cuff "),
 	})
 	if err != nil {
 		t.Fatalf("record valid blood pressure: %v", err)
+	}
+	if validBP.Note == nil || *validBP.Note != "seated home cuff" {
+		t.Fatalf("blood pressure note = %#v, want trimmed note", validBP.Note)
 	}
 	_, err = service.ReplaceBloodPressure(ctx, validBP.ID, health.BloodPressureRecordInput{
 		RecordedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
@@ -271,6 +284,18 @@ func TestServiceNonWeightValidationAndNotFound(t *testing.T) {
 	})
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("lab empty note validation error = %v, want validation", err)
+	}
+	_, err = service.CreateLabCollection(ctx, health.LabCollectionInput{
+		CollectedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		Panels: []health.LabPanelInput{
+			{
+				PanelName: "Metabolic",
+				Results:   []health.LabResultInput{{TestName: "Glucose", ValueText: "89", Notes: []string{"valid", " "}}},
+			},
+		},
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("lab empty result note validation error = %v, want validation", err)
 	}
 
 	_, err = service.CreateBodyComposition(ctx, health.BodyCompositionInput{
@@ -336,6 +361,15 @@ func TestServiceNonWeightValidationAndNotFound(t *testing.T) {
 	if !errors.As(err, &validationErr) {
 		t.Fatalf("imaging empty note validation error = %v, want validation", err)
 	}
+	_, err = service.CreateImaging(ctx, health.ImagingRecordInput{
+		PerformedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		Modality:    "X-ray",
+		Summary:     "No acute abnormality.",
+		Notes:       []string{"finding", " "},
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("imaging empty notes validation error = %v, want validation", err)
+	}
 
 	err = service.DeleteLabCollection(ctx, 999)
 	var notFoundErr *health.NotFoundError
@@ -373,7 +407,7 @@ func TestServiceImportContextLifecycles(t *testing.T) {
 		Panels: []health.LabPanelInput{
 			{
 				PanelName: "Metabolic",
-				Results:   []health.LabResultInput{{TestName: "Glucose", ValueText: "92"}},
+				Results:   []health.LabResultInput{{TestName: "Glucose", ValueText: "92", Notes: []string{" HIV 4th gen narrative\nsecond line ", "Hep C Ab reviewed"}}},
 			},
 		},
 	})
@@ -382,6 +416,9 @@ func TestServiceImportContextLifecycles(t *testing.T) {
 	}
 	if lab.Note == nil || *lab.Note != "labs look stable, keep moving" {
 		t.Fatalf("lab note = %#v, want trimmed note", lab.Note)
+	}
+	if !slices.Equal(lab.Panels[0].Results[0].Notes, []string{"HIV 4th gen narrative\nsecond line", "Hep C Ab reviewed"}) {
+		t.Fatalf("lab result notes = %#v", lab.Panels[0].Results[0].Notes)
 	}
 
 	unit := health.WeightUnitLb
@@ -429,12 +466,16 @@ func TestServiceImportContextLifecycles(t *testing.T) {
 		Summary:     " No acute cardiopulmonary abnormality. ",
 		Impression:  stringPointer(" Normal chest radiograph. "),
 		Note:        stringPointer(" ordered for cough "),
+		Notes:       []string{" XR TOE RIGHT narrative\nsecond line ", "US Head/Neck findings"},
 	})
 	if err != nil {
 		t.Fatalf("create imaging: %v", err)
 	}
 	if imaging.Modality != "X-ray" || imaging.Summary != "No acute cardiopulmonary abnormality." || imaging.Note == nil || *imaging.Note != "ordered for cough" {
 		t.Fatalf("created imaging = %#v", imaging)
+	}
+	if !slices.Equal(imaging.Notes, []string{"XR TOE RIGHT narrative\nsecond line", "US Head/Neck findings"}) {
+		t.Fatalf("created imaging notes = %#v", imaging.Notes)
 	}
 	filtered, err := service.ListImaging(ctx, health.ImagingListParams{
 		Modality: stringPointer("x-RAY"),
@@ -452,12 +493,16 @@ func TestServiceImportContextLifecycles(t *testing.T) {
 		BodySite:    stringPointer("chest"),
 		Summary:     "Stable small pulmonary nodule.",
 		Note:        stringPointer("follow-up scan"),
+		Notes:       []string{"US abdominal findings"},
 	})
 	if err != nil {
 		t.Fatalf("replace imaging: %v", err)
 	}
 	if imaging.Modality != "CT" || imaging.Title != nil || imaging.Note == nil || *imaging.Note != "follow-up scan" {
 		t.Fatalf("replaced imaging = %#v", imaging)
+	}
+	if !slices.Equal(imaging.Notes, []string{"US abdominal findings"}) {
+		t.Fatalf("replaced imaging notes = %#v", imaging.Notes)
 	}
 	if err := service.DeleteImaging(ctx, imaging.ID); err != nil {
 		t.Fatalf("delete imaging: %v", err)

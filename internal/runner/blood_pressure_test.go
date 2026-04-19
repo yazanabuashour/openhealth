@@ -21,7 +21,7 @@ func TestRunBloodPressureTaskRecordAndList(t *testing.T) {
 	result, err := runner.RunBloodPressureTask(ctx, config, runner.BloodPressureTaskRequest{
 		Action: runner.BloodPressureTaskActionRecord,
 		Readings: []runner.BloodPressureInput{
-			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: &pulse64},
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: &pulse64, Note: stringPointer("home cuff, seated")},
 			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
 		},
 	})
@@ -36,7 +36,7 @@ func TestRunBloodPressureTaskRecordAndList(t *testing.T) {
 	}
 	assertBloodPressureEntries(t, result.Entries, []runner.BloodPressureEntry{
 		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
-		{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: &pulse64},
+		{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: &pulse64, Note: stringPointer("home cuff, seated")},
 	})
 
 	listed, err := runner.RunBloodPressureTask(ctx, config, runner.BloodPressureTaskRequest{
@@ -48,7 +48,7 @@ func TestRunBloodPressureTaskRecordAndList(t *testing.T) {
 	}
 	assertBloodPressureEntries(t, listed.Entries, []runner.BloodPressureEntry{
 		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
-		{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: &pulse64},
+		{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: &pulse64, Note: stringPointer("home cuff, seated")},
 	})
 }
 
@@ -64,7 +64,7 @@ func TestRunBloodPressureTaskCorrectsExistingReading(t *testing.T) {
 		Action: runner.BloodPressureTaskActionRecord,
 		Readings: []runner.BloodPressureInput{
 			{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
-			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: &pulse64},
+			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: &pulse64, Note: stringPointer("home cuff")},
 			{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
 		},
 	})
@@ -89,7 +89,7 @@ func TestRunBloodPressureTaskCorrectsExistingReading(t *testing.T) {
 	}
 	assertBloodPressureEntries(t, corrected.Entries, []runner.BloodPressureEntry{
 		{Date: "2026-03-30", Systolic: 118, Diastolic: 76},
-		{Date: "2026-03-29", Systolic: 121, Diastolic: 77},
+		{Date: "2026-03-29", Systolic: 121, Diastolic: 77, Note: stringPointer("home cuff")},
 		{Date: "2026-03-28", Systolic: 124, Diastolic: 80},
 	})
 }
@@ -241,6 +241,11 @@ func TestRunBloodPressureTaskRejectsInvalidInputBeforeOpeningDatabase(t *testing
 			reading: runner.BloodPressureInput{Date: "2026-03-29", Systolic: 122, Diastolic: 78},
 			reason:  "duplicate correction date 2026-03-29",
 		},
+		{
+			name:    "empty note",
+			reading: runner.BloodPressureInput{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Note: stringPointer(" ")},
+			reason:  "note must not be empty",
+		},
 	}
 
 	for _, tt := range tests {
@@ -289,7 +294,8 @@ func assertBloodPressureEntries(t *testing.T, got []runner.BloodPressureEntry, w
 		if got[i].Date != want[i].Date ||
 			got[i].Systolic != want[i].Systolic ||
 			got[i].Diastolic != want[i].Diastolic ||
-			!equalIntPointer(got[i].Pulse, want[i].Pulse) {
+			!equalIntPointer(got[i].Pulse, want[i].Pulse) ||
+			!equalStringPointers(got[i].Note, want[i].Note) {
 			t.Fatalf("entry %d = %#v, want %#v", i, got[i], want[i])
 		}
 	}

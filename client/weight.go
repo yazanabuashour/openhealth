@@ -24,6 +24,7 @@ type WeightRecordInput struct {
 	RecordedAt time.Time
 	Value      float64
 	Unit       WeightUnit
+	Note       *string
 }
 
 type WeightListOptions struct {
@@ -126,6 +127,7 @@ func toHealthWeightRecordInput(input WeightRecordInput) health.WeightRecordInput
 		RecordedAt: input.RecordedAt,
 		Value:      input.Value,
 		Unit:       health.WeightUnit(unit),
+		Note:       input.Note,
 	}
 }
 

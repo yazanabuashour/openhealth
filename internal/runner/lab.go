@@ -55,6 +55,7 @@ type LabResultInput struct {
 	Units         *string  `json:"units,omitempty"`
 	RangeText     *string  `json:"range_text,omitempty"`
 	Flag          *string  `json:"flag,omitempty"`
+	Notes         []string `json:"notes,omitempty"`
 }
 
 type LabResultUpdateInput struct {
@@ -107,6 +108,7 @@ type LabResultEntry struct {
 	Units         *string  `json:"units,omitempty"`
 	RangeText     *string  `json:"range_text,omitempty"`
 	Flag          *string  `json:"flag,omitempty"`
+	Notes         []string `json:"notes,omitempty"`
 }
 
 func RunLabTask(ctx context.Context, config client.LocalConfig, request LabTaskRequest) (LabTaskResult, error) {
@@ -179,6 +181,7 @@ type normalizedLabResultInput struct {
 	Units         *string
 	RangeText     *string
 	Flag          *string
+	Notes         []string
 }
 
 type normalizedLabResultUpdateInput struct {
@@ -405,6 +408,10 @@ func normalizeLabResultInput(input LabResultInput) (normalizedLabResultInput, st
 	if rejection != "" {
 		return normalizedLabResultInput{}, rejection
 	}
+	notes, rejection := normalizeNoteList(input.Notes, "notes")
+	if rejection != "" {
+		return normalizedLabResultInput{}, rejection
+	}
 	return normalizedLabResultInput{
 		TestName:      testName,
 		CanonicalSlug: slug,
@@ -413,6 +420,7 @@ func normalizeLabResultInput(input LabResultInput) (normalizedLabResultInput, st
 		Units:         units,
 		RangeText:     rangeText,
 		Flag:          flag,
+		Notes:         notes,
 	}, ""
 }
 
@@ -688,6 +696,7 @@ func normalizedLabCollectionFromClient(item client.LabCollection) normalizedLabC
 				Units:         result.Units,
 				RangeText:     result.RangeText,
 				Flag:          result.Flag,
+				Notes:         append([]string(nil), result.Notes...),
 			})
 		}
 		panels = append(panels, normalizedLabPanelInput{
@@ -795,7 +804,8 @@ func labResultMatches(item client.LabResult, input normalizedLabResultInput) boo
 		!equalFloatPointer(item.ValueNumeric, input.ValueNumeric) ||
 		!equalStringPointer(item.Units, input.Units) ||
 		!equalStringPointer(item.RangeText, input.RangeText) ||
-		!equalStringPointer(item.Flag, input.Flag) {
+		!equalStringPointer(item.Flag, input.Flag) ||
+		!equalStringSlices(item.Notes, input.Notes) {
 		return false
 	}
 	return true
@@ -847,6 +857,7 @@ func labResultEntry(item client.LabResult) LabResultEntry {
 		Units:         item.Units,
 		RangeText:     item.RangeText,
 		Flag:          item.Flag,
+		Notes:         append([]string(nil), item.Notes...),
 	}
 }
 

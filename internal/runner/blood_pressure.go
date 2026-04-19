@@ -29,10 +29,11 @@ type BloodPressureTaskRequest struct {
 }
 
 type BloodPressureInput struct {
-	Date      string `json:"date"`
-	Systolic  int    `json:"systolic"`
-	Diastolic int    `json:"diastolic"`
-	Pulse     *int   `json:"pulse,omitempty"`
+	Date      string  `json:"date"`
+	Systolic  int     `json:"systolic"`
+	Diastolic int     `json:"diastolic"`
+	Pulse     *int    `json:"pulse,omitempty"`
+	Note      *string `json:"note,omitempty"`
 }
 
 type BloodPressureTaskResult struct {
@@ -44,18 +45,20 @@ type BloodPressureTaskResult struct {
 }
 
 type BloodPressureWrite struct {
-	Date      string `json:"date"`
-	Systolic  int    `json:"systolic"`
-	Diastolic int    `json:"diastolic"`
-	Pulse     *int   `json:"pulse,omitempty"`
-	Status    string `json:"status"`
+	Date      string  `json:"date"`
+	Systolic  int     `json:"systolic"`
+	Diastolic int     `json:"diastolic"`
+	Pulse     *int    `json:"pulse,omitempty"`
+	Note      *string `json:"note,omitempty"`
+	Status    string  `json:"status"`
 }
 
 type BloodPressureEntry struct {
-	Date      string `json:"date"`
-	Systolic  int    `json:"systolic"`
-	Diastolic int    `json:"diastolic"`
-	Pulse     *int   `json:"pulse,omitempty"`
+	Date      string  `json:"date"`
+	Systolic  int     `json:"systolic"`
+	Diastolic int     `json:"diastolic"`
+	Pulse     *int    `json:"pulse,omitempty"`
+	Note      *string `json:"note,omitempty"`
 }
 
 func RunBloodPressureTask(ctx context.Context, config client.LocalConfig, request BloodPressureTaskRequest) (BloodPressureTaskResult, error) {
@@ -106,6 +109,7 @@ type normalizedBloodPressureInput struct {
 	Systolic   int
 	Diastolic  int
 	Pulse      *int
+	Note       *string
 }
 
 func normalizeBloodPressureTaskRequest(request BloodPressureTaskRequest) (normalizedBloodPressureTaskRequest, string) {
@@ -207,11 +211,16 @@ func normalizeBloodPressureInput(input BloodPressureInput) (normalizedBloodPress
 	if input.Pulse != nil && *input.Pulse <= 0 {
 		return normalizedBloodPressureInput{}, "pulse must be greater than 0"
 	}
+	note, rejection := normalizeOptionalLabText(input.Note, "note")
+	if rejection != "" {
+		return normalizedBloodPressureInput{}, rejection
+	}
 	return normalizedBloodPressureInput{
 		RecordedAt: recordedAt,
 		Systolic:   input.Systolic,
 		Diastolic:  input.Diastolic,
 		Pulse:      input.Pulse,
+		Note:       note,
 	}, ""
 }
 
@@ -223,6 +232,7 @@ func runBloodPressureRecord(ctx context.Context, api *client.LocalClient, reques
 			Systolic:   reading.Systolic,
 			Diastolic:  reading.Diastolic,
 			Pulse:      reading.Pulse,
+			Note:       reading.Note,
 		})
 		if err != nil {
 			return BloodPressureTaskResult{}, err
@@ -232,6 +242,7 @@ func runBloodPressureRecord(ctx context.Context, api *client.LocalClient, reques
 			Systolic:  written.Systolic,
 			Diastolic: written.Diastolic,
 			Pulse:     written.Pulse,
+			Note:      written.Note,
 			Status:    "created",
 		})
 	}
@@ -264,11 +275,16 @@ func runBloodPressureCorrect(ctx context.Context, api *client.LocalClient, reque
 
 	result := BloodPressureTaskResult{}
 	for _, target := range targets {
+		note := target.input.Note
+		if note == nil {
+			note = target.existing.Note
+		}
 		written, err := api.ReplaceBloodPressure(ctx, target.existing.ID, client.BloodPressureRecordInput{
 			RecordedAt: target.existing.RecordedAt,
 			Systolic:   target.input.Systolic,
 			Diastolic:  target.input.Diastolic,
 			Pulse:      target.input.Pulse,
+			Note:       note,
 		})
 		if err != nil {
 			return BloodPressureTaskResult{}, err
@@ -278,6 +294,7 @@ func runBloodPressureCorrect(ctx context.Context, api *client.LocalClient, reque
 			Systolic:  written.Systolic,
 			Diastolic: written.Diastolic,
 			Pulse:     written.Pulse,
+			Note:      written.Note,
 			Status:    "updated",
 		})
 	}
@@ -341,6 +358,7 @@ func bloodPressureTaskEntries(entries []client.BloodPressureEntry) []BloodPressu
 			Systolic:  entry.Systolic,
 			Diastolic: entry.Diastolic,
 			Pulse:     entry.Pulse,
+			Note:      entry.Note,
 		})
 	}
 	return out

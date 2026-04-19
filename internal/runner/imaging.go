@@ -35,13 +35,14 @@ type ImagingTaskRequest struct {
 }
 
 type ImagingInput struct {
-	Date       string  `json:"date"`
-	Modality   string  `json:"modality"`
-	BodySite   *string `json:"body_site,omitempty"`
-	Title      *string `json:"title,omitempty"`
-	Summary    string  `json:"summary"`
-	Impression *string `json:"impression,omitempty"`
-	Note       *string `json:"note,omitempty"`
+	Date       string   `json:"date"`
+	Modality   string   `json:"modality"`
+	BodySite   *string  `json:"body_site,omitempty"`
+	Title      *string  `json:"title,omitempty"`
+	Summary    string   `json:"summary"`
+	Impression *string  `json:"impression,omitempty"`
+	Note       *string  `json:"note,omitempty"`
+	Notes      []string `json:"notes,omitempty"`
 }
 
 type ImagingTarget struct {
@@ -65,14 +66,15 @@ type ImagingWrite struct {
 }
 
 type ImagingTaskEntry struct {
-	ID         int     `json:"id"`
-	Date       string  `json:"date"`
-	Modality   string  `json:"modality"`
-	BodySite   *string `json:"body_site,omitempty"`
-	Title      *string `json:"title,omitempty"`
-	Summary    string  `json:"summary"`
-	Impression *string `json:"impression,omitempty"`
-	Note       *string `json:"note,omitempty"`
+	ID         int      `json:"id"`
+	Date       string   `json:"date"`
+	Modality   string   `json:"modality"`
+	BodySite   *string  `json:"body_site,omitempty"`
+	Title      *string  `json:"title,omitempty"`
+	Summary    string   `json:"summary"`
+	Impression *string  `json:"impression,omitempty"`
+	Note       *string  `json:"note,omitempty"`
+	Notes      []string `json:"notes,omitempty"`
 }
 
 type normalizedImagingTaskRequest struct {
@@ -96,6 +98,7 @@ type normalizedImagingInput struct {
 	Summary     string
 	Impression  *string
 	Note        *string
+	Notes       []string
 }
 
 type normalizedImagingTarget struct {
@@ -284,6 +287,10 @@ func normalizeImagingInput(input ImagingInput) (normalizedImagingInput, string) 
 	if rejection != "" {
 		return normalizedImagingInput{}, rejection
 	}
+	notes, rejection := normalizeNoteList(input.Notes, "notes")
+	if rejection != "" {
+		return normalizedImagingInput{}, rejection
+	}
 	return normalizedImagingInput{
 		PerformedAt: performedAt,
 		Modality:    modality,
@@ -292,6 +299,7 @@ func normalizeImagingInput(input ImagingInput) (normalizedImagingInput, string) 
 		Summary:     summary,
 		Impression:  impression,
 		Note:        note,
+		Notes:       notes,
 	}, ""
 }
 
@@ -369,6 +377,9 @@ func runImagingCorrect(ctx context.Context, api *client.LocalClient, request nor
 	}
 	if record.Note == nil {
 		record.Note = target.Note
+	}
+	if record.Notes == nil {
+		record.Notes = append([]string(nil), target.Notes...)
 	}
 	written, err := api.ReplaceImaging(ctx, target.ID, client.ImagingRecordInput(record))
 	if err != nil {
@@ -473,7 +484,8 @@ func matchingImagingRecord(items []client.ImagingRecord, input normalizedImaging
 			equalStringPointer(item.Title, input.Title) &&
 			item.Summary == input.Summary &&
 			equalStringPointer(item.Impression, input.Impression) &&
-			equalStringPointer(item.Note, input.Note) {
+			equalStringPointer(item.Note, input.Note) &&
+			equalStringSlices(item.Notes, input.Notes) {
 			return item, true
 		}
 	}
@@ -499,6 +511,7 @@ func imagingEntry(item client.ImagingRecord) ImagingTaskEntry {
 		Summary:    item.Summary,
 		Impression: item.Impression,
 		Note:       item.Note,
+		Notes:      append([]string(nil), item.Notes...),
 	}
 }
 

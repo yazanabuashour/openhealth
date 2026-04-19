@@ -3,6 +3,7 @@ package sqlite_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ func TestRepositoryWeightLifecycle(t *testing.T) {
 		Unit:             health.WeightUnitLb,
 		Source:           "manual",
 		SourceRecordHash: "weight-a",
+		Note:             stringPointer("morning scale"),
 		CreatedAt:        recordedAt,
 		UpdatedAt:        recordedAt,
 	})
@@ -33,6 +35,9 @@ func TestRepositoryWeightLifecycle(t *testing.T) {
 	}
 	if created.ID <= 0 {
 		t.Fatalf("expected persisted id, got %d", created.ID)
+	}
+	if created.Note == nil || *created.Note != "morning scale" {
+		t.Fatalf("created weight note = %#v", created.Note)
 	}
 
 	items, err := repo.ListWeightEntries(ctx, health.HistoryFilter{})
@@ -71,6 +76,7 @@ func TestRepositoryWeightLifecycle(t *testing.T) {
 	updated, err := repo.UpdateWeightEntry(ctx, health.UpdateWeightEntryParams{
 		ID:        created.ID,
 		Value:     float64Pointer(149.8),
+		Note:      stringPointer("calibrated scale"),
 		UpdatedAt: recordedAt.Add(time.Hour),
 	})
 	if err != nil {
@@ -78,6 +84,9 @@ func TestRepositoryWeightLifecycle(t *testing.T) {
 	}
 	if updated.Value != 149.8 {
 		t.Fatalf("updated value = %v, want 149.8", updated.Value)
+	}
+	if updated.Note == nil || *updated.Note != "calibrated scale" {
+		t.Fatalf("updated weight note = %#v, want calibrated note", updated.Note)
 	}
 
 	if err := repo.DeleteWeightEntry(ctx, health.DeleteWeightEntryParams{
@@ -131,6 +140,7 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 		Systolic:         118,
 		Diastolic:        76,
 		Pulse:            intPointer(64),
+		Note:             stringPointer("home cuff"),
 		Source:           "manual",
 		SourceRecordHash: "bp-a",
 		CreatedAt:        now,
@@ -139,11 +149,15 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create blood pressure: %v", err)
 	}
+	if bp.Note == nil || *bp.Note != "home cuff" {
+		t.Fatalf("created blood pressure note = %#v", bp.Note)
+	}
 	bp, err = repo.UpdateBloodPressureEntry(ctx, health.UpdateBloodPressureEntryParams{
 		ID:         bp.ID,
 		RecordedAt: now.Add(time.Hour),
 		Systolic:   119,
 		Diastolic:  77,
+		Note:       stringPointer("manual correction"),
 		UpdatedAt:  now.Add(time.Hour),
 	})
 	if err != nil {
@@ -151,6 +165,9 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 	}
 	if bp.Systolic != 119 || bp.Pulse != nil {
 		t.Fatalf("updated blood pressure = %#v, want systolic 119 with nil pulse", bp)
+	}
+	if bp.Note == nil || *bp.Note != "manual correction" {
+		t.Fatalf("updated blood pressure note = %#v", bp.Note)
 	}
 	if err := repo.DeleteBloodPressureEntry(ctx, health.DeleteBloodPressureEntryParams{
 		ID:        bp.ID,
@@ -231,6 +248,7 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 						ValueText:     "32",
 						ValueNumeric:  float64Pointer(32),
 						Units:         stringPointer("ng/mL"),
+						Notes:         []string{"HIV 4th gen narrative\nsecond line", "Hep C Ab reviewed"},
 						DisplayOrder:  0,
 					},
 				},
@@ -249,6 +267,9 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 	if slug := lab.Panels[0].Results[0].CanonicalSlug; slug == nil || *slug != health.AnalyteSlug("vitamin-d") {
 		t.Fatalf("created arbitrary lab slug = %#v, want vitamin-d", slug)
 	}
+	if !slices.Equal(lab.Panels[0].Results[0].Notes, []string{"HIV 4th gen narrative\nsecond line", "Hep C Ab reviewed"}) {
+		t.Fatalf("created lab result notes = %#v", lab.Panels[0].Results[0].Notes)
+	}
 	lab, err = repo.UpdateLabCollection(ctx, health.UpdateLabCollectionParams{
 		ID:          lab.ID,
 		CollectedAt: now.Add(24 * time.Hour),
@@ -265,6 +286,7 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 						ValueText:     "89",
 						ValueNumeric:  float64Pointer(89),
 						Units:         stringPointer("mg/dL"),
+						Notes:         []string{"A1C context"},
 						DisplayOrder:  0,
 					},
 				},
@@ -286,6 +308,9 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 	}
 	if len(results) != 1 || results[0].TestName != "Glucose" {
 		t.Fatalf("lab results = %#v, want only replacement result", results)
+	}
+	if !slices.Equal(results[0].Notes, []string{"A1C context"}) {
+		t.Fatalf("lab result notes after replacement = %#v", results[0].Notes)
 	}
 	if err := repo.DeleteLabCollection(ctx, health.DeleteLabCollectionParams{
 		ID:        lab.ID,
@@ -365,6 +390,7 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 		Summary:          "No acute cardiopulmonary abnormality.",
 		Impression:       stringPointer("Normal chest radiograph."),
 		Note:             stringPointer("ordered for cough"),
+		Notes:            []string{"XR TOE RIGHT narrative\nsecond line", "US Head/Neck findings"},
 		Source:           "manual",
 		SourceRecordHash: "imaging-a",
 		CreatedAt:        now,
@@ -375,6 +401,9 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 	}
 	if imaging.BodySite == nil || *imaging.BodySite != "chest" || imaging.Note == nil || *imaging.Note != "ordered for cough" {
 		t.Fatalf("created imaging = %#v", imaging)
+	}
+	if !slices.Equal(imaging.Notes, []string{"XR TOE RIGHT narrative\nsecond line", "US Head/Neck findings"}) {
+		t.Fatalf("created imaging notes = %#v", imaging.Notes)
 	}
 	filtered, err := repo.ListImagingRecords(ctx, health.ImagingListParams{
 		Modality: stringPointer("x-RAY"),
@@ -393,6 +422,7 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 		BodySite:    stringPointer("chest"),
 		Summary:     "Stable small pulmonary nodule.",
 		Note:        stringPointer("follow-up scan"),
+		Notes:       []string{"US abdominal findings"},
 		UpdatedAt:   now.Add(time.Hour),
 	})
 	if err != nil {
@@ -400,6 +430,9 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 	}
 	if imaging.Modality != "CT" || imaging.Summary != "Stable small pulmonary nodule." || imaging.Title != nil {
 		t.Fatalf("updated imaging = %#v", imaging)
+	}
+	if !slices.Equal(imaging.Notes, []string{"US abdominal findings"}) {
+		t.Fatalf("updated imaging notes = %#v", imaging.Notes)
 	}
 	if err := repo.DeleteImagingRecord(ctx, health.DeleteImagingRecordParams{
 		ID:        imaging.ID,

@@ -14,9 +14,10 @@ The platform archives contain the production `openhealth` binary. The
 skill archive contains the single shipped `SKILL.md` payload. The source archive
 is the canonical source artifact for the Go module and local runtime. The
 installer script downloads and verifies the matching platform archive before
-installing the same-tag runner and pointing users or agents at the same-tag
-skill source and archive. The skill archive is the portable release artifact for
-agents that install from files instead of GitHub paths. The checksums file and
+installing the same-tag runner. It then prints the required second step:
+register the same-tag skill source or archive with the user's agent using that
+agent's native skill system. The skill archive is the portable release artifact
+for agents that install from files instead of GitHub paths. The checksums file and
 GitHub attestations let users verify that the assets were produced by this
 repository's release workflow.
 

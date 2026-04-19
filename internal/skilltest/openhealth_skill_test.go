@@ -73,6 +73,7 @@ func TestOpenHealthSkillUsesInstalledRunner(t *testing.T) {
 		"Do not run repo-wide file discovery or broad searches",
 		"reject directly without running code",
 		"Runner `entries` are already newest-first",
+		"do not call `--help`",
 		"2026/03/31",
 		"vitamin-d",
 		"hemoglobin-a1c",

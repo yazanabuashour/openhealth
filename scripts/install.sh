@@ -160,12 +160,13 @@ mkdir -p "$install_dir"
 cp "openhealth_${asset_version}_${os}_${arch}/openhealth" "${install_dir}/openhealth"
 chmod 755 "${install_dir}/openhealth"
 
-log "Installed openhealth runner to ${install_dir}/openhealth"
+log "Runner installed to ${install_dir}/openhealth"
 log ""
-log "OpenHealth skill ${tag}:"
+log "To complete OpenHealth installation, register the OpenHealth skill with your agent:"
 log "  Source: https://github.com/${repo}/tree/${tag}/skills/openhealth"
 log "  Archive: ${release_url}/openhealth_${asset_version}_skill.tar.gz"
-log "Install or register that skill with your agent using its native skill location or installer."
+log "Use your agent's native skill location or installer."
+log "Do not report OpenHealth installed until both the runner and skill are installed."
 
 if path_contains_dir "$install_dir"; then
   openhealth --help

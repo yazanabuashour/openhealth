@@ -10,12 +10,18 @@ OpenHealth is a local-first health data runtime for agents. It ships a small
 #### Tell Your Agent
 
 ```text
-Install https://github.com/yazanabuashour/openhealth
+Install OpenHealth from https://github.com/yazanabuashour/openhealth.
+Complete both required steps before reporting success:
+1. Install and verify the openhealth runner binary.
+2. Register the OpenHealth skill from skills/openhealth/SKILL.md using your native skill system.
 ```
 
-This installs the `openhealth` runner binary and the OpenHealth skill.
-Your agent should register `skills/openhealth/SKILL.md` using its own native
-skill system.
+### Agent Install Contract
+
+OpenHealth install is incomplete if only `SKILL.md` was copied.
+OpenHealth install is incomplete if `openhealth --help` is not callable.
+Agents should run the release installer for the runner, then register
+`skills/openhealth/SKILL.md` in their native skill location.
 
 ### Manual Install, Latest Release
 
@@ -28,20 +34,18 @@ Use this for quick local setup when you want the current release.
 ### Manual Install, Pinned Version
 
 ```bash
-curl -fsSL https://github.com/yazanabuashour/openhealth/releases/download/v0.1.0/install.sh | sh
+curl -fsSL https://github.com/yazanabuashour/openhealth/releases/download/v0.1.1/install.sh | sh
 ```
 
-Use this for reproducible setup. Both manual install commands install the
-matching `openhealth` runner binary and put it on `PATH` when possible.
-Then install or register the matching OpenHealth skill with your agent using
-that agent's native skill manager:
+Use this for reproducible setup. Both manual install commands install and
+verify the matching `openhealth` runner binary. To complete OpenHealth
+installation, install or register the matching OpenHealth skill with your agent
+using that agent's native skill manager:
 
 - skill source: `https://github.com/yazanabuashour/openhealth/tree/<tag>/skills/openhealth`
 - release archive: `openhealth_<version>_skill.tar.gz`
 
-OpenHealth does not require a specific skill path such as Codex
-`.agents/skills`, Claude `.claude/skills`, Hermes `~/.hermes/skills`, or any
-other implementation-specific location.
+OpenHealth does not require a specific skill path or agent implementation.
 
 ### Runner Interface
 

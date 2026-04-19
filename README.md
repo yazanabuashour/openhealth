@@ -1,20 +1,7 @@
-# openhealth
+# OpenHealth
 
 OpenHealth is a local-first health data runtime for agents. The supported
 agent path is a small `openhealth` runner plus a single-file skill.
-
-## AgentOps Architecture
-
-OpenHealth's agent-facing path is the AgentOps pattern: the skill gives the
-agent task policy, and the local runner performs stateful health-data operations
-through structured JSON. This keeps domain rules close to the agent, avoids
-broad repo search and ad hoc human CLI flows, and leaves storage local instead
-of requiring a hosted service.
-
-OpenHealth treats this runner/skill architecture as its competitive interface
-for agents compared with traditional MCP or CLI-only integrations. The current
-evals show the production runner/skill matched or improved correctness while
-using fewer tools, fewer non-cached input tokens, and less wall time than CLI.
 
 ## Install
 
@@ -71,7 +58,21 @@ Then verify the runner and re-register the matching skill:
 ```bash
 command -v openhealth
 openhealth --version
+
 ```
+
+## AgentOps Architecture
+
+OpenHealth's agent-facing path is the AgentOps pattern: the skill gives the
+agent task policy, and the local runner performs stateful health-data operations
+through structured JSON. This keeps domain rules close to the agent, avoids
+broad repo search and ad hoc human CLI flows, and leaves storage local instead
+of requiring a hosted service.
+
+OpenHealth treats this runner/skill architecture as its competitive interface
+for agents compared with traditional MCP or CLI-only integrations. The current
+evals show the production runner/skill matched or improved correctness while
+using fewer tools, fewer non-cached input tokens, and less wall time than CLI.
 
 ## Runner Interface
 

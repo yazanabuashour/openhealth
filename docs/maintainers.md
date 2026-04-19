@@ -89,13 +89,15 @@ When changing GitHub settings, keep the repo aligned with:
 Public releases use annotated semantic version tags in the `v0.y.z` range. The
 release contract is a tagged release for the `openhealth` binary, the
 single-file OpenHealth skill, and the direct local runtime. Tag a version like
-`v0.2.1`, push the tag, and let the release workflow:
+`v0.3.0`, push the tag, and let the release workflow:
 
 - validate storage codegen, formatting, and tests before publish
 - build binaries with `openhealth --version` set from the tag
+- require `docs/release-notes/<tag>.md` and a matching `CHANGELOG.md` entry
+  before publishing
 - create or reuse the GitHub Release
-- use `docs/release-notes/<tag>.md` when present, for example
-  `docs/release-notes/v0.2.2.md`, as the GitHub Release body
+- use `docs/release-notes/<tag>.md`, for example
+  `docs/release-notes/v0.3.0.md`, as the GitHub Release body
 - keep release-note paragraphs and list items on one source line so GitHub
   Releases and API clients do not show hard-wrapped prose
 - attach platform binary archives, the skill archive, the canonical source
@@ -103,3 +105,5 @@ single-file OpenHealth skill, and the direct local runtime. Tag a version like
 - generate GitHub attestations for the published assets
 
 The `release` environment should remain protected so only approved maintainers can publish release assets.
+
+Before tagging, add `docs/release-notes/<tag>.md`, update `CHANGELOG.md`, and run `./scripts/validate-release-docs.sh <tag>` locally. The release workflow runs the same check before publishing and does not fall back to generated GitHub release notes.

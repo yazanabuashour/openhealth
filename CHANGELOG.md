@@ -3,6 +3,9 @@
 This CHANGELOG summarizes public releases. Full OpenHealth release notes are
 published on GitHub Releases:
 
+- [v0.3.0](https://github.com/yazanabuashour/openhealth/releases/tag/v0.3.0)
+  adds broader notes coverage for weight, blood pressure, lab results, and
+  imaging records.
 - [v0.2.2](https://github.com/yazanabuashour/openhealth/releases/tag/v0.2.2)
   tightens agent-directed upgrade instructions and adds hand-authored release
   notes support.

@@ -96,6 +96,8 @@ single-file OpenHealth skill, and the direct local runtime. Tag a version like
 - create or reuse the GitHub Release
 - use `docs/release-notes/<tag>.md` when present, for example
   `docs/release-notes/v0.2.2.md`, as the GitHub Release body
+- keep release-note paragraphs and list items on one source line so GitHub
+  Releases and API clients do not show hard-wrapped prose
 - attach platform binary archives, the skill archive, the canonical source
   archive, release installer, SHA256 checksums, and SPDX SBOM
 - generate GitHub attestations for the published assets

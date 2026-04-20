@@ -21,6 +21,8 @@ available through the environment; do not call `--help`, inspect source, or add
 `-db` unless the user explicitly provides a database path.
 Assume `openhealth` is already installed on `PATH`; do not run `command -v
 openhealth` before using it.
+Do not inspect environment variables or search for database files before routine
+runner calls; the runner already receives the configured local data path.
 
 ## Reject Before Tools
 
@@ -88,6 +90,8 @@ When a task writes data and then asks for a filtered list, make the final answer
 match the filtered list response. Do not mention entries outside the requested
 final filter unless the user explicitly asks for them. Omitted entries do not
 need explanatory notes.
+Use the `YYYY-MM-DD` dates returned by runner `entries` in list answers so
+bounded ranges are explicit and machine-checkable.
 
 Weights:
 
@@ -184,6 +188,9 @@ medication; zero or multiple matches return `rejected` with `rejection_reason`.
 `active` is the default status; only `active` and `all` are supported.
 For `status:"active"` answers, mention only active `entries`; never mention
 inactive or ended courses, even to explain why they were omitted.
+If a write response includes inactive or ended medication courses and the user
+asked for active medications, run `list_medications` with `status:"active"` and
+answer only from that filtered response.
 After `record_medications`, do not call `list_medications` just to report the
 active course that was returned by the write response.
 
@@ -217,8 +224,11 @@ to hyphens and rejects empty or non-kebab-case slug shapes.
 Use `record_labs` with one or more date-only collections. Repeating an exact
 same-date collection is idempotent and returns `already_exists`; a different
 same-date collection is stored as a separate collection. Use `correct_labs` for
-full collection replacement. Use `patch_labs` for one-result corrections that
-should preserve sibling panels and results. A `patch_labs` update requires
+full collection replacement: the replacement collection should contain only the
+panels/results the user wants stored after correction. Do not preserve sibling
+panels or results during `correct_labs` unless the user explicitly asks to keep
+them. Use `patch_labs` for one-result corrections that should preserve sibling
+panels and results. A `patch_labs` update requires
 `panel_name`, a `match` with exactly one of `canonical_slug` or `test_name`, and
 a full replacement `result`. Use `correct_labs`, `patch_labs`, or `delete_labs`
 with a target by `id`, or by `date` only when exactly one collection exists on

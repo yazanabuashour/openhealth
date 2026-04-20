@@ -3,6 +3,9 @@
 This CHANGELOG summarizes public releases. Full OpenHealth release notes are
 published on GitHub Releases:
 
+- [v0.3.1](https://github.com/yazanabuashour/openhealth/releases/tag/v0.3.1)
+  tightens production skill guidance so agents reject invalid requests sooner
+  and avoid unnecessary runner readbacks.
 - [v0.3.0](https://github.com/yazanabuashour/openhealth/releases/tag/v0.3.0)
   adds broader notes coverage for weight, blood pressure, lab results, and
   imaging records.

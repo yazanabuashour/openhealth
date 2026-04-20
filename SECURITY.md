@@ -47,6 +47,13 @@ maintainers:
 - Medium: exploitable weakness with limited blast radius or clear prerequisites.
 - Low: hard-to-exploit issue, defense-in-depth gap, or low-impact misconfiguration.
 
+## Ongoing Security Operations
+
+Maintainers use [docs/security-operations.md](docs/security-operations.md) for
+recurring dependency review, advisory rehearsal, threat-model refreshes, and
+deeper testing expectations. The private reporting and response expectations in
+this file remain the public source of truth for vulnerability reports.
+
 ## Patch and Advisory Process
 
 - Fixes land privately first when needed to avoid widening exposure.

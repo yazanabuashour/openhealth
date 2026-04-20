@@ -6,6 +6,11 @@ This repository is public and includes a production `openhealth` runner binary,
 a single-file OpenHealth skill, a direct-local Go package, and a local SQLite
 runtime. Keep maintainer docs honest about the actual supported surface.
 
+Recurring security operations are tracked in
+[docs/security-operations.md](security-operations.md). Use that runbook for
+dependency review cadence, advisory rehearsal, threat-model refreshes, and
+deeper testing expectations.
+
 ## Initial Setup
 
 Preferred tool install:
@@ -77,9 +82,25 @@ Current review enforcement nuance:
 - `main` requires pull requests, status checks, conversation resolution, and one approving review, but code-owner review enforcement and admin enforcement remain off so the repository does not become unmergeable.
 - Tighten code-owner review enforcement, admin bypass, and maintainer isolation once a second maintainer can satisfy the review requirement.
 
+Untrusted pull request policy:
+
+- Pull request workflows must stay fork-safe and use read-only `contents` permission unless a specific trusted workflow boundary justifies more.
+- Do not expose release, package, deployment, or private infrastructure secrets to code from untrusted forks.
+- Avoid `pull_request_target` for workflows that check out or execute contributor-controlled code.
+- Dependency review, policy checks, formatting, linting, generated-code drift checks, and tests are acceptable untrusted PR validation surfaces when they run without secrets.
+
+Maintainer and automation isolation:
+
+- Prefer `GITHUB_TOKEN` with explicit job-scoped permissions over personal access tokens or long-lived bot credentials.
+- Use a dedicated low-privilege bot identity only when new automation needs privileges that `GITHUB_TOKEN` cannot safely provide.
+- Keep release and deployment writes behind the protected `release` environment.
+- Enable code-owner review enforcement, stricter admin bypass policy, and stronger review separation only after at least two maintainers can satisfy those controls without blocking routine maintenance.
+- Do not use self-hosted runners for untrusted pull requests. Only consider self-hosted runners for trusted branches or tags after documenting isolation, secret exposure, cleanup, and network-access controls.
+
 When changing GitHub settings, keep the repo aligned with:
 
 - [SECURITY.md](../SECURITY.md) for disclosure handling and patch timing.
+- [docs/security-operations.md](security-operations.md) for recurring security operations and deeper testing expectations.
 - [.github/CODEOWNERS](../.github/CODEOWNERS) for sensitive file ownership.
 - [.github/workflows/pull-request.yml](../.github/workflows/pull-request.yml) for fork-safe checks.
 - [.github/workflows/release.yml](../.github/workflows/release.yml) for release publication, checksums, SBOMs, and attestations.

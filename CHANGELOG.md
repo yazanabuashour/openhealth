@@ -3,6 +3,8 @@
 This CHANGELOG summarizes public releases. Full OpenHealth release notes are
 published on GitHub Releases:
 
+- [v0.4.0](https://github.com/yazanabuashour/openhealth/releases/tag/v0.4.0)
+  adds subjective sleep tracking to the production runner and skill.
 - [v0.3.1](https://github.com/yazanabuashour/openhealth/releases/tag/v0.3.1)
   tightens production skill guidance so agents reject invalid requests sooner
   and avoid unnecessary runner readbacks.

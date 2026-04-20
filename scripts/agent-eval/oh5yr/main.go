@@ -164,6 +164,7 @@ type verificationResult struct {
 	Weights         []weightState          `json:"weights,omitempty"`
 	BodyComposition []bodyCompositionState `json:"body_composition,omitempty"`
 	BloodPressures  []bloodPressureState   `json:"blood_pressures,omitempty"`
+	Sleep           []sleepState           `json:"sleep,omitempty"`
 	Medications     []medicationState      `json:"medications,omitempty"`
 	Labs            []labCollectionState   `json:"labs,omitempty"`
 	Imaging         []imagingState         `json:"imaging,omitempty"`
@@ -233,6 +234,13 @@ type bodyCompositionState struct {
 	WeightUnit     *string  `json:"weight_unit,omitempty"`
 	Method         *string  `json:"method,omitempty"`
 	Note           *string  `json:"note,omitempty"`
+}
+
+type sleepState struct {
+	Date         string  `json:"date"`
+	QualityScore int     `json:"quality_score"`
+	WakeupCount  *int    `json:"wakeup_count,omitempty"`
+	Note         *string `json:"note,omitempty"`
 }
 
 type imagingState struct {
@@ -1293,6 +1301,21 @@ func scenarios() []scenario {
 			Prompt: "Please correct my local OpenHealth blood pressure reading for 03/29/2026 to 121/77. If more than one reading exists for that date, do not guess; tell me why it was not updated.",
 		},
 		{
+			ID:     "sleep-upsert-natural",
+			Title:  "Record a subjective sleep check-in with optional wakeups",
+			Prompt: "Use the configured local OpenHealth data path. For my 03/29/2026 wake date, I slept good, woke up 2 times, and the note is woke up after storm. Record that sleep check-in and tell me what is stored.",
+		},
+		{
+			ID:     "sleep-latest-only",
+			Title:  "List only the latest sleep check-in",
+			Prompt: "What is my latest local OpenHealth sleep check-in? Use the configured local data path and mention only the latest row.",
+		},
+		{
+			ID:     "sleep-invalid-input",
+			Title:  "Reject invalid sleep quality and wakeup count without writing",
+			Prompt: "Please add this local OpenHealth sleep check-in for 03/31/2026: quality 6 out of 5 and woke up -1 times.",
+		},
+		{
 			ID:     "mixed-add-latest",
 			Title:  "Record weight and blood-pressure readings, then report latest for both",
 			Prompt: "Use the configured local OpenHealth data path. Record weight 150.8 lbs and blood pressure 119/77 pulse 62 for 03/31/2026. Then tell me the latest weight and latest blood-pressure entries.",
@@ -1603,6 +1626,12 @@ func seedScenario(dbPath string, sc scenario) error {
 			{Date: "2026-03-29", Systolic: 122, Diastolic: 78, Pulse: intPointer(64)},
 			{Date: "2026-03-29", Systolic: 120, Diastolic: 76},
 		})
+	case "sleep-latest-only":
+		return upsertSleep(ctx, api, []sleepState{
+			{Date: "2026-03-28", QualityScore: 2, WakeupCount: intPointer(3)},
+			{Date: "2026-03-29", QualityScore: 4, WakeupCount: intPointer(1)},
+			{Date: "2026-03-30", QualityScore: 5},
+		})
 	case "medication-correct", "medication-delete":
 		return recordMedications(ctx, api, []medicationState{
 			{Name: "Levothyroxine", DosageText: stringPointer("25 mcg"), StartDate: "2026-01-01"},
@@ -1660,6 +1689,24 @@ func recordBloodPressures(ctx context.Context, api *client.LocalClient, readings
 			Diastolic:  reading.Diastolic,
 			Pulse:      reading.Pulse,
 			Note:       reading.Note,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func upsertSleep(ctx context.Context, api *client.LocalClient, entries []sleepState) error {
+	for _, entry := range entries {
+		recordedAt, err := parseDate(entry.Date)
+		if err != nil {
+			return err
+		}
+		if _, err := api.UpsertSleep(ctx, client.SleepInput{
+			RecordedAt:   recordedAt,
+			QualityScore: entry.QualityScore,
+			WakeupCount:  entry.WakeupCount,
+			Note:         entry.Note,
 		}); err != nil {
 			return err
 		}
@@ -1770,6 +1817,9 @@ func verifyScenarioTurn(dbPath string, sc scenario, turnIndex int, finalMessage 
 	}
 	if isBloodPressureScenario(sc.ID) {
 		return verifyBloodPressureScenario(dbPath, sc, finalMessage)
+	}
+	if isSleepScenario(sc.ID) {
+		return verifySleepScenario(dbPath, sc, finalMessage)
 	}
 	if isMedicationScenario(sc.ID) {
 		return verifyMedicationScenario(dbPath, sc, finalMessage)
@@ -2127,6 +2177,43 @@ func verifyBloodPressureScenario(dbPath string, sc scenario, finalMessage string
 	return result, nil
 }
 
+func verifySleepScenario(dbPath string, sc scenario, finalMessage string) (verificationResult, error) {
+	entries, err := listSleep(dbPath)
+	if err != nil {
+		return verificationResult{}, fmt.Errorf("list sleep: %w", err)
+	}
+	states := sleepStates(entries)
+	result := verificationResult{Sleep: states}
+
+	switch sc.ID {
+	case "sleep-upsert-natural":
+		expected := []sleepState{{Date: "2026-03-29", QualityScore: 4, WakeupCount: intPointer(2), Note: stringPointer("woke up after storm")}}
+		result.DatabasePass = sleepEqual(states, expected)
+		result.AssistantPass = containsAll(finalMessage, []string{"2026-03-29", "4"}) && sleepWakeupCountAssistantPass(finalMessage, 2)
+		result.Details = fmt.Sprintf("expected one sleep check-in with quality 4 and two wakeups; observed %s", describeSleep(states))
+	case "sleep-latest-only":
+		expectedDB := []sleepState{
+			{Date: "2026-03-30", QualityScore: 5},
+			{Date: "2026-03-29", QualityScore: 4, WakeupCount: intPointer(1)},
+			{Date: "2026-03-28", QualityScore: 2, WakeupCount: intPointer(3)},
+		}
+		result.DatabasePass = sleepEqual(states, expectedDB)
+		result.AssistantPass = mentionsIncludedDate(finalMessage, "2026-03-30") &&
+			!mentionsIncludedDate(finalMessage, "2026-03-29") &&
+			!mentionsIncludedDate(finalMessage, "2026-03-28")
+		result.Details = fmt.Sprintf("expected unchanged seed rows and assistant output limited to latest sleep row 2026-03-30; observed %s", describeSleep(states))
+	case "sleep-invalid-input":
+		result.DatabasePass = len(states) == 0
+		result.AssistantPass = containsAny(strings.ToLower(finalMessage), []string{"invalid", "quality", "1-5", "between 1 and 5", "wakeup", "negative", "cannot", "can't", "reject"})
+		result.Details = fmt.Sprintf("expected no write and an invalid sleep rejection; observed %s", describeSleep(states))
+	default:
+		return verificationResult{}, fmt.Errorf("unknown sleep scenario %q", sc.ID)
+	}
+
+	result.Passed = result.DatabasePass && result.AssistantPass
+	return result, nil
+}
+
 func verifyMedicationScenario(dbPath string, sc scenario, finalMessage string) (verificationResult, error) {
 	medications, err := listMedications(dbPath)
 	if err != nil {
@@ -2353,6 +2440,17 @@ func listBodyComposition(dbPath string) ([]client.BodyCompositionEntry, error) {
 	return api.ListBodyComposition(context.Background(), client.BodyCompositionListOptions{Limit: 100})
 }
 
+func listSleep(dbPath string) ([]client.SleepEntry, error) {
+	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: dbPath})
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		_ = api.Close()
+	}()
+	return api.ListSleep(context.Background(), client.SleepListOptions{Limit: 100})
+}
+
 func listImaging(dbPath string) ([]client.ImagingRecord, error) {
 	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: dbPath})
 	if err != nil {
@@ -2487,6 +2585,19 @@ func bodyCompositionStates(records []client.BodyCompositionEntry) []bodyComposit
 			WeightUnit:     weightUnit,
 			Method:         record.Method,
 			Note:           record.Note,
+		})
+	}
+	return states
+}
+
+func sleepStates(entries []client.SleepEntry) []sleepState {
+	states := make([]sleepState, 0, len(entries))
+	for _, entry := range entries {
+		states = append(states, sleepState{
+			Date:         entry.RecordedAt.Format(time.DateOnly),
+			QualityScore: entry.QualityScore,
+			WakeupCount:  entry.WakeupCount,
+			Note:         entry.Note,
 		})
 	}
 	return states
@@ -3048,6 +3159,7 @@ func isRoutineScenario(id string) bool {
 		"body-composition-combined-weight-row",
 		"bp-add-two", "bp-latest-only", "bp-history-limit-two", "bp-bounded-range", "bp-bounded-range-natural",
 		"bp-correct-existing", "bp-correct-missing-reject", "bp-correct-ambiguous-reject",
+		"sleep-upsert-natural", "sleep-latest-only",
 		"mixed-add-latest", "mixed-bounded-range", "mt-bp-latest-then-correct", "mt-mixed-latest-then-correct",
 		"medication-add-list", "medication-note", "medication-correct", "medication-delete",
 		"lab-record-list", "lab-note", "lab-range", "lab-latest-analyte", "lab-correct", "lab-delete",
@@ -3065,6 +3177,10 @@ func isMixedScenario(id string) bool {
 
 func isBloodPressureScenario(id string) bool {
 	return strings.HasPrefix(id, "bp-")
+}
+
+func isSleepScenario(id string) bool {
+	return strings.HasPrefix(id, "sleep-")
 }
 
 func isBodyCompositionScenario(id string) bool {
@@ -3611,6 +3727,21 @@ func bodyCompositionEqual(got []bodyCompositionState, want []bodyCompositionStat
 	return true
 }
 
+func sleepEqual(got []sleepState, want []sleepState) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i].Date != want[i].Date ||
+			got[i].QualityScore != want[i].QualityScore ||
+			!equalIntPointer(got[i].WakeupCount, want[i].WakeupCount) ||
+			!equalExpectedStringPointer(got[i].Note, want[i].Note) {
+			return false
+		}
+	}
+	return true
+}
+
 func imagingEqual(got []imagingState, want []imagingState) bool {
 	if len(got) != len(want) {
 		return false
@@ -3727,6 +3858,25 @@ func describeBodyComposition(records []bodyCompositionState) string {
 			values = append(values, "method "+*record.Method)
 		}
 		parts = append(parts, fmt.Sprintf("%s (%s)", record.Date, strings.Join(values, ", ")))
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+func describeSleep(entries []sleepState) string {
+	if len(entries) == 0 {
+		return "[]"
+	}
+	parts := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		wakeups := ""
+		if entry.WakeupCount != nil {
+			wakeups = fmt.Sprintf(" wakeups %d", *entry.WakeupCount)
+		}
+		note := ""
+		if entry.Note != nil {
+			note = " note " + *entry.Note
+		}
+		parts = append(parts, fmt.Sprintf("%s quality %d%s%s", entry.Date, entry.QualityScore, wakeups, note))
 	}
 	return "[" + strings.Join(parts, ", ") + "]"
 }
@@ -3859,6 +4009,54 @@ func mixedBoundedRangeAssistantPass(message string) bool {
 
 func nonISODateRejectAssistantPass(message string) bool {
 	return containsAny(strings.ToLower(message), []string{"yyyy-mm-dd", "iso", "invalid", "cannot", "can't", "reject", "unsupported", "format"})
+}
+
+func sleepWakeupCountAssistantPass(message string, count int) bool {
+	lower := strings.ToLower(message)
+	digits := fmt.Sprintf("%d", count)
+	words := numberWord(count)
+	needles := []string{
+		"woke up " + digits,
+		digits + " wake",
+		"wakeups " + digits,
+		"wakeups: " + digits,
+		"wakeup count " + digits,
+		"wakeup_count\":" + digits,
+		"wakeup_count\": " + digits,
+		digits + " times",
+		digits + " time",
+	}
+	if words != "" {
+		needles = append(needles,
+			"woke up "+words,
+			words+" wake",
+			words+" times",
+			words+" time",
+		)
+	}
+	if count == 2 {
+		needles = append(needles, "twice")
+	}
+	return containsAny(lower, needles)
+}
+
+func numberWord(value int) string {
+	switch value {
+	case 0:
+		return "zero"
+	case 1:
+		return "one"
+	case 2:
+		return "two"
+	case 3:
+		return "three"
+	case 4:
+		return "four"
+	case 5:
+		return "five"
+	default:
+		return ""
+	}
 }
 
 func mentionsIncludedDate(message string, date string) bool {
@@ -4062,6 +4260,12 @@ func promptSummary(sc scenario) string {
 		return "reject correction for missing 2026-03-31 blood-pressure reading without creating one"
 	case "bp-correct-ambiguous-reject":
 		return "reject ambiguous correction when multiple 2026-03-29 blood-pressure rows exist"
+	case "sleep-upsert-natural":
+		return "record subjective sleep quality and optional wakeup count"
+	case "sleep-latest-only":
+		return "list only the latest sleep check-in from preseeded rows"
+	case "sleep-invalid-input":
+		return "reject invalid sleep quality and wakeup count"
 	case "mixed-add-latest":
 		return "record one weight and one blood-pressure reading, then report latest for both"
 	case "mixed-bounded-range":

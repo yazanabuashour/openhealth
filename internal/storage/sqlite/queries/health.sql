@@ -594,6 +594,110 @@ WHERE id = sqlc.arg('id')
   AND deleted_at IS NULL
 RETURNING id;
 
+-- name: ListSleepEntries :many
+SELECT
+  id,
+  recorded_at,
+  quality_score,
+  wakeup_count,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at
+FROM health_sleep_entry
+WHERE deleted_at IS NULL
+  AND (sqlc.narg('from_recorded_at') IS NULL OR recorded_at >= sqlc.narg('from_recorded_at'))
+  AND (sqlc.narg('to_recorded_at') IS NULL OR recorded_at <= sqlc.narg('to_recorded_at'))
+ORDER BY recorded_at DESC, id DESC
+LIMIT CASE
+  WHEN sqlc.narg('limit_count') IS NULL THEN -1
+  ELSE sqlc.narg('limit_count')
+END;
+
+-- name: FindManualSleepEntry :one
+SELECT
+  id,
+  recorded_at,
+  quality_score,
+  wakeup_count,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at
+FROM health_sleep_entry
+WHERE deleted_at IS NULL
+  AND source = 'manual'
+  AND substr(recorded_at, 1, 10) = sqlc.arg('recorded_date')
+ORDER BY id DESC
+LIMIT 1;
+
+-- name: CreateSleepEntry :one
+INSERT INTO health_sleep_entry (
+  recorded_at,
+  quality_score,
+  wakeup_count,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at
+) VALUES (
+  sqlc.arg('recorded_at'),
+  sqlc.arg('quality_score'),
+  sqlc.narg('wakeup_count'),
+  sqlc.narg('note'),
+  sqlc.arg('source'),
+  sqlc.arg('source_record_hash'),
+  sqlc.arg('created_at'),
+  sqlc.arg('updated_at')
+)
+RETURNING
+  id,
+  recorded_at,
+  quality_score,
+  wakeup_count,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at;
+
+-- name: UpdateSleepEntry :one
+UPDATE health_sleep_entry
+SET
+  recorded_at = COALESCE(sqlc.narg('recorded_at'), recorded_at),
+  quality_score = COALESCE(sqlc.narg('quality_score'), quality_score),
+  wakeup_count = COALESCE(sqlc.narg('wakeup_count'), wakeup_count),
+  note = COALESCE(sqlc.narg('note'), note),
+  updated_at = sqlc.arg('updated_at')
+WHERE id = sqlc.arg('id')
+  AND deleted_at IS NULL
+RETURNING
+  id,
+  recorded_at,
+  quality_score,
+  wakeup_count,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at;
+
+-- name: DeleteSleepEntry :one
+UPDATE health_sleep_entry
+SET
+  deleted_at = sqlc.arg('deleted_at'),
+  updated_at = sqlc.arg('updated_at')
+WHERE id = sqlc.arg('id')
+  AND deleted_at IS NULL
+RETURNING id;
+
 -- name: ListImagingRecords :many
 SELECT
   id,

@@ -44,6 +44,8 @@ func run(args []string, stdin io.Reader, stdout io.Writer, stderr io.Writer) err
 		return runLabs(args[1:], stdin, stdout)
 	case "body-composition":
 		return runBodyComposition(args[1:], stdin, stdout)
+	case "sleep":
+		return runSleep(args[1:], stdin, stdout)
 	case "imaging":
 		return runImaging(args[1:], stdin, stdout)
 	default:
@@ -142,6 +144,24 @@ func runBodyComposition(args []string, stdin io.Reader, stdout io.Writer) error 
 	return encodeResult(stdout, result)
 }
 
+func runSleep(args []string, stdin io.Reader, stdout io.Writer) error {
+	config, err := parseLocalConfig("sleep", args)
+	if err != nil {
+		return err
+	}
+
+	var request runner.SleepTaskRequest
+	if err := decodeRequest(stdin, &request); err != nil {
+		return err
+	}
+
+	result, err := runner.RunSleepTask(context.Background(), config, request)
+	if err != nil {
+		return err
+	}
+	return encodeResult(stdout, result)
+}
+
 func runImaging(args []string, stdin io.Reader, stdout io.Writer) error {
 	config, err := parseLocalConfig("imaging", args)
 	if err != nil {
@@ -204,6 +224,7 @@ func writeUsage(w io.Writer) error {
   openhealth medications [-db path] < request.json
   openhealth labs [-db path] < request.json
   openhealth body-composition [-db path] < request.json
+  openhealth sleep [-db path] < request.json
   openhealth imaging [-db path] < request.json
 `)
 	return err

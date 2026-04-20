@@ -218,6 +218,35 @@ func TestRunBodyCompositionJSONRoundTrip(t *testing.T) {
 	})
 }
 
+func TestRunSleepJSONRoundTrip(t *testing.T) {
+	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
+
+	record := `{"action":"upsert_sleep","entries":[{"date":"2026-03-29","quality_score":4,"wakeup_count":2,"note":"woke up after storm"}]}`
+	var recordStdout bytes.Buffer
+	if err := run([]string{"sleep", "--db", databasePath}, strings.NewReader(record), &recordStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run sleep record: %v", err)
+	}
+	var recordResult runner.SleepTaskResult
+	decodeJSON(t, recordStdout.Bytes(), &recordResult)
+	if len(recordResult.Writes) != 1 {
+		t.Fatalf("writes = %d, want 1", len(recordResult.Writes))
+	}
+	assertSleepEntries(t, recordResult.Entries, []runner.SleepTaskEntry{
+		{Date: "2026-03-29", QualityScore: 4, WakeupCount: intPointer(2), Note: stringPointer("woke up after storm")},
+	})
+
+	list := `{"action":"list_sleep","list_mode":"latest"}`
+	var listStdout bytes.Buffer
+	if err := run([]string{"sleep", "--db", databasePath}, strings.NewReader(list), &listStdout, ioDiscard{}); err != nil {
+		t.Fatalf("run sleep list: %v", err)
+	}
+	var listResult runner.SleepTaskResult
+	decodeJSON(t, listStdout.Bytes(), &listResult)
+	assertSleepEntries(t, listResult.Entries, []runner.SleepTaskEntry{
+		{Date: "2026-03-29", QualityScore: 4, WakeupCount: intPointer(2), Note: stringPointer("woke up after storm")},
+	})
+}
+
 func TestRunImagingJSONRoundTrip(t *testing.T) {
 	databasePath := filepath.Join(t.TempDir(), "nested", "openhealth.db")
 
@@ -290,6 +319,7 @@ func TestRunHelpListsVersionAndDomains(t *testing.T) {
 		"openhealth medications",
 		"openhealth labs",
 		"openhealth body-composition",
+		"openhealth sleep",
 		"openhealth imaging",
 	} {
 		if !strings.Contains(stdout.String(), want) {
@@ -428,6 +458,21 @@ func assertBodyCompositionEntries(t *testing.T, got []runner.BodyCompositionTask
 			!equalFloatPointers(got[i].WeightValue, want[i].WeightValue) ||
 			!equalStringPointers(got[i].WeightUnit, want[i].WeightUnit) ||
 			!equalStringPointers(got[i].Method, want[i].Method) ||
+			!equalStringPointers(got[i].Note, want[i].Note) {
+			t.Fatalf("entries = %#v, want %#v", got, want)
+		}
+	}
+}
+
+func assertSleepEntries(t *testing.T, got []runner.SleepTaskEntry, want []runner.SleepTaskEntry) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("entries = %#v, want %#v", got, want)
+	}
+	for i := range want {
+		if got[i].Date != want[i].Date ||
+			got[i].QualityScore != want[i].QualityScore ||
+			!equalIntPointers(got[i].WakeupCount, want[i].WakeupCount) ||
 			!equalStringPointers(got[i].Note, want[i].Note) {
 			t.Fatalf("entries = %#v, want %#v", got, want)
 		}

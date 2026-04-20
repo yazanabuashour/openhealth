@@ -1,6 +1,6 @@
 ---
 name: openhealth
-description: Use this skill for local-first OpenHealth weight, body-composition, blood-pressure, medication, lab, or imaging data. Reject directly without tools or file reads for short dates without a year, year-first slash dates, invalid values, unsupported units/statuses, invalid lab slugs including slashes, empty optional text or notes, unsafe corrections/deletes, medication end before start, systolic not greater than diastolic, or any mixed-domain request with an invalid write; do not run validate. For valid requests, use this skill's runner contract, assume openhealth is on PATH, and pipe JSON directly to the installed runner; never command -v, --help, search source/docs/module cache/SQLite, or inspect code. Batch same-domain rows in one runner call; after writes, answer from returned entries unless a different final filter is requested.
+description: Use this skill for local-first OpenHealth weight, body-composition, blood-pressure, sleep, medication, lab, or imaging data. Reject directly without tools or file reads for short dates without a year, year-first slash dates, invalid values, unsupported units/statuses, invalid lab slugs including slashes, empty optional text or notes, unsafe corrections/deletes, medication end before start, systolic not greater than diastolic, invalid sleep quality or wakeup count, or any mixed-domain request with an invalid write; do not run validate. For valid requests, use this skill's runner contract, assume openhealth is on PATH, and pipe JSON directly to the installed runner; never command -v, --help, search source/docs/module cache/SQLite, or inspect code. Batch same-domain rows in one runner call; after writes, answer from returned entries unless a different final filter is requested.
 license: MIT
 compatibility: Requires local filesystem access and an installed openhealth binary on PATH.
 ---
@@ -15,6 +15,7 @@ Use the installed `openhealth` JSON runners:
 - `openhealth medications`
 - `openhealth labs`
 - `openhealth imaging`
+- `openhealth sleep`
 
 The command syntax above is complete. The configured local data path is already
 available through the environment; do not call `--help`, inspect source, or add
@@ -39,6 +40,8 @@ the CLI when the request has:
 | unsupported weight unit, like `stone` | reject; pounds only |
 | invalid body-composition percentage or contextual weight | reject as invalid |
 | incomplete body-composition weight pair | reject as invalid |
+| invalid sleep quality score outside 1-5 | reject as invalid |
+| negative sleep wakeup count | reject as invalid |
 | invalid lab analyte slug shape, including slashes, punctuation-only text, or empty text | reject as invalid |
 | unsupported medication status | reject as invalid |
 | empty optional text field or note string | reject as invalid |
@@ -55,11 +58,12 @@ Optional text fields cannot be cleared with runner JSON in this release; omit
 them on corrections to preserve existing text, or provide a non-empty replacement
 value.
 Preserve narrative context in the narrowest matching note field. Use weight or
-blood-pressure `note` for row context, medication `note` for course context, lab
-collection `note` for collection or doctor-note context, lab `results[].notes`
-for result-level notes, body-composition `note` for record context, imaging
-`note` for record-level import or clinician context, and imaging `notes` for
-result/report narrative. Note arrays preserve order and multiline text.
+blood-pressure `note` for row context, sleep `note` for check-in context,
+medication `note` for course context, lab collection `note` for collection or
+doctor-note context, lab `results[].notes` for result-level notes,
+body-composition `note` for record context, imaging `note` for record-level
+import or clinician context, and imaging `notes` for result/report narrative.
+Note arrays preserve order and multiline text.
 
 ## Runner Contract
 
@@ -79,6 +83,8 @@ Common write-and-report tasks should stay minimal:
 
 - Record two blood-pressure readings, then report newest-first: one
   `record_blood_pressure` call; answer from returned `entries`.
+- Record a sleep check-in, then report it: one `upsert_sleep` call; answer from
+  returned `entries`.
 - Record a medication and a lab, then report the active medication and latest
   lab: one `record_medications` call and one `record_labs` call; answer from
   returned `entries` when those are the rows just recorded.
@@ -158,6 +164,34 @@ same-date reading. Correction updates exactly one existing reading on the
 requested date; if no same-date reading or multiple same-date readings exist,
 The runner returns `rejected` with `rejection_reason`. For "two most recent" or
 any count greater than one, use `history` with `limit`; `latest` returns one row.
+
+Sleep:
+
+```json
+{"action":"upsert_sleep","entries":[{"date":"2026-03-29","quality_score":4,"wakeup_count":2,"note":"woke up after storm"}]}
+{"action":"delete_sleep","target":{"id":123}}
+{"action":"list_sleep","list_mode":"latest"}
+{"action":"list_sleep","list_mode":"history","limit":2}
+{"action":"list_sleep","list_mode":"range","from_date":"2026-03-29","to_date":"2026-03-30"}
+```
+
+Request JSON fields are `action`, `entries`, `target`, `list_mode`,
+`from_date`, `to_date`, and `limit`. Each entry has wake-date `date`, required
+`quality_score`, optional `wakeup_count`, and optional `note`. `quality_score`
+is subjective sleep quality on a 1-5 scale: `1` very poor, `2` poor, `3` okay,
+`4` good, `5` great. `wakeup_count` must be a non-negative integer when
+provided. Use `upsert_sleep` to write, reapply, or correct sleep check-ins.
+Repeating a same-date entry is idempotent; a same-date changed quality,
+wakeup-count, or note updates the row. Omitted optional fields preserve existing
+values on same-date updates. Use `delete_sleep` with a target by `id`, or by
+`date` only when exactly one same-date entry exists.
+
+For routine sleep check-ins, ask: "How did you sleep last night? You can answer
+1-5 or with words like poor, okay, good, great." Map clear natural language to
+the 1-5 score. Optionally ask one short follow-up: "About how many times did you
+wake up?" The user may skip it; do not block a valid quality-only entry on a
+missing wakeup count. If the answer cannot be mapped to quality, ask for a
+clarification before writing.
 
 Medications:
 

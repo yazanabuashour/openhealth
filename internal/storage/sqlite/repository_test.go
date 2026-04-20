@@ -382,6 +382,68 @@ func TestRepositoryNonWeightLifecycles(t *testing.T) {
 		t.Fatalf("deleted body composition should be hidden, got %#v", bodies)
 	}
 
+	sleep, err := repo.CreateSleepEntry(ctx, health.CreateSleepEntryParams{
+		RecordedAt:       now,
+		QualityScore:     4,
+		WakeupCount:      intPointer(2),
+		Note:             stringPointer("woke up after storm"),
+		Source:           "manual",
+		SourceRecordHash: "sleep-a",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	if err != nil {
+		t.Fatalf("create sleep: %v", err)
+	}
+	if sleep.QualityScore != 4 || sleep.WakeupCount == nil || *sleep.WakeupCount != 2 || sleep.Note == nil || *sleep.Note != "woke up after storm" {
+		t.Fatalf("created sleep = %#v", sleep)
+	}
+	foundSleep, err := repo.FindManualSleepEntry(ctx, health.FindManualSleepEntryParams{RecordedAt: now})
+	if err != nil {
+		t.Fatalf("find manual sleep: %v", err)
+	}
+	if foundSleep == nil || foundSleep.ID != sleep.ID {
+		t.Fatalf("found sleep = %#v, want id %d", foundSleep, sleep.ID)
+	}
+	_, err = repo.CreateSleepEntry(ctx, health.CreateSleepEntryParams{
+		RecordedAt:       now,
+		QualityScore:     3,
+		Source:           "manual",
+		SourceRecordHash: "sleep-duplicate",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	})
+	var conflictErr *health.ConflictError
+	if !errors.As(err, &conflictErr) {
+		t.Fatalf("duplicate sleep error = %v, want conflict", err)
+	}
+	sleep, err = repo.UpdateSleepEntry(ctx, health.UpdateSleepEntryParams{
+		ID:           sleep.ID,
+		QualityScore: intPointer(5),
+		WakeupCount:  intPointer(0),
+		UpdatedAt:    now.Add(time.Hour),
+	})
+	if err != nil {
+		t.Fatalf("update sleep: %v", err)
+	}
+	if sleep.QualityScore != 5 || sleep.WakeupCount == nil || *sleep.WakeupCount != 0 || sleep.Note == nil || *sleep.Note != "woke up after storm" {
+		t.Fatalf("updated sleep = %#v", sleep)
+	}
+	if err := repo.DeleteSleepEntry(ctx, health.DeleteSleepEntryParams{
+		ID:        sleep.ID,
+		DeletedAt: now.Add(2 * time.Hour),
+		UpdatedAt: now.Add(2 * time.Hour),
+	}); err != nil {
+		t.Fatalf("delete sleep: %v", err)
+	}
+	sleeps, err := repo.ListSleepEntries(ctx, health.HistoryFilter{})
+	if err != nil {
+		t.Fatalf("list sleep after delete: %v", err)
+	}
+	if len(sleeps) != 0 {
+		t.Fatalf("deleted sleep should be hidden, got %#v", sleeps)
+	}
+
 	imaging, err := repo.CreateImagingRecord(ctx, health.CreateImagingRecordParams{
 		PerformedAt:      now,
 		Modality:         "X-ray",

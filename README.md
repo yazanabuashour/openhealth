@@ -86,6 +86,7 @@ openhealth blood-pressure
 openhealth medications
 openhealth labs
 openhealth imaging
+openhealth sleep
 ```
 
 ## Direct Go Package

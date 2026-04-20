@@ -358,6 +358,36 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 		t.Fatalf("body composition list = %#v", bodies)
 	}
 
+	sleep, err := api.UpsertSleep(ctx, client.SleepInput{
+		RecordedAt:   recordedAt,
+		QualityScore: 4,
+		WakeupCount:  intPointer(2),
+		Note:         stringPointer("woke up after storm"),
+	})
+	if err != nil {
+		t.Fatalf("upsert sleep: %v", err)
+	}
+	if sleep.Status != client.SleepWriteStatusCreated || sleep.Entry.WakeupCount == nil || *sleep.Entry.WakeupCount != 2 {
+		t.Fatalf("sleep = %#v, want created with wakeup count", sleep)
+	}
+	sleep, err = api.UpsertSleep(ctx, client.SleepInput{
+		RecordedAt:   recordedAt,
+		QualityScore: 5,
+	})
+	if err != nil {
+		t.Fatalf("update sleep: %v", err)
+	}
+	if sleep.Status != client.SleepWriteStatusUpdated || sleep.Entry.QualityScore != 5 || sleep.Entry.Note == nil || *sleep.Entry.Note != "woke up after storm" {
+		t.Fatalf("sleep update = %#v, want updated quality with preserved note", sleep)
+	}
+	sleeps, err := api.ListSleep(ctx, client.SleepListOptions{Limit: 1})
+	if err != nil {
+		t.Fatalf("list sleep: %v", err)
+	}
+	if len(sleeps) != 1 || sleeps[0].ID != sleep.Entry.ID {
+		t.Fatalf("sleep list = %#v", sleeps)
+	}
+
 	imaging, err := api.CreateImaging(ctx, client.ImagingRecordInput{
 		PerformedAt: recordedAt,
 		Modality:    "X-ray",
@@ -405,6 +435,9 @@ func TestLocalClientNonWeightHelpers(t *testing.T) {
 	}
 	if err := api.DeleteBodyComposition(ctx, body.ID); err != nil {
 		t.Fatalf("delete body composition: %v", err)
+	}
+	if err := api.DeleteSleep(ctx, sleep.Entry.ID); err != nil {
+		t.Fatalf("delete sleep: %v", err)
 	}
 	if err := api.DeleteImaging(ctx, imaging.ID); err != nil {
 		t.Fatalf("delete imaging: %v", err)

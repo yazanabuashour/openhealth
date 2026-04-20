@@ -49,6 +49,7 @@ type Summary struct {
 	Average7d             *float64
 	Delta30d              *float64
 	LatestBloodPressure   *BloodPressureEntry
+	LatestSleep           *SleepEntry
 	ActiveMedicationCount int
 	LatestLabHighlights   []LabResultWithCollection
 }
@@ -93,6 +94,10 @@ func fromHealthSummary(summary health.Summary) Summary {
 	if summary.LatestBloodPressure != nil {
 		latest := fromHealthBloodPressureEntry(*summary.LatestBloodPressure)
 		out.LatestBloodPressure = &latest
+	}
+	if summary.LatestSleep != nil {
+		latest := fromHealthSleepEntry(*summary.LatestSleep)
+		out.LatestSleep = &latest
 	}
 	return out
 }

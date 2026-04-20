@@ -829,6 +829,46 @@ func TestNonISODateRejectAssistantPass(t *testing.T) {
 	}
 }
 
+func TestSleepWakeupCountAssistantPassRequiresCountContext(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		message string
+		want    bool
+	}{
+		{
+			name:    "date digit does not satisfy count",
+			message: "Stored 2026-03-29 with quality 4.",
+			want:    false,
+		},
+		{
+			name:    "woke up digit",
+			message: "Stored 2026-03-29 with quality 4 and woke up 2 times.",
+			want:    true,
+		},
+		{
+			name:    "word wakeups",
+			message: "Stored 2026-03-29 with quality 4 and two wakeups.",
+			want:    true,
+		},
+		{
+			name:    "json wakeup count",
+			message: `{"date":"2026-03-29","quality_score":4,"wakeup_count":2}`,
+			want:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := sleepWakeupCountAssistantPass(tt.message, 2); got != tt.want {
+				t.Fatalf("sleepWakeupCountAssistantPass(%q, 2) = %v, want %v", tt.message, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSelectVariantsAndScenarios(t *testing.T) {
 	t.Parallel()
 

@@ -106,6 +106,19 @@ type HealthMedicationCourse struct {
 	Note       *string
 }
 
+type HealthSleepEntry struct {
+	ID               int64
+	RecordedAt       string
+	QualityScore     int64
+	WakeupCount      *int64
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        string
+	UpdatedAt        string
+	DeletedAt        *string
+}
+
 type HealthWeightEntry struct {
 	ID               int64
 	RecordedAt       string

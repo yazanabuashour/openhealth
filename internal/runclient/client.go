@@ -44,6 +44,10 @@ type LabPanel = health.LabPanel
 type LabCollection = health.LabCollection
 type BodyCompositionInput = health.BodyCompositionInput
 type BodyCompositionEntry = health.BodyCompositionEntry
+type SleepInput = health.SleepInput
+type SleepEntry = health.SleepEntry
+type SleepWriteStatus = health.SleepWriteStatus
+type SleepWriteResult = health.SleepWriteResult
 type ImagingRecordInput = health.ImagingRecordInput
 type ImagingRecord = health.ImagingRecord
 
@@ -58,6 +62,10 @@ const (
 	AnalyteSlugHDL              = health.AnalyteSlugHDL
 	AnalyteSlugTriglycerides    = health.AnalyteSlugTriglycerides
 	AnalyteSlugGlucose          = health.AnalyteSlugGlucose
+
+	SleepWriteStatusCreated       = health.SleepWriteStatusCreated
+	SleepWriteStatusAlreadyExists = health.SleepWriteStatusAlreadyExists
+	SleepWriteStatusUpdated       = health.SleepWriteStatusUpdated
 )
 
 func NormalizeAnalyteSlug(value string) (AnalyteSlug, bool) {
@@ -81,6 +89,12 @@ type MedicationListOptions struct {
 }
 
 type BodyCompositionListOptions struct {
+	From  *time.Time
+	To    *time.Time
+	Limit int
+}
+
+type SleepListOptions struct {
 	From  *time.Time
 	To    *time.Time
 	Limit int
@@ -253,6 +267,30 @@ func (c *LocalClient) ListBodyComposition(ctx context.Context, options BodyCompo
 		return nil, err
 	}
 	return service.ListBodyComposition(ctx, historyFilter(options.From, options.To, options.Limit))
+}
+
+func (c *LocalClient) UpsertSleep(ctx context.Context, input SleepInput) (SleepWriteResult, error) {
+	service, err := c.localService()
+	if err != nil {
+		return SleepWriteResult{}, err
+	}
+	return service.UpsertSleep(ctx, input)
+}
+
+func (c *LocalClient) DeleteSleep(ctx context.Context, id int) error {
+	service, err := c.localService()
+	if err != nil {
+		return err
+	}
+	return service.DeleteSleep(ctx, id)
+}
+
+func (c *LocalClient) ListSleep(ctx context.Context, options SleepListOptions) ([]SleepEntry, error) {
+	service, err := c.localService()
+	if err != nil {
+		return nil, err
+	}
+	return service.ListSleep(ctx, historyFilter(options.From, options.To, options.Limit))
 }
 
 func (c *LocalClient) CreateImaging(ctx context.Context, input ImagingRecordInput) (ImagingRecord, error) {

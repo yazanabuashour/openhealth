@@ -66,7 +66,7 @@ openhealth --help
 ```
 
 The valid runner domains are `weight`, `blood-pressure`, `medications`, `labs`,
-`body-composition`, and `imaging`.
+`body-composition`, `sleep`, and `imaging`.
 
 ## SBOM
 

@@ -106,6 +106,16 @@ VALUES (
 		t.Fatalf("insert migrated body composition: %v", err)
 	}
 	if _, err := db.ExecContext(ctx, `
+INSERT INTO health_sleep_entry (
+  recorded_at, quality_score, wakeup_count, note, source, source_record_hash, created_at, updated_at
+)
+VALUES (
+  '2026-04-01T00:00:00Z', 4, 2, 'woke up after storm', 'test', 'sleep-a', '2026-04-01T00:00:00Z', '2026-04-01T00:00:00Z'
+)
+`); err != nil {
+		t.Fatalf("insert migrated sleep: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `
 INSERT INTO health_imaging_record (
   performed_at, modality, body_site, title, summary, impression, note, source, source_record_hash, created_at, updated_at
 )

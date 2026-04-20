@@ -183,6 +183,32 @@ type BodyCompositionEntry struct {
 	DeletedAt        *time.Time
 }
 
+type SleepEntry struct {
+	ID               int
+	RecordedAt       time.Time
+	QualityScore     int
+	WakeupCount      *int
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	DeletedAt        *time.Time
+}
+
+type SleepWriteStatus string
+
+const (
+	SleepWriteStatusCreated       SleepWriteStatus = "created"
+	SleepWriteStatusAlreadyExists SleepWriteStatus = "already_exists"
+	SleepWriteStatusUpdated       SleepWriteStatus = "updated"
+)
+
+type SleepWriteResult struct {
+	Entry  SleepEntry
+	Status SleepWriteStatus
+}
+
 type ImagingRecord struct {
 	ID               int
 	PerformedAt      time.Time
@@ -235,6 +261,7 @@ type Summary struct {
 	Average7d             *float64
 	Delta30d              *float64
 	LatestBloodPressure   *BloodPressureEntry
+	LatestSleep           *SleepEntry
 	ActiveMedicationCount int
 	LatestLabHighlights   []LabResultWithCollection
 }
@@ -291,6 +318,13 @@ type BodyCompositionInput struct {
 	WeightUnit     *WeightUnit
 	Method         *string
 	Note           *string
+}
+
+type SleepInput struct {
+	RecordedAt   time.Time
+	QualityScore int
+	WakeupCount  *int
+	Note         *string
 }
 
 type ImagingRecordInput struct {
@@ -471,6 +505,32 @@ type DeleteBodyCompositionEntryParams struct {
 	UpdatedAt time.Time
 }
 
+type CreateSleepEntryParams struct {
+	RecordedAt       time.Time
+	QualityScore     int
+	WakeupCount      *int
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type UpdateSleepEntryParams struct {
+	ID           int
+	RecordedAt   *time.Time
+	QualityScore *int
+	WakeupCount  *int
+	Note         *string
+	UpdatedAt    time.Time
+}
+
+type DeleteSleepEntryParams struct {
+	ID        int
+	DeletedAt time.Time
+	UpdatedAt time.Time
+}
+
 type CreateImagingRecordParams struct {
 	PerformedAt      time.Time
 	Modality         string
@@ -516,6 +576,10 @@ type FindManualWeightEntryParams struct {
 	Unit       WeightUnit
 }
 
+type FindManualSleepEntryParams struct {
+	RecordedAt time.Time
+}
+
 type Repository interface {
 	ListWeightEntries(ctx context.Context, filter HistoryFilter) ([]WeightEntry, error)
 	FindManualWeightEntry(ctx context.Context, params FindManualWeightEntryParams) (*WeightEntry, error)
@@ -540,6 +604,11 @@ type Repository interface {
 	CreateBodyCompositionEntry(ctx context.Context, params CreateBodyCompositionEntryParams) (BodyCompositionEntry, error)
 	UpdateBodyCompositionEntry(ctx context.Context, params UpdateBodyCompositionEntryParams) (BodyCompositionEntry, error)
 	DeleteBodyCompositionEntry(ctx context.Context, params DeleteBodyCompositionEntryParams) error
+	ListSleepEntries(ctx context.Context, filter HistoryFilter) ([]SleepEntry, error)
+	FindManualSleepEntry(ctx context.Context, params FindManualSleepEntryParams) (*SleepEntry, error)
+	CreateSleepEntry(ctx context.Context, params CreateSleepEntryParams) (SleepEntry, error)
+	UpdateSleepEntry(ctx context.Context, params UpdateSleepEntryParams) (SleepEntry, error)
+	DeleteSleepEntry(ctx context.Context, params DeleteSleepEntryParams) error
 	ListImagingRecords(ctx context.Context, params ImagingListParams) ([]ImagingRecord, error)
 	CreateImagingRecord(ctx context.Context, params CreateImagingRecordParams) (ImagingRecord, error)
 	UpdateImagingRecord(ctx context.Context, params UpdateImagingRecordParams) (ImagingRecord, error)
@@ -573,6 +642,9 @@ type Service interface {
 	CreateBodyComposition(ctx context.Context, input BodyCompositionInput) (BodyCompositionEntry, error)
 	ReplaceBodyComposition(ctx context.Context, id int, input BodyCompositionInput) (BodyCompositionEntry, error)
 	DeleteBodyComposition(ctx context.Context, id int) error
+	ListSleep(ctx context.Context, filter HistoryFilter) ([]SleepEntry, error)
+	UpsertSleep(ctx context.Context, input SleepInput) (SleepWriteResult, error)
+	DeleteSleep(ctx context.Context, id int) error
 	ListImaging(ctx context.Context, params ImagingListParams) ([]ImagingRecord, error)
 	CreateImaging(ctx context.Context, input ImagingRecordInput) (ImagingRecord, error)
 	ReplaceImaging(ctx context.Context, id int, input ImagingRecordInput) (ImagingRecord, error)

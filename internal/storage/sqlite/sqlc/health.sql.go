@@ -613,6 +613,77 @@ func (q *Queries) CreateMedicationCourse(ctx context.Context, arg CreateMedicati
 	return i, err
 }
 
+const createSleepEntry = `-- name: CreateSleepEntry :one
+INSERT INTO health_sleep_entry (
+  recorded_at,
+  quality_score,
+  wakeup_count,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at
+) VALUES (
+  ?1,
+  ?2,
+  ?3,
+  ?4,
+  ?5,
+  ?6,
+  ?7,
+  ?8
+)
+RETURNING
+  id,
+  recorded_at,
+  quality_score,
+  wakeup_count,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at
+`
+
+type CreateSleepEntryParams struct {
+	RecordedAt       string
+	QualityScore     int64
+	WakeupCount      *int64
+	Note             *string
+	Source           string
+	SourceRecordHash string
+	CreatedAt        string
+	UpdatedAt        string
+}
+
+func (q *Queries) CreateSleepEntry(ctx context.Context, arg CreateSleepEntryParams) (HealthSleepEntry, error) {
+	row := q.db.QueryRowContext(ctx, createSleepEntry,
+		arg.RecordedAt,
+		arg.QualityScore,
+		arg.WakeupCount,
+		arg.Note,
+		arg.Source,
+		arg.SourceRecordHash,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+	)
+	var i HealthSleepEntry
+	err := row.Scan(
+		&i.ID,
+		&i.RecordedAt,
+		&i.QualityScore,
+		&i.WakeupCount,
+		&i.Note,
+		&i.Source,
+		&i.SourceRecordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const createWeightEntry = `-- name: CreateWeightEntry :one
 INSERT INTO health_weight_entry (
   recorded_at,
@@ -819,6 +890,29 @@ func (q *Queries) DeleteMedicationCourse(ctx context.Context, arg DeleteMedicati
 	return id, err
 }
 
+const deleteSleepEntry = `-- name: DeleteSleepEntry :one
+UPDATE health_sleep_entry
+SET
+  deleted_at = ?1,
+  updated_at = ?2
+WHERE id = ?3
+  AND deleted_at IS NULL
+RETURNING id
+`
+
+type DeleteSleepEntryParams struct {
+	DeletedAt *string
+	UpdatedAt string
+	ID        int64
+}
+
+func (q *Queries) DeleteSleepEntry(ctx context.Context, arg DeleteSleepEntryParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, deleteSleepEntry, arg.DeletedAt, arg.UpdatedAt, arg.ID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
+}
+
 const deleteWeightEntry = `-- name: DeleteWeightEntry :one
 UPDATE health_weight_entry
 SET
@@ -840,6 +934,44 @@ func (q *Queries) DeleteWeightEntry(ctx context.Context, arg DeleteWeightEntryPa
 	var id int64
 	err := row.Scan(&id)
 	return id, err
+}
+
+const findManualSleepEntry = `-- name: FindManualSleepEntry :one
+SELECT
+  id,
+  recorded_at,
+  quality_score,
+  wakeup_count,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at
+FROM health_sleep_entry
+WHERE deleted_at IS NULL
+  AND source = 'manual'
+  AND substr(recorded_at, 1, 10) = ?1
+ORDER BY id DESC
+LIMIT 1
+`
+
+func (q *Queries) FindManualSleepEntry(ctx context.Context, recordedDate string) (HealthSleepEntry, error) {
+	row := q.db.QueryRowContext(ctx, findManualSleepEntry, recordedDate)
+	var i HealthSleepEntry
+	err := row.Scan(
+		&i.ID,
+		&i.RecordedAt,
+		&i.QualityScore,
+		&i.WakeupCount,
+		&i.Note,
+		&i.Source,
+		&i.SourceRecordHash,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
 }
 
 const findManualWeightEntry = `-- name: FindManualWeightEntry :one
@@ -1574,6 +1706,69 @@ func (q *Queries) ListMedicationCourses(ctx context.Context) ([]ListMedicationCo
 	return items, nil
 }
 
+const listSleepEntries = `-- name: ListSleepEntries :many
+SELECT
+  id,
+  recorded_at,
+  quality_score,
+  wakeup_count,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at
+FROM health_sleep_entry
+WHERE deleted_at IS NULL
+  AND (?1 IS NULL OR recorded_at >= ?1)
+  AND (?2 IS NULL OR recorded_at <= ?2)
+ORDER BY recorded_at DESC, id DESC
+LIMIT CASE
+  WHEN ?3 IS NULL THEN -1
+  ELSE ?3
+END
+`
+
+type ListSleepEntriesParams struct {
+	FromRecordedAt interface{}
+	ToRecordedAt   interface{}
+	LimitCount     interface{}
+}
+
+func (q *Queries) ListSleepEntries(ctx context.Context, arg ListSleepEntriesParams) ([]HealthSleepEntry, error) {
+	rows, err := q.db.QueryContext(ctx, listSleepEntries, arg.FromRecordedAt, arg.ToRecordedAt, arg.LimitCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []HealthSleepEntry
+	for rows.Next() {
+		var i HealthSleepEntry
+		if err := rows.Scan(
+			&i.ID,
+			&i.RecordedAt,
+			&i.QualityScore,
+			&i.WakeupCount,
+			&i.Note,
+			&i.Source,
+			&i.SourceRecordHash,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listWeightEntries = `-- name: ListWeightEntries :many
 SELECT
   id,
@@ -1973,6 +2168,63 @@ func (q *Queries) UpdateMedicationCourse(ctx context.Context, arg UpdateMedicati
 		&i.EndDate,
 		&i.Note,
 		&i.Source,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const updateSleepEntry = `-- name: UpdateSleepEntry :one
+UPDATE health_sleep_entry
+SET
+  recorded_at = COALESCE(?1, recorded_at),
+  quality_score = COALESCE(?2, quality_score),
+  wakeup_count = COALESCE(?3, wakeup_count),
+  note = COALESCE(?4, note),
+  updated_at = ?5
+WHERE id = ?6
+  AND deleted_at IS NULL
+RETURNING
+  id,
+  recorded_at,
+  quality_score,
+  wakeup_count,
+  note,
+  source,
+  source_record_hash,
+  created_at,
+  updated_at,
+  deleted_at
+`
+
+type UpdateSleepEntryParams struct {
+	RecordedAt   *string
+	QualityScore *int64
+	WakeupCount  *int64
+	Note         *string
+	UpdatedAt    string
+	ID           int64
+}
+
+func (q *Queries) UpdateSleepEntry(ctx context.Context, arg UpdateSleepEntryParams) (HealthSleepEntry, error) {
+	row := q.db.QueryRowContext(ctx, updateSleepEntry,
+		arg.RecordedAt,
+		arg.QualityScore,
+		arg.WakeupCount,
+		arg.Note,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i HealthSleepEntry
+	err := row.Scan(
+		&i.ID,
+		&i.RecordedAt,
+		&i.QualityScore,
+		&i.WakeupCount,
+		&i.Note,
+		&i.Source,
+		&i.SourceRecordHash,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,

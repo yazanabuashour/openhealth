@@ -40,6 +40,12 @@ VALUES (?, 110, 74, 65, 'test', 'bp-a', ?, ?)
 		ts("2026-03-28T14:00:00Z"), ts("2026-03-28T14:00:00Z"), ts("2026-03-28T14:00:00Z"),
 	)
 	testutil.MustExec(t, db, `
+INSERT INTO health_sleep_entry (recorded_at, quality_score, wakeup_count, note, source, source_record_hash, created_at, updated_at)
+VALUES (?, 4, 1, 'slept well', 'test', 'sleep-a', ?, ?)
+`,
+		ts("2026-03-29T00:00:00Z"), ts("2026-03-29T00:00:00Z"), ts("2026-03-29T00:00:00Z"),
+	)
+	testutil.MustExec(t, db, `
 INSERT INTO health_medication_course (name, dosage_text, start_date, end_date, source, created_at, updated_at)
 VALUES
   ('Levothyroxine', '25 mcg', '2025-05-01', NULL, 'test', ?, ?),
@@ -86,6 +92,9 @@ VALUES
 	}
 	if summary.LatestBloodPressure == nil || summary.LatestBloodPressure.Systolic != 110 {
 		t.Fatalf("latest blood pressure = %#v", summary.LatestBloodPressure)
+	}
+	if summary.LatestSleep == nil || summary.LatestSleep.QualityScore != 4 || summary.LatestSleep.WakeupCount == nil || *summary.LatestSleep.WakeupCount != 1 {
+		t.Fatalf("latest sleep = %#v", summary.LatestSleep)
 	}
 	if summary.ActiveMedicationCount != 1 {
 		t.Fatalf("activeMedicationCount = %d, want 1", summary.ActiveMedicationCount)
@@ -336,6 +345,30 @@ func TestServiceNonWeightValidationAndNotFound(t *testing.T) {
 		t.Fatalf("body composition empty note validation error = %v, want validation", err)
 	}
 
+	_, err = service.UpsertSleep(ctx, health.SleepInput{
+		RecordedAt:   time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		QualityScore: 0,
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("sleep quality validation error = %v, want validation", err)
+	}
+	_, err = service.UpsertSleep(ctx, health.SleepInput{
+		RecordedAt:   time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		QualityScore: 4,
+		WakeupCount:  intPointer(-1),
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("sleep wakeup validation error = %v, want validation", err)
+	}
+	_, err = service.UpsertSleep(ctx, health.SleepInput{
+		RecordedAt:   time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
+		QualityScore: 4,
+		Note:         stringPointer(" "),
+	})
+	if !errors.As(err, &validationErr) {
+		t.Fatalf("sleep empty note validation error = %v, want validation", err)
+	}
+
 	_, err = service.CreateImaging(ctx, health.ImagingRecordInput{
 		PerformedAt: time.Date(2026, 4, 15, 8, 0, 0, 0, time.UTC),
 		Modality:    " ",
@@ -456,6 +489,50 @@ func TestServiceImportContextLifecycles(t *testing.T) {
 	}
 	if len(bodies) != 0 {
 		t.Fatalf("deleted body composition should be hidden, got %#v", bodies)
+	}
+
+	sleep, err := service.UpsertSleep(ctx, health.SleepInput{
+		RecordedAt:   time.Date(2026, 4, 12, 7, 0, 0, 0, time.UTC),
+		QualityScore: 4,
+		WakeupCount:  intPointer(2),
+		Note:         stringPointer(" woke up after storm "),
+	})
+	if err != nil {
+		t.Fatalf("create sleep: %v", err)
+	}
+	if sleep.Status != health.SleepWriteStatusCreated || sleep.Entry.Note == nil || *sleep.Entry.Note != "woke up after storm" {
+		t.Fatalf("created sleep = %#v", sleep)
+	}
+	again, err := service.UpsertSleep(ctx, health.SleepInput{
+		RecordedAt:   time.Date(2026, 4, 12, 0, 0, 0, 0, time.UTC),
+		QualityScore: 4,
+	})
+	if err != nil {
+		t.Fatalf("repeat sleep: %v", err)
+	}
+	if again.Status != health.SleepWriteStatusAlreadyExists || again.Entry.ID != sleep.Entry.ID {
+		t.Fatalf("repeat sleep = %#v", again)
+	}
+	updated, err := service.UpsertSleep(ctx, health.SleepInput{
+		RecordedAt:   time.Date(2026, 4, 12, 0, 0, 0, 0, time.UTC),
+		QualityScore: 5,
+		WakeupCount:  intPointer(0),
+	})
+	if err != nil {
+		t.Fatalf("update sleep: %v", err)
+	}
+	if updated.Status != health.SleepWriteStatusUpdated || updated.Entry.QualityScore != 5 || updated.Entry.WakeupCount == nil || *updated.Entry.WakeupCount != 0 {
+		t.Fatalf("updated sleep = %#v", updated)
+	}
+	if err := service.DeleteSleep(ctx, updated.Entry.ID); err != nil {
+		t.Fatalf("delete sleep: %v", err)
+	}
+	sleeps, err := service.ListSleep(ctx, health.HistoryFilter{})
+	if err != nil {
+		t.Fatalf("list sleep after delete: %v", err)
+	}
+	if len(sleeps) != 0 {
+		t.Fatalf("deleted sleep should be hidden, got %#v", sleeps)
 	}
 
 	imaging, err := service.CreateImaging(ctx, health.ImagingRecordInput{
@@ -603,6 +680,10 @@ func stringPointer(value string) *string {
 }
 
 func float64Pointer(value float64) *float64 {
+	return &value
+}
+
+func intPointer(value int) *int {
 	return &value
 }
 

@@ -3597,7 +3597,7 @@ func equalExpectedStringPointer(got *string, want *string) bool {
 	if want == nil {
 		return true
 	}
-	return equalStringPointer(got, want)
+	return equalClinicalSentencePointer(got, want)
 }
 
 func equalExpectedStringSlice(got []string, want []string) bool {
@@ -4167,6 +4167,10 @@ func lineLooksLikeResult(line string) bool {
 	}
 	lower := strings.ToLower(trimmed)
 	return strings.Contains(lower, " lb") ||
+		strings.Contains(lower, "sleep quality") ||
+		strings.Contains(lower, "quality_score") ||
+		strings.Contains(lower, "wakeups") ||
+		strings.Contains(lower, "wakeup_count") ||
 		strings.Contains(lower, "glucose") ||
 		strings.Contains(lower, "tsh") ||
 		strings.Contains(lower, "mg/dl") ||

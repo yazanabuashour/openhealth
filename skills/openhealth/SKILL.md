@@ -98,6 +98,12 @@ final filter unless the user explicitly asks for them. Omitted entries do not
 need explanatory notes.
 Use the `YYYY-MM-DD` dates returned by runner `entries` in list answers so
 bounded ranges are explicit and machine-checkable.
+Final answers should be short plain-text rows, not code blocks. Put the date
+first on each reported row and keep key values on that same row, for example:
+`2026-03-29 sleep quality 4, wakeups 2, note woke up after storm` or
+`2026-03-29 Glucose 92 mg/dL; HDL 51 mg/dL`. For latest or bounded-list
+requests, mention only rows in the requested final filter. Omitted rows need no
+explanation.
 
 Weights:
 

@@ -1,6 +1,6 @@
 ---
 name: openhealth
-description: Use this skill for local-first OpenHealth weight, body-composition, blood-pressure, medication, lab, or imaging data. For valid requests, pipe JSON directly to the installed openhealth runner; do not call --help or search source, docs, module cache, or SQLite first. Normalize MM/DD/YYYY dates to YYYY-MM-DD, but reject short dates without a year and year-first slash dates. For filtered list answers, do not mention omitted rows. For invalid values, unsupported units/statuses, invalid lab slug shapes, empty optional text fields or note strings, unsafe corrections/deletes, medication end dates before start dates, or systolic values not greater than diastolic values, reject directly without tools.
+description: Use this skill for local-first OpenHealth weight, body-composition, blood-pressure, medication, lab, or imaging data. Reject directly without tools or file reads for short dates without a year, year-first slash dates, invalid values, unsupported units/statuses, invalid lab slugs including slashes, empty optional text or notes, unsafe corrections/deletes, medication end before start, systolic not greater than diastolic, or any mixed-domain request with an invalid write; do not run validate. For valid requests, use this skill's runner contract, assume openhealth is on PATH, and pipe JSON directly to the installed runner; never command -v, --help, search source/docs/module cache/SQLite, or inspect code. Batch same-domain rows in one runner call; after writes, answer from returned entries unless a different final filter is requested.
 license: MIT
 compatibility: Requires local filesystem access and an installed openhealth binary on PATH.
 ---
@@ -19,6 +19,8 @@ Use the installed `openhealth` JSON runners:
 The command syntax above is complete. The configured local data path is already
 available through the environment; do not call `--help`, inspect source, or add
 `-db` unless the user explicitly provides a database path.
+Assume `openhealth` is already installed on `PATH`; do not run `command -v
+openhealth` before using it.
 
 ## Reject Before Tools
 
@@ -29,16 +31,20 @@ the CLI when the request has:
 | Issue | Response |
 | --- | --- |
 | ambiguous short date without year context, like `03/29` | ask for the year |
-| year-first slash date, like `2026/03/31` | require `YYYY-MM-DD` |
+| year-first slash date, like `2026/03/31` | require `YYYY-MM-DD`; do not normalize |
 | non-positive weight, systolic, diastolic, or pulse | reject as invalid |
 | systolic not greater than diastolic | reject as invalid |
 | unsupported weight unit, like `stone` | reject; pounds only |
 | invalid body-composition percentage or contextual weight | reject as invalid |
 | incomplete body-composition weight pair | reject as invalid |
-| invalid lab analyte slug shape, like punctuation-only text | reject as invalid |
+| invalid lab analyte slug shape, including slashes, punctuation-only text, or empty text | reject as invalid |
 | unsupported medication status | reject as invalid |
 | empty optional text field or note string | reject as invalid |
 | medication end date before start date | reject as invalid |
+| mixed-domain request where any requested write is invalid | reject the whole request; do not partially write valid rows |
+
+These are final-answer-only cases. Do not run a runner `validate` action for
+them; answer from these rules.
 
 Full slash dates with a year, like `03/29/2026` or `02/01/2026`, may be
 normalized to `YYYY-MM-DD`. Short dates without a year still require a year
@@ -59,6 +65,24 @@ Pipe one JSON request to one runner and answer only from JSON `entries`,
 `writes`, or `rejection_reason`. Run mixed requests as one call per domain.
 Runner `entries` are already newest-first. Valid requests are validated before
 database access.
+Use one runner call for each valid domain operation. Batch multiple same-domain
+rows into one JSON request, such as two blood-pressure readings in one
+`record_blood_pressure` request. Write actions return `entries`; for write and
+report tasks, answer from those returned `entries` unless the requested final
+answer needs a different filter than the write response provides. Do not make a
+follow-up list call just to confirm a write that already returned enough
+matching `entries`.
+
+Common write-and-report tasks should stay minimal:
+
+- Record two blood-pressure readings, then report newest-first: one
+  `record_blood_pressure` call; answer from returned `entries`.
+- Record a medication and a lab, then report the active medication and latest
+  lab: one `record_medications` call and one `record_labs` call; answer from
+  returned `entries` when those are the rows just recorded.
+- Correct the latest weight and blood pressure after a prior latest read: one
+  `upsert_weights` call and one `correct_blood_pressure` call; answer from
+  returned `entries`.
 
 When a task writes data and then asks for a filtered list, make the final answer
 match the filtered list response. Do not mention entries outside the requested
@@ -160,6 +184,8 @@ medication; zero or multiple matches return `rejected` with `rejection_reason`.
 `active` is the default status; only `active` and `all` are supported.
 For `status:"active"` answers, mention only active `entries`; never mention
 inactive or ended courses, even to explain why they were omitted.
+After `record_medications`, do not call `list_medications` just to report the
+active course that was returned by the write response.
 
 Labs:
 
@@ -204,6 +230,8 @@ For "two most recent" or any count greater than one, use `history` with
 `limit`; `latest` returns one matching collection. `analyte_slug` filters nested
 results to that canonical analyte and omits collections without matching
 results.
+After `record_labs`, do not call `list_labs` just to report the latest
+collection or analyte result that was returned by the write response.
 
 Imaging:
 

@@ -175,7 +175,8 @@ Use the full local toolchain for repository development:
 
 ```bash
 mise install
-OPENHEALTH_DATA_DIR="$(mktemp -d)" mise exec -- go run ./examples/client_summary
+printf '%s\n' '{"action":"list_weights","list_mode":"latest"}' | \
+  OPENHEALTH_DATA_DIR="$(mktemp -d)" mise exec -- go run ./cmd/openhealth weight
 mise exec -- go generate ./...
 mise exec -- gofmt -w .
 mise exec -- golangci-lint run

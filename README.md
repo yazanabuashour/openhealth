@@ -184,6 +184,9 @@ mise exec -- go test ./...
 ./scripts/validate-agent-skill.sh skills/openhealth
 ```
 
+`golangci-lint` is pinned by `mise.toml`; use `mise exec -- golangci-lint run`
+for local checks.
+
 ## Releases
 
 Tagged `v0.y.z` releases publish platform binary archives, the skill archive,

@@ -35,6 +35,9 @@ mise exec -- golangci-lint run
 mise exec -- go test ./...
 ```
 
+`golangci-lint` is pinned by `mise.toml`; run it through `mise exec` instead
+of relying on a global binary.
+
 If a change touches `skills/openhealth/SKILL.md`, run
 `./scripts/validate-agent-skill.sh skills/openhealth` before opening the pull
 request.

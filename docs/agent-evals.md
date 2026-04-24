@@ -39,6 +39,12 @@ are not committed; reduced reports use `<run-root>` placeholders. Update
 committed reduced reports only after a production eval or explicit smoke subset
 has run.
 
+The harness creates an isolated Codex home at `<run-root>/codex-home` for every
+run. It copies only the user's Codex `auth.json` into that directory, sets
+`CODEX_HOME` for all Codex CLI calls, and runs `codex exec` with
+`--ignore-user-config` so eval sessions and config-derived behavior do not
+pollute or depend on the user's normal Codex home.
+
 The copied repo omits root `AGENTS.md`, stale `.agents` content, eval
 assets/results, and the eval harness before installing the selected variant
 skill.
@@ -60,9 +66,9 @@ contains OpenHealth runner commands, JSON shapes, validation rules, or
 product-agent behavior.
 
 Single-turn scenarios use `codex exec --ephemeral`. Multi-turn scenarios use one
-persisted eval session per variant/scenario, with later turns resumed through
-`codex exec resume` and explicit writable roots for the scenario directory and
-shared Go cache. Per-turn raw logs live under
+persisted eval session per variant/scenario under `<run-root>/codex-home`, with
+later turns resumed through `codex exec resume` and explicit writable roots for
+the scenario directory and shared Go cache. Per-turn raw logs live under
 `<run-root>/<variant>/<scenario>/turn-N/`.
 
 The harness runs independent variant/scenario jobs with `--parallel 4` by

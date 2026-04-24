@@ -10,7 +10,6 @@ import (
 )
 
 const (
-	EnvDataDir      = localruntime.EnvDataDir
 	EnvDatabasePath = localruntime.EnvDatabasePath
 )
 

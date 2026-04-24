@@ -1066,7 +1066,6 @@ func evalEnv(runDir string, dbPath string, cache cacheConfig) []string {
 	binDir := filepath.Join(runDir, "bin")
 	env = append(env,
 		"OPENHEALTH_DATABASE_PATH="+dbPath,
-		"OPENHEALTH_DATA_DIR=",
 		"GOCACHE="+paths.GoCache,
 		"GOMODCACHE="+paths.GoModCache,
 		"TMPDIR="+paths.Temp,

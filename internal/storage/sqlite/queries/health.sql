@@ -831,3 +831,41 @@ SET
 WHERE id = sqlc.arg('id')
   AND deleted_at IS NULL
 RETURNING id;
+
+-- name: GetConfigValue :one
+SELECT
+  key,
+  value_json,
+  updated_at
+FROM openhealth_config
+WHERE key = sqlc.arg('key');
+
+-- name: ListConfigValues :many
+SELECT
+  key,
+  value_json,
+  updated_at
+FROM openhealth_config
+ORDER BY key ASC;
+
+-- name: UpsertConfigValue :one
+INSERT INTO openhealth_config (
+  key,
+  value_json,
+  updated_at
+) VALUES (
+  sqlc.arg('key'),
+  sqlc.arg('value_json'),
+  sqlc.arg('updated_at')
+)
+ON CONFLICT(key) DO UPDATE SET
+  value_json = excluded.value_json,
+  updated_at = excluded.updated_at
+RETURNING
+  key,
+  value_json,
+  updated_at;
+
+-- name: DeleteConfigValue :execrows
+DELETE FROM openhealth_config
+WHERE key = sqlc.arg('key');

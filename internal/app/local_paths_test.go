@@ -5,28 +5,10 @@ import (
 	"testing"
 )
 
-func TestResolveLocalPathsUsesExplicitConfigOverrides(t *testing.T) {
+func TestResolveLocalPathsUsesExplicitDatabasePath(t *testing.T) {
 	t.Parallel()
 
 	dataDir, databasePath, err := resolveLocalPaths(LocalPathConfig{
-		DataDir: "/tmp/openhealth",
-	}, localPathRuntime{
-		getenv: func(string) string { return "" },
-		userHomeDir: func() (string, error) {
-			return "/home/tester", nil
-		},
-	})
-	if err != nil {
-		t.Fatalf("resolve local paths: %v", err)
-	}
-	if dataDir != "/tmp/openhealth" {
-		t.Fatalf("dataDir = %q, want %q", dataDir, "/tmp/openhealth")
-	}
-	if databasePath != "/tmp/openhealth/openhealth.db" {
-		t.Fatalf("databasePath = %q, want %q", databasePath, "/tmp/openhealth/openhealth.db")
-	}
-
-	dataDir, databasePath, err = resolveLocalPaths(LocalPathConfig{
 		DatabasePath: "custom/openhealth.sqlite",
 	}, localPathRuntime{
 		getenv: func(string) string { return EnvDatabasePath + "-ignored" },
@@ -105,8 +87,6 @@ func TestResolveLocalPathsSupportsEnvOverrides(t *testing.T) {
 			switch key {
 			case EnvDatabasePath:
 				return "/tmp/override/custom.db"
-			case EnvDataDir:
-				return "/tmp/override-data"
 			default:
 				return ""
 			}
@@ -123,6 +103,33 @@ func TestResolveLocalPathsSupportsEnvOverrides(t *testing.T) {
 	}
 	if databasePath != "/tmp/override/custom.db" {
 		t.Fatalf("databasePath = %q, want %q", databasePath, "/tmp/override/custom.db")
+	}
+}
+
+func TestResolveLocalPathsIgnoresRetiredDataDirEnv(t *testing.T) {
+	t.Parallel()
+
+	dataDir, databasePath, err := resolveLocalPaths(LocalPathConfig{}, localPathRuntime{
+		getenv: func(key string) string {
+			switch key {
+			case "OPENHEALTH_DATA_DIR":
+				return "/tmp/retired-data-dir"
+			default:
+				return ""
+			}
+		},
+		userHomeDir: func() (string, error) {
+			return "/home/tester", nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("resolve local paths: %v", err)
+	}
+	if dataDir != "/home/tester/.local/share/openhealth" {
+		t.Fatalf("dataDir = %q, want default path", dataDir)
+	}
+	if databasePath != "/home/tester/.local/share/openhealth/openhealth.db" {
+		t.Fatalf("databasePath = %q, want default database", databasePath)
 	}
 }
 

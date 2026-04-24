@@ -7,13 +7,11 @@ import (
 )
 
 const (
-	EnvDataDir      = "OPENHEALTH_DATA_DIR"
 	EnvDatabasePath = "OPENHEALTH_DATABASE_PATH"
 	defaultDBName   = "openhealth.db"
 )
 
 type LocalPathConfig struct {
-	DataDir      string
 	DatabasePath string
 }
 
@@ -33,17 +31,10 @@ func resolveLocalPaths(config LocalPathConfig, rt localPathRuntime) (string, str
 	switch {
 	case config.DatabasePath != "":
 		return cleanPath(filepath.Dir(config.DatabasePath)), cleanPath(config.DatabasePath), nil
-	case config.DataDir != "":
-		dataDir := cleanPath(config.DataDir)
-		return dataDir, filepath.Join(dataDir, defaultDBName), nil
 	}
 
 	if databasePath := rt.getenv(EnvDatabasePath); databasePath != "" {
 		return cleanPath(filepath.Dir(databasePath)), cleanPath(databasePath), nil
-	}
-	if dataDir := rt.getenv(EnvDataDir); dataDir != "" {
-		dataDir = cleanPath(dataDir)
-		return dataDir, filepath.Join(dataDir, defaultDBName), nil
 	}
 
 	homeDir, err := rt.userHomeDir()

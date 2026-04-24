@@ -801,6 +801,19 @@ func (q *Queries) DeleteBodyCompositionEntry(ctx context.Context, arg DeleteBody
 	return id, err
 }
 
+const deleteConfigValue = `-- name: DeleteConfigValue :execrows
+DELETE FROM openhealth_config
+WHERE key = ?1
+`
+
+func (q *Queries) DeleteConfigValue(ctx context.Context, key string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteConfigValue, key)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteImagingRecord = `-- name: DeleteImagingRecord :one
 UPDATE health_imaging_record
 SET
@@ -1015,6 +1028,22 @@ func (q *Queries) FindManualWeightEntry(ctx context.Context, arg FindManualWeigh
 		&i.UpdatedAt,
 		&i.DeletedAt,
 	)
+	return i, err
+}
+
+const getConfigValue = `-- name: GetConfigValue :one
+SELECT
+  key,
+  value_json,
+  updated_at
+FROM openhealth_config
+WHERE key = ?1
+`
+
+func (q *Queries) GetConfigValue(ctx context.Context, key string) (OpenhealthConfig, error) {
+	row := q.db.QueryRowContext(ctx, getConfigValue, key)
+	var i OpenhealthConfig
+	err := row.Scan(&i.Key, &i.ValueJson, &i.UpdatedAt)
 	return i, err
 }
 
@@ -1255,6 +1284,38 @@ func (q *Queries) ListBodyCompositionEntries(ctx context.Context, arg ListBodyCo
 			&i.UpdatedAt,
 			&i.DeletedAt,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listConfigValues = `-- name: ListConfigValues :many
+SELECT
+  key,
+  value_json,
+  updated_at
+FROM openhealth_config
+ORDER BY key ASC
+`
+
+func (q *Queries) ListConfigValues(ctx context.Context) ([]OpenhealthConfig, error) {
+	rows, err := q.db.QueryContext(ctx, listConfigValues)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []OpenhealthConfig
+	for rows.Next() {
+		var i OpenhealthConfig
+		if err := rows.Scan(&i.Key, &i.ValueJson, &i.UpdatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2286,5 +2347,37 @@ func (q *Queries) UpdateWeightEntry(ctx context.Context, arg UpdateWeightEntryPa
 		&i.UpdatedAt,
 		&i.DeletedAt,
 	)
+	return i, err
+}
+
+const upsertConfigValue = `-- name: UpsertConfigValue :one
+INSERT INTO openhealth_config (
+  key,
+  value_json,
+  updated_at
+) VALUES (
+  ?1,
+  ?2,
+  ?3
+)
+ON CONFLICT(key) DO UPDATE SET
+  value_json = excluded.value_json,
+  updated_at = excluded.updated_at
+RETURNING
+  key,
+  value_json,
+  updated_at
+`
+
+type UpsertConfigValueParams struct {
+	Key       string
+	ValueJson string
+	UpdatedAt string
+}
+
+func (q *Queries) UpsertConfigValue(ctx context.Context, arg UpsertConfigValueParams) (OpenhealthConfig, error) {
+	row := q.db.QueryRowContext(ctx, upsertConfigValue, arg.Key, arg.ValueJson, arg.UpdatedAt)
+	var i OpenhealthConfig
+	err := row.Scan(&i.Key, &i.ValueJson, &i.UpdatedAt)
 	return i, err
 }

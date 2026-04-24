@@ -17,13 +17,13 @@ Use the installed `openhealth` JSON runners:
 - `openhealth imaging`
 - `openhealth sleep`
 
-The command syntax above is complete. The configured local data path is already
+The command syntax above is complete. The configured local database path is already
 available through the environment; do not call `--help`, inspect source, or add
 `-db` unless the user explicitly provides a database path.
 Assume `openhealth` is already installed on `PATH`; do not run `command -v
 openhealth` before using it.
 Do not inspect environment variables or search for database files before routine
-runner calls; the runner already receives the configured local data path.
+runner calls; the runner already receives the configured local database path.
 
 ## Reject Before Tools
 

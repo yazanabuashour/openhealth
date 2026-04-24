@@ -131,3 +131,9 @@ type HealthWeightEntry struct {
 	UpdatedAt        string
 	DeletedAt        *string
 }
+
+type OpenhealthConfig struct {
+	Key       string
+	ValueJson string
+	UpdatedAt string
+}

@@ -125,6 +125,12 @@ VALUES (
 `); err != nil {
 		t.Fatalf("insert migrated imaging: %v", err)
 	}
+	if _, err := db.ExecContext(ctx, `
+INSERT INTO openhealth_config (key, value_json, updated_at)
+VALUES ('runner.default_limit', '{"value":10}', '2026-04-01T00:00:00Z')
+`); err != nil {
+		t.Fatalf("insert migrated config value: %v", err)
+	}
 }
 
 func TestPendingMigrationsRejectsPartialLegacySchema(t *testing.T) {

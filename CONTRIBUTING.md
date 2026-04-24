@@ -27,7 +27,7 @@ Contributors should be able to run:
 
 ```bash
 printf '%s\n' '{"action":"list_weights","list_mode":"latest"}' | \
-  OPENHEALTH_DATA_DIR="$(mktemp -d)" mise exec -- go run ./cmd/openhealth weight
+  OPENHEALTH_DATABASE_PATH="$(mktemp -d)/openhealth.db" mise exec -- go run ./cmd/openhealth weight
 mise exec -- go test ./cmd/openhealth
 ./scripts/validate-agent-skill.sh skills/openhealth
 mise exec -- gofmt -w .

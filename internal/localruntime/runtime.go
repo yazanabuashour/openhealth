@@ -12,12 +12,10 @@ import (
 )
 
 const (
-	EnvDataDir      = app.EnvDataDir
 	EnvDatabasePath = app.EnvDatabasePath
 )
 
 type Config struct {
-	DataDir      string
 	DatabasePath string
 	Timeout      time.Duration
 }
@@ -36,7 +34,6 @@ type Session struct {
 
 func ResolvePaths(config Config) (Paths, error) {
 	dataDir, databasePath, err := app.ResolveLocalPaths(app.LocalPathConfig{
-		DataDir:      config.DataDir,
 		DatabasePath: config.DatabasePath,
 	})
 	if err != nil {

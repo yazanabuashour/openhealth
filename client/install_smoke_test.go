@@ -20,7 +20,7 @@ func TestExternalConsumerCanRunAgainstLocalRuntime(t *testing.T) {
 	}
 	repoRoot := filepath.Dir(cwd)
 	moduleDir := t.TempDir()
-	dataDir := t.TempDir()
+	databasePath := filepath.Join(t.TempDir(), "openhealth.db")
 
 	writeFile(
 		t,
@@ -37,7 +37,7 @@ import (
 )
 
 func main() {
-	api, err := client.OpenLocal(client.LocalConfig{DataDir: os.Getenv(client.EnvDataDir)})
+	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: os.Getenv(client.EnvDatabasePath)})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func main() {
 	output := runCommand(
 		t,
 		moduleDir,
-		[]string{client.EnvDataDir + "=" + dataDir},
+		[]string{client.EnvDatabasePath + "=" + databasePath},
 		"go",
 		"run",
 		".",

@@ -152,12 +152,13 @@ path for direct local embedding, not the agent installation path. OpenHealth
 The default SQLite path is
 `${XDG_DATA_HOME:-~/.local/share}/openhealth/openhealth.db`. Override it with:
 
-- `client.LocalConfig{DataDir: "..."}`
 - `client.LocalConfig{DatabasePath: "..."}`
-- `OPENHEALTH_DATA_DIR`
 - `OPENHEALTH_DATABASE_PATH`
 
-The database path override wins over the data directory override.
+For production runner usage, set `OPENHEALTH_DATABASE_PATH` to an absolute
+SQLite database file path. The database path itself cannot live inside SQLite:
+OpenHealth must know the file path before it can open the database. Runtime
+settings loaded after SQLite opens are stored in the database.
 
 ## Eval Evidence
 
@@ -176,7 +177,7 @@ Use the full local toolchain for repository development:
 ```bash
 mise install
 printf '%s\n' '{"action":"list_weights","list_mode":"latest"}' | \
-  OPENHEALTH_DATA_DIR="$(mktemp -d)" mise exec -- go run ./cmd/openhealth weight
+  OPENHEALTH_DATABASE_PATH="$(mktemp -d)/openhealth.db" mise exec -- go run ./cmd/openhealth weight
 mise exec -- go generate ./...
 mise exec -- gofmt -w .
 mise exec -- golangci-lint run

@@ -15,8 +15,9 @@ func TestOpenLocalSupportsDirectLocalClient(t *testing.T) {
 	t.Parallel()
 
 	dataDir := t.TempDir()
+	databasePath := filepath.Join(dataDir, "openhealth.db")
 	api, err := client.OpenLocal(client.LocalConfig{
-		DataDir: dataDir,
+		DatabasePath: databasePath,
 	})
 	if err != nil {
 		t.Fatalf("open local client: %v", err)
@@ -59,7 +60,6 @@ func TestOpenLocalSupportsDirectLocalClient(t *testing.T) {
 		t.Fatalf("weights = %#v, want one 149.4 entry", weights)
 	}
 
-	databasePath := filepath.Join(dataDir, "openhealth.db")
 	if api.Paths.DatabasePath != databasePath {
 		t.Fatalf("databasePath = %q, want %q", api.Paths.DatabasePath, databasePath)
 	}
@@ -72,9 +72,10 @@ func TestOpenLocalPersistsDataAcrossSessions(t *testing.T) {
 	t.Parallel()
 
 	dataDir := t.TempDir()
+	databasePath := filepath.Join(dataDir, "openhealth.db")
 	recordedAt := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 
-	api, err := client.OpenLocal(client.LocalConfig{DataDir: dataDir})
+	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: databasePath})
 	if err != nil {
 		t.Fatalf("open first local client: %v", err)
 	}
@@ -97,7 +98,7 @@ func TestOpenLocalPersistsDataAcrossSessions(t *testing.T) {
 		t.Fatalf("close first local client: %v", err)
 	}
 
-	api, err = client.OpenLocal(client.LocalConfig{DataDir: dataDir})
+	api, err = client.OpenLocal(client.LocalConfig{DatabasePath: databasePath})
 	if err != nil {
 		t.Fatalf("reopen local client: %v", err)
 	}
@@ -119,7 +120,7 @@ func TestOpenLocalPersistsDataAcrossSessions(t *testing.T) {
 func TestLocalClientWeightHelpers(t *testing.T) {
 	t.Parallel()
 
-	api, err := client.OpenLocal(client.LocalConfig{DataDir: t.TempDir()})
+	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: filepath.Join(t.TempDir(), "openhealth.db")})
 	if err != nil {
 		t.Fatalf("open local client: %v", err)
 	}
@@ -196,7 +197,7 @@ func TestLocalClientWeightHelpers(t *testing.T) {
 func TestLocalClientNonWeightHelpers(t *testing.T) {
 	t.Parallel()
 
-	api, err := client.OpenLocal(client.LocalConfig{DataDir: t.TempDir()})
+	api, err := client.OpenLocal(client.LocalConfig{DatabasePath: filepath.Join(t.TempDir(), "openhealth.db")})
 	if err != nil {
 		t.Fatalf("open local client: %v", err)
 	}

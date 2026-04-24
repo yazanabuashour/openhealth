@@ -23,7 +23,7 @@ sh -c "$(curl -fsSL https://github.com/yazanabuashour/openhealth/releases/latest
 For a pinned release:
 
 ```bash
-OPENHEALTH_VERSION=v0.3.1 sh -c "$(curl -fsSL https://github.com/yazanabuashour/openhealth/releases/download/v0.3.1/install.sh)"
+OPENHEALTH_VERSION=v0.5.0 sh -c "$(curl -fsSL https://github.com/yazanabuashour/openhealth/releases/download/v0.5.0/install.sh)"
 ```
 
 A complete install has two parts:
@@ -145,7 +145,7 @@ func main() {
 `client.OpenLocal(...)` opens SQLite locally, runs migrations, and calls the
 same local health service used by the runner. This is a developer/source import
 path for direct local embedding, not the agent installation path. OpenHealth
-`0.3.1` does not ship a hosted service or remote HTTP API contract.
+`0.5.0` does not ship a hosted service or remote HTTP API contract.
 
 ## Local Storage
 
@@ -162,8 +162,8 @@ settings loaded after SQLite opens are stored in the database.
 
 ## Eval Evidence
 
-The production runner/skill passed the latest 50-scenario release gate:
-[`docs/agent-eval-results/oh-5yr-2026-04-20-v0.3.1-final.md`](docs/agent-eval-results/oh-5yr-2026-04-20-v0.3.1-final.md).
+The production runner/skill passed the latest 53-scenario release gate:
+[`docs/agent-eval-results/oh-5yr-2026-04-24-v0.5.0-final.md`](docs/agent-eval-results/oh-5yr-2026-04-24-v0.5.0-final.md).
 The CLI comparison found matching or improved correctness with fewer tools,
 fewer non-cached input tokens, and less wall time:
 [`docs/agent-eval-results/oh-5yr-maturity-throughput-final.md`](docs/agent-eval-results/oh-5yr-maturity-throughput-final.md).

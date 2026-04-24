@@ -3545,10 +3545,6 @@ func repoRoot() (string, error) {
 	return filepath.Abs(strings.TrimSpace(string(out)))
 }
 
-func commandOutput(name string, args ...string) string {
-	return commandOutputWithEnv(os.Environ(), name, args...)
-}
-
 func commandOutputWithEnv(env []string, name string, args ...string) string {
 	cmd := exec.Command(name, args...)
 	cmd.Env = env

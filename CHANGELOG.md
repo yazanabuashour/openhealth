@@ -3,6 +3,9 @@
 This CHANGELOG summarizes public releases. Full OpenHealth release notes are
 published on GitHub Releases:
 
+- [v0.5.0](https://github.com/yazanabuashour/openhealth/releases/tag/v0.5.0)
+  retires legacy data-directory configuration, standardizes explicit database
+  path overrides, and hardens production eval isolation.
 - [v0.4.0](https://github.com/yazanabuashour/openhealth/releases/tag/v0.4.0)
   adds subjective sleep tracking to the production runner and skill.
 - [v0.3.1](https://github.com/yazanabuashour/openhealth/releases/tag/v0.3.1)

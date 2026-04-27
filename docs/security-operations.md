@@ -15,7 +15,7 @@ This runbook defines the recurring security work for OpenHealth maintainers. It 
 - Runner JSON operations in `cmd/openhealth`, `internal/runner`, and `client`, especially write, correction, delete, import, and list behavior.
 - Agent-facing task policy in `skills/openhealth/SKILL.md`, including direct-reject rules and unsafe correction/delete handling.
 - Install and release pipeline files: `scripts/install.sh`, `.github/workflows/release.yml`, `docs/release-verification.md`, `CHANGELOG.md`, and `docs/release-notes`.
-- GitHub Actions and repository policy files under `.github`, including token permissions, environment protection, CODEOWNERS, dependency review, and branch protection assumptions.
+- GitHub Actions and repository policy files under `.github`, including token permissions, release publication boundaries, CODEOWNERS, dependency review, and branch protection assumptions.
 - Contributor pull request paths, especially any workflow that runs code from untrusted forks or exposes repository secrets.
 
 ## Review Workflow

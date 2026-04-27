@@ -73,7 +73,7 @@ Current readiness assumptions:
 - Pull requests run only untrusted-safe validation with read-only token scope.
 - Pull requests enforce storage codegen drift checks through `go generate ./...` plus `git diff --exit-code`.
 - GitHub Releases are created from version tags in the `v0.y.z` form.
-- Release publication runs in a protected `release` environment with narrowly scoped write permissions.
+- Release publication starts automatically from version tags after release-input verification passes, with narrowly scoped write permissions only on the trusted tag workflow.
 - Security reports are expected through GitHub private vulnerability reporting.
 
 Current review enforcement nuance:
@@ -93,7 +93,7 @@ Maintainer and automation isolation:
 
 - Prefer `GITHUB_TOKEN` with explicit job-scoped permissions over personal access tokens or long-lived bot credentials.
 - Use a dedicated low-privilege bot identity only when new automation needs privileges that `GITHUB_TOKEN` cannot safely provide.
-- Keep release and deployment writes behind the protected `release` environment.
+- Keep release and deployment writes limited to trusted branch or tag workflows with explicit job-scoped permissions.
 - Enable code-owner review enforcement, stricter admin bypass policy, and stronger review separation only after at least two maintainers can satisfy those controls without blocking routine maintenance.
 - Do not use self-hosted runners for untrusted pull requests. Only consider self-hosted runners for trusted branches or tags after documenting isolation, secret exposure, cleanup, and network-access controls.
 
@@ -128,7 +128,7 @@ single-file OpenHealth skill, and the direct local runtime. Tag a version like
 - publish the draft only after all assets and attestations are ready, then
   verify the release is latest
 
-The `release` environment should remain protected so only approved maintainers can publish release assets.
+The tag push is the maintainer approval boundary for release publication. After `verify-release` passes, the publish job runs without a separate GitHub environment approval prompt.
 
 Before tagging, add `docs/release-notes/<tag>.md`, update `CHANGELOG.md`, and run `./scripts/validate-release-docs.sh <tag>` locally. The release workflow runs the same check before publishing and does not fall back to generated GitHub release notes.
 

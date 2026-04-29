@@ -80,6 +80,8 @@ manual log comparison.
 Reports include:
 
 - database verification and assistant-answer verification
+- safety pass, capability pass, and UX quality or taste debt as separate
+  conclusions for decision reports
 - harness parallelism, elapsed wall time, cache mode, cache prewarm time, effective parallel speedup, and parallel efficiency
 - per-job phase timing for setup, agent-app build, cache warm, agent run, metrics parsing, and verification
 - per-turn metrics and raw log references for multi-turn scenarios
@@ -96,6 +98,32 @@ Retired human CLI usage is counted only for executed old command shapes such as
 Searches or documentation reads that merely contain CLI command strings are not
 counted.
 
+## Taste Review
+
+Passing eval classification is not proof of good UX. For ADR, POC, eval,
+promotion, and deferred-capability decisions, record a taste review alongside
+the existing correctness and hygiene evidence.
+
+Decision reports should separate:
+
+- safety pass: validation, provenance, local runner boundaries, auditability,
+  no direct SQLite access, no broad repo search, no retired CLI usage, and
+  approval-before-write held
+- capability pass: current runner and skill primitives can technically express
+  the workflow without hidden evaluator-only instructions
+- UX quality: routine use is acceptable, or the workflow is taste debt because
+  it is ceremonial, surprising, high-touch, latency-heavy, or brittle
+
+Taste flags include high tool count, repeated assistant turns, long wall time,
+clarification turns that a normal user would not expect, exact prompt
+choreography, surprising rejection patterns, and safe workflows that require
+read-before-write ceremony beyond the real approval boundary.
+
+Taste debt does not authorize implementation. It creates audit, design, or
+eval backlog unless a later targeted decision names the exact smoother surface
+and shows that safety, provenance, authority, local-first operation, runner-only
+access, and explicit approval boundaries remain intact.
+
 ## Production Gate
 
 The production OpenHealth runner/skill is release-ready only when:
@@ -105,6 +133,10 @@ The production OpenHealth runner/skill is release-ready only when:
 - production has no routine broad repo search
 - rule-covered invalid-input scenarios are final-answer-only: no tools, no command executions, and at most one assistant answer
 - the eval context preflight confirms the client-agent context is the shipped project skill, not hidden evaluator-only instructions
+
+Release readiness still depends on correctness and hygiene. Taste review adds a
+separate decision record for UX quality and follow-up backlog; it does not
+weaken the production gate or allow hidden evaluator-only behavior.
 
 Historical iteration artifacts are archived under
 `docs/agent-eval-results/archive/`.

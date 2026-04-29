@@ -2,6 +2,16 @@
 - Do work on the current branch. Do not create or switch to another branch unless explicitly instructed.
 - For repo-pinned developer tools declared in `mise.toml`, run commands through `mise exec -- ...` so agents use the same tool versions as local docs and CI.
 
+## ADR/POC/Eval Decision Taste Review
+
+When doing OpenHealth ADR, POC, eval, promotion, or deferred-capability decision work, keep the existing evidence discipline but add a taste check before accepting a safe-but-awkward outcome:
+
+- Ask whether a normal user would expect a simpler OpenHealth surface than the one being preserved.
+- Distinguish inspect, read, and list permission from durable writes, corrections, deletes, imports, and unsafe mutation. Approval belongs at durable health-data changes and other irreversible actions.
+- Prefer extending the natural existing runner domain when user intent clearly belongs there, but only after the normal evidence, eval, and promotion process identifies the exact surface and gates.
+- Treat a passing eval as insufficient proof of good UX when the workflow requires high step count, long latency, exact prompt choreography, or surprising clarification turns.
+- Do not use taste review to bypass validation, provenance, local runner boundaries, auditability, or approval-before-write.
+
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 ## Beads Issue Tracker
 

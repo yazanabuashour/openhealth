@@ -3,9 +3,8 @@ package runner
 import (
 	"fmt"
 	"strings"
-	"time"
 
-	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	"github.com/yazanabuashour/openhealth/internal/health"
 )
 
 func normalizeLabTaskRequest(request LabTaskRequest) (normalizedLabTaskRequest, string) {
@@ -19,8 +18,8 @@ func normalizeLabTaskRequest(request LabTaskRequest) (normalizedLabTaskRequest, 
 		ListMode: request.ListMode,
 		Limit:    request.Limit,
 	}
-	if request.Limit < 0 {
-		return normalizedLabTaskRequest{}, "limit must be greater than or equal to 0"
+	if rejection := rejectNegativeLimit(request.Limit); rejection != "" {
+		return normalizedLabTaskRequest{}, rejection
 	}
 
 	switch action {
@@ -117,34 +116,19 @@ func normalizeLabTaskRequest(request LabTaskRequest) (normalizedLabTaskRequest, 
 }
 
 func normalizeLabListRequest(normalized normalizedLabTaskRequest, request LabTaskRequest) (normalizedLabTaskRequest, string) {
-	if normalized.ListMode == "" {
-		normalized.ListMode = LabListModeHistory
+	list, rejection := normalizeTaskListRequest(taskListRequest{
+		ListMode: request.ListMode,
+		FromDate: request.FromDate,
+		ToDate:   request.ToDate,
+		Limit:    request.Limit,
+	}, "lab")
+	if rejection != "" {
+		return normalizedLabTaskRequest{}, rejection
 	}
-	switch normalized.ListMode {
-	case LabListModeLatest:
-		normalized.Limit = 1
-	case LabListModeHistory:
-		if normalized.Limit == 0 {
-			normalized.Limit = 25
-		}
-	case LabListModeRange:
-		if request.FromDate == "" || request.ToDate == "" {
-			return normalizedLabTaskRequest{}, "from_date and to_date are required for range"
-		}
-		from, rejection := parseDateOnly(request.FromDate)
-		if rejection != "" {
-			return normalizedLabTaskRequest{}, rejection
-		}
-		toDate, rejection := parseDateOnly(request.ToDate)
-		if rejection != "" {
-			return normalizedLabTaskRequest{}, rejection
-		}
-		toEnd := toDate.Add(24*time.Hour - time.Nanosecond)
-		normalized.From = &from
-		normalized.To = &toEnd
-	default:
-		return normalizedLabTaskRequest{}, fmt.Sprintf("unsupported lab list mode %q", normalized.ListMode)
-	}
+	normalized.ListMode = list.ListMode
+	normalized.From = list.From
+	normalized.To = list.To
+	normalized.Limit = list.Limit
 	slug, rejection := normalizeAnalyteSlug(request.AnalyteSlug)
 	if rejection != "" {
 		return normalizedLabTaskRequest{}, rejection
@@ -246,7 +230,7 @@ func normalizeLabResultUpdateInput(input LabResultUpdateInput) (normalizedLabRes
 	if (matchSlug == "") == (matchTestName == "") {
 		return normalizedLabResultUpdateInput{}, "match must include exactly one of canonical_slug or test_name"
 	}
-	var normalizedSlug *client.AnalyteSlug
+	var normalizedSlug *health.AnalyteSlug
 	if matchSlug != "" {
 		slug, rejection := normalizeAnalyteSlug(matchSlug)
 		if rejection != "" {
@@ -294,7 +278,7 @@ func normalizeOptionalLabText(value *string, field string) (*string, string) {
 	return &trimmed, ""
 }
 
-func normalizeOptionalAnalyteSlug(value *string) (*client.AnalyteSlug, string) {
+func normalizeOptionalAnalyteSlug(value *string) (*health.AnalyteSlug, string) {
 	if value == nil {
 		return nil, ""
 	}
@@ -309,11 +293,11 @@ func normalizeOptionalAnalyteSlug(value *string) (*client.AnalyteSlug, string) {
 	return slug, ""
 }
 
-func normalizeAnalyteSlug(value string) (*client.AnalyteSlug, string) {
+func normalizeAnalyteSlug(value string) (*health.AnalyteSlug, string) {
 	if value == "" {
 		return nil, ""
 	}
-	slug, ok := client.NormalizeAnalyteSlug(value)
+	slug, ok := health.NormalizeAnalyteSlug(value)
 	if !ok {
 		return nil, "analyte_slug must be a valid analyte slug"
 	}

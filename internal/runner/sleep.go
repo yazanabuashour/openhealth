@@ -5,18 +5,19 @@ import (
 	"fmt"
 	"time"
 
-	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	"github.com/yazanabuashour/openhealth/internal/health"
+	"github.com/yazanabuashour/openhealth/internal/localruntime"
 )
 
 const (
 	SleepTaskActionUpsert   = "upsert_sleep"
 	SleepTaskActionDelete   = "delete_sleep"
 	SleepTaskActionList     = "list_sleep"
-	SleepTaskActionValidate = "validate"
+	SleepTaskActionValidate = taskActionValidate
 
-	SleepListModeLatest  = "latest"
-	SleepListModeHistory = "history"
-	SleepListModeRange   = "range"
+	SleepListModeLatest  = listModeLatest
+	SleepListModeHistory = listModeHistory
+	SleepListModeRange   = listModeRange
 )
 
 type SleepTaskRequest struct {
@@ -87,7 +88,7 @@ type normalizedSleepTarget struct {
 	Date *time.Time
 }
 
-func RunSleepTask(ctx context.Context, config client.LocalConfig, request SleepTaskRequest) (SleepTaskResult, error) {
+func RunSleepTask(ctx context.Context, config localruntime.Config, request SleepTaskRequest) (SleepTaskResult, error) {
 	normalized, rejection := normalizeSleepTaskRequest(request)
 	if rejection != "" {
 		return SleepTaskResult{Rejected: true, RejectionReason: rejection, Summary: rejection}, nil
@@ -96,24 +97,18 @@ func RunSleepTask(ctx context.Context, config client.LocalConfig, request SleepT
 		return SleepTaskResult{Summary: "valid"}, nil
 	}
 
-	api, err := client.OpenLocal(config)
-	if err != nil {
-		return SleepTaskResult{}, err
-	}
-	defer func() {
-		_ = api.Close()
-	}()
-
-	switch normalized.Action {
-	case SleepTaskActionUpsert:
-		return runSleepUpsert(ctx, api, normalized)
-	case SleepTaskActionDelete:
-		return runSleepDelete(ctx, api, normalized)
-	case SleepTaskActionList:
-		return runSleepList(ctx, api, normalized)
-	default:
-		return SleepTaskResult{}, fmt.Errorf("unsupported sleep task action %q", normalized.Action)
-	}
+	return withService(ctx, config, func(ctx context.Context, service health.Service) (SleepTaskResult, error) {
+		switch normalized.Action {
+		case SleepTaskActionUpsert:
+			return runSleepUpsert(ctx, service, normalized)
+		case SleepTaskActionDelete:
+			return runSleepDelete(ctx, service, normalized)
+		case SleepTaskActionList:
+			return runSleepList(ctx, service, normalized)
+		default:
+			return SleepTaskResult{}, fmt.Errorf("unsupported sleep task action %q", normalized.Action)
+		}
+	})
 }
 
 func normalizeSleepTaskRequest(request SleepTaskRequest) (normalizedSleepTaskRequest, string) {
@@ -126,8 +121,8 @@ func normalizeSleepTaskRequest(request SleepTaskRequest) (normalizedSleepTaskReq
 		ListMode: request.ListMode,
 		Limit:    request.Limit,
 	}
-	if request.Limit < 0 {
-		return normalizedSleepTaskRequest{}, "limit must be greater than or equal to 0"
+	if rejection := rejectNegativeLimit(request.Limit); rejection != "" {
+		return normalizedSleepTaskRequest{}, rejection
 	}
 
 	switch action {
@@ -173,34 +168,19 @@ func normalizeSleepTaskRequest(request SleepTaskRequest) (normalizedSleepTaskReq
 }
 
 func normalizeSleepListRequest(normalized normalizedSleepTaskRequest, request SleepTaskRequest) (normalizedSleepTaskRequest, string) {
-	if normalized.ListMode == "" {
-		normalized.ListMode = SleepListModeHistory
+	list, rejection := normalizeTaskListRequest(taskListRequest{
+		ListMode: request.ListMode,
+		FromDate: request.FromDate,
+		ToDate:   request.ToDate,
+		Limit:    request.Limit,
+	}, "sleep")
+	if rejection != "" {
+		return normalizedSleepTaskRequest{}, rejection
 	}
-	switch normalized.ListMode {
-	case SleepListModeLatest:
-		normalized.Limit = 1
-	case SleepListModeHistory:
-		if normalized.Limit == 0 {
-			normalized.Limit = 25
-		}
-	case SleepListModeRange:
-		if request.FromDate == "" || request.ToDate == "" {
-			return normalizedSleepTaskRequest{}, "from_date and to_date are required for range"
-		}
-		from, rejection := parseDateOnly(request.FromDate)
-		if rejection != "" {
-			return normalizedSleepTaskRequest{}, rejection
-		}
-		toDate, rejection := parseDateOnly(request.ToDate)
-		if rejection != "" {
-			return normalizedSleepTaskRequest{}, rejection
-		}
-		toEnd := toDate.Add(24*time.Hour - time.Nanosecond)
-		normalized.From = &from
-		normalized.To = &toEnd
-	default:
-		return normalizedSleepTaskRequest{}, fmt.Sprintf("unsupported sleep list mode %q", normalized.ListMode)
-	}
+	normalized.ListMode = list.ListMode
+	normalized.From = list.From
+	normalized.To = list.To
+	normalized.Limit = list.Limit
 	return normalized, ""
 }
 
@@ -244,16 +224,16 @@ func normalizeSleepTarget(target SleepTarget) (normalizedSleepTarget, string) {
 	return normalizedSleepTarget{Date: &date}, ""
 }
 
-func runSleepUpsert(ctx context.Context, api *client.LocalClient, request normalizedSleepTaskRequest) (SleepTaskResult, error) {
+func runSleepUpsert(ctx context.Context, service health.Service, request normalizedSleepTaskRequest) (SleepTaskResult, error) {
 	result := SleepTaskResult{}
 	for _, entry := range request.Entries {
-		written, err := api.UpsertSleep(ctx, client.SleepInput(entry))
+		written, err := service.UpsertSleep(ctx, health.SleepInput(entry))
 		if err != nil {
 			return SleepTaskResult{}, err
 		}
 		result.Writes = append(result.Writes, sleepWrite(written.Entry, string(written.Status)))
 	}
-	entries, err := listSleepEntries(ctx, api, normalizedSleepTaskRequest{ListMode: SleepListModeHistory, Limit: 100})
+	entries, err := listSleepEntries(ctx, service, normalizedSleepTaskRequest{ListMode: SleepListModeHistory, Limit: 100})
 	if err != nil {
 		return SleepTaskResult{}, err
 	}
@@ -262,18 +242,18 @@ func runSleepUpsert(ctx context.Context, api *client.LocalClient, request normal
 	return result, nil
 }
 
-func runSleepDelete(ctx context.Context, api *client.LocalClient, request normalizedSleepTaskRequest) (SleepTaskResult, error) {
-	target, rejection, err := sleepTarget(ctx, api, request.Target)
+func runSleepDelete(ctx context.Context, service health.Service, request normalizedSleepTaskRequest) (SleepTaskResult, error) {
+	target, rejection, err := sleepTarget(ctx, service, request.Target)
 	if err != nil {
 		return SleepTaskResult{}, err
 	}
 	if rejection != "" {
 		return SleepTaskResult{Rejected: true, RejectionReason: rejection, Summary: rejection}, nil
 	}
-	if err := api.DeleteSleep(ctx, target.ID); err != nil {
+	if err := service.DeleteSleep(ctx, target.ID); err != nil {
 		return SleepTaskResult{}, err
 	}
-	entries, err := listSleepEntries(ctx, api, normalizedSleepTaskRequest{ListMode: SleepListModeHistory, Limit: 100})
+	entries, err := listSleepEntries(ctx, service, normalizedSleepTaskRequest{ListMode: SleepListModeHistory, Limit: 100})
 	if err != nil {
 		return SleepTaskResult{}, err
 	}
@@ -284,8 +264,8 @@ func runSleepDelete(ctx context.Context, api *client.LocalClient, request normal
 	}, nil
 }
 
-func runSleepList(ctx context.Context, api *client.LocalClient, request normalizedSleepTaskRequest) (SleepTaskResult, error) {
-	entries, err := listSleepEntries(ctx, api, request)
+func runSleepList(ctx context.Context, service health.Service, request normalizedSleepTaskRequest) (SleepTaskResult, error) {
+	entries, err := listSleepEntries(ctx, service, request)
 	if err != nil {
 		return SleepTaskResult{}, err
 	}
@@ -295,38 +275,18 @@ func runSleepList(ctx context.Context, api *client.LocalClient, request normaliz
 	}, nil
 }
 
-func sleepTarget(ctx context.Context, api *client.LocalClient, target normalizedSleepTarget) (client.SleepEntry, string, error) {
-	items, err := api.ListSleep(ctx, client.SleepListOptions{})
-	if err != nil {
-		return client.SleepEntry{}, "", err
-	}
-	matches := []client.SleepEntry{}
-	for _, item := range items {
-		if target.ID > 0 {
-			if item.ID == target.ID {
-				matches = append(matches, item)
-			}
-			continue
-		}
-		if target.Date != nil && item.RecordedAt.Format(time.DateOnly) == target.Date.Format(time.DateOnly) {
-			matches = append(matches, item)
-		}
-	}
-	switch len(matches) {
-	case 0:
-		return client.SleepEntry{}, "no matching sleep entry", nil
-	case 1:
-		return matches[0], "", nil
-	default:
-		return client.SleepEntry{}, "multiple matching sleep entries; target is ambiguous", nil
-	}
+func sleepTarget(ctx context.Context, service health.Service, target normalizedSleepTarget) (health.SleepEntry, string, error) {
+	return service.ResolveSleepTarget(ctx, health.SleepTarget{
+		ID:         target.ID,
+		RecordedAt: target.Date,
+	})
 }
 
-func listSleepEntries(ctx context.Context, api *client.LocalClient, request normalizedSleepTaskRequest) ([]SleepTaskEntry, error) {
-	items, err := api.ListSleep(ctx, client.SleepListOptions{
+func listSleepEntries(ctx context.Context, service health.Service, request normalizedSleepTaskRequest) ([]SleepTaskEntry, error) {
+	items, err := service.ListSleep(ctx, health.HistoryFilter{
 		From:  request.From,
 		To:    request.To,
-		Limit: request.Limit,
+		Limit: limitPointer(request.Limit),
 	})
 	if err != nil {
 		return nil, err
@@ -338,7 +298,7 @@ func listSleepEntries(ctx context.Context, api *client.LocalClient, request norm
 	return out, nil
 }
 
-func sleepWrite(item client.SleepEntry, status string) SleepWrite {
+func sleepWrite(item health.SleepEntry, status string) SleepWrite {
 	return SleepWrite{
 		ID:           item.ID,
 		Date:         item.RecordedAt.Format(time.DateOnly),
@@ -348,7 +308,7 @@ func sleepWrite(item client.SleepEntry, status string) SleepWrite {
 	}
 }
 
-func sleepEntry(item client.SleepEntry) SleepTaskEntry {
+func sleepEntry(item health.SleepEntry) SleepTaskEntry {
 	return SleepTaskEntry{
 		ID:           item.ID,
 		Date:         item.RecordedAt.Format(time.DateOnly),

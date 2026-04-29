@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	"github.com/yazanabuashour/openhealth/internal/health"
 )
 
 func applyLabResultUpdate(collection *normalizedLabCollectionInput, update normalizedLabResultUpdateInput) string {
@@ -47,16 +47,16 @@ func labResultMatchesPatch(result normalizedLabResultInput, update normalizedLab
 	return strings.EqualFold(strings.TrimSpace(result.TestName), update.MatchTestName)
 }
 
-func matchingLabCollection(items []client.LabCollection, input normalizedLabCollectionInput) (client.LabCollection, bool) {
+func matchingLabCollection(items []health.LabCollection, input normalizedLabCollectionInput) (health.LabCollection, bool) {
 	for _, item := range items {
 		if labCollectionMatches(item, input) {
 			return item, true
 		}
 	}
-	return client.LabCollection{}, false
+	return health.LabCollection{}, false
 }
 
-func labCollectionMatches(item client.LabCollection, input normalizedLabCollectionInput) bool {
+func labCollectionMatches(item health.LabCollection, input normalizedLabCollectionInput) bool {
 	if item.CollectedAt.Format(time.DateOnly) != input.CollectedAt.Format(time.DateOnly) ||
 		!equalStringPointer(item.Note, input.Note) ||
 		len(item.Panels) != len(input.Panels) {
@@ -75,7 +75,7 @@ func labCollectionMatches(item client.LabCollection, input normalizedLabCollecti
 	return true
 }
 
-func labResultMatches(item client.LabResult, input normalizedLabResultInput) bool {
+func labResultMatches(item health.LabResult, input normalizedLabResultInput) bool {
 	if item.TestName != input.TestName ||
 		!equalAnalyteSlugPointer(item.CanonicalSlug, input.CanonicalSlug) ||
 		item.ValueText != input.ValueText ||
@@ -89,7 +89,7 @@ func labResultMatches(item client.LabResult, input normalizedLabResultInput) boo
 	return true
 }
 
-func equalAnalyteSlugPointer(left *client.AnalyteSlug, right *client.AnalyteSlug) bool {
+func equalAnalyteSlugPointer(left *health.AnalyteSlug, right *health.AnalyteSlug) bool {
 	if left == nil || right == nil {
 		return left == right
 	}

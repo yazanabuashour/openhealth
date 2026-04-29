@@ -6,7 +6,8 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	"github.com/yazanabuashour/openhealth/internal/health"
+	"github.com/yazanabuashour/openhealth/internal/localruntime"
 )
 
 const (
@@ -14,11 +15,11 @@ const (
 	ImagingTaskActionCorrect  = "correct_imaging"
 	ImagingTaskActionDelete   = "delete_imaging"
 	ImagingTaskActionList     = "list_imaging"
-	ImagingTaskActionValidate = "validate"
+	ImagingTaskActionValidate = taskActionValidate
 
-	ImagingListModeLatest  = "latest"
-	ImagingListModeHistory = "history"
-	ImagingListModeRange   = "range"
+	ImagingListModeLatest  = listModeLatest
+	ImagingListModeHistory = listModeHistory
+	ImagingListModeRange   = listModeRange
 )
 
 type ImagingTaskRequest struct {
@@ -106,7 +107,7 @@ type normalizedImagingTarget struct {
 	Date *time.Time
 }
 
-func RunImagingTask(ctx context.Context, config client.LocalConfig, request ImagingTaskRequest) (ImagingTaskResult, error) {
+func RunImagingTask(ctx context.Context, config localruntime.Config, request ImagingTaskRequest) (ImagingTaskResult, error) {
 	normalized, rejection := normalizeImagingTaskRequest(request)
 	if rejection != "" {
 		return ImagingTaskResult{Rejected: true, RejectionReason: rejection, Summary: rejection}, nil
@@ -115,26 +116,20 @@ func RunImagingTask(ctx context.Context, config client.LocalConfig, request Imag
 		return ImagingTaskResult{Summary: "valid"}, nil
 	}
 
-	api, err := client.OpenLocal(config)
-	if err != nil {
-		return ImagingTaskResult{}, err
-	}
-	defer func() {
-		_ = api.Close()
-	}()
-
-	switch normalized.Action {
-	case ImagingTaskActionRecord:
-		return runImagingRecord(ctx, api, normalized)
-	case ImagingTaskActionCorrect:
-		return runImagingCorrect(ctx, api, normalized)
-	case ImagingTaskActionDelete:
-		return runImagingDelete(ctx, api, normalized)
-	case ImagingTaskActionList:
-		return runImagingList(ctx, api, normalized)
-	default:
-		return ImagingTaskResult{}, fmt.Errorf("unsupported imaging task action %q", normalized.Action)
-	}
+	return withService(ctx, config, func(ctx context.Context, service health.Service) (ImagingTaskResult, error) {
+		switch normalized.Action {
+		case ImagingTaskActionRecord:
+			return runImagingRecord(ctx, service, normalized)
+		case ImagingTaskActionCorrect:
+			return runImagingCorrect(ctx, service, normalized)
+		case ImagingTaskActionDelete:
+			return runImagingDelete(ctx, service, normalized)
+		case ImagingTaskActionList:
+			return runImagingList(ctx, service, normalized)
+		default:
+			return ImagingTaskResult{}, fmt.Errorf("unsupported imaging task action %q", normalized.Action)
+		}
+	})
 }
 
 func normalizeImagingTaskRequest(request ImagingTaskRequest) (normalizedImagingTaskRequest, string) {
@@ -147,8 +142,8 @@ func normalizeImagingTaskRequest(request ImagingTaskRequest) (normalizedImagingT
 		ListMode: request.ListMode,
 		Limit:    request.Limit,
 	}
-	if request.Limit < 0 {
-		return normalizedImagingTaskRequest{}, "limit must be greater than or equal to 0"
+	if rejection := rejectNegativeLimit(request.Limit); rejection != "" {
+		return normalizedImagingTaskRequest{}, rejection
 	}
 
 	switch action {
@@ -217,34 +212,19 @@ func normalizeImagingTaskRequest(request ImagingTaskRequest) (normalizedImagingT
 }
 
 func normalizeImagingListRequest(normalized normalizedImagingTaskRequest, request ImagingTaskRequest) (normalizedImagingTaskRequest, string) {
-	if normalized.ListMode == "" {
-		normalized.ListMode = ImagingListModeHistory
+	list, rejection := normalizeTaskListRequest(taskListRequest{
+		ListMode: request.ListMode,
+		FromDate: request.FromDate,
+		ToDate:   request.ToDate,
+		Limit:    request.Limit,
+	}, "imaging")
+	if rejection != "" {
+		return normalizedImagingTaskRequest{}, rejection
 	}
-	switch normalized.ListMode {
-	case ImagingListModeLatest:
-		normalized.Limit = 1
-	case ImagingListModeHistory:
-		if normalized.Limit == 0 {
-			normalized.Limit = 25
-		}
-	case ImagingListModeRange:
-		if request.FromDate == "" || request.ToDate == "" {
-			return normalizedImagingTaskRequest{}, "from_date and to_date are required for range"
-		}
-		from, rejection := parseDateOnly(request.FromDate)
-		if rejection != "" {
-			return normalizedImagingTaskRequest{}, rejection
-		}
-		toDate, rejection := parseDateOnly(request.ToDate)
-		if rejection != "" {
-			return normalizedImagingTaskRequest{}, rejection
-		}
-		toEnd := toDate.Add(24*time.Hour - time.Nanosecond)
-		normalized.From = &from
-		normalized.To = &toEnd
-	default:
-		return normalizedImagingTaskRequest{}, fmt.Sprintf("unsupported imaging list mode %q", normalized.ListMode)
-	}
+	normalized.ListMode = list.ListMode
+	normalized.From = list.From
+	normalized.To = list.To
+	normalized.Limit = list.Limit
 	modality, rejection := normalizeOptionalFilter(request.Modality, "modality")
 	if rejection != "" {
 		return normalizedImagingTaskRequest{}, rejection
@@ -331,10 +311,10 @@ func normalizeOptionalFilter(value string, field string) (*string, string) {
 	return &trimmed, ""
 }
 
-func runImagingRecord(ctx context.Context, api *client.LocalClient, request normalizedImagingTaskRequest) (ImagingTaskResult, error) {
+func runImagingRecord(ctx context.Context, service health.Service, request normalizedImagingTaskRequest) (ImagingTaskResult, error) {
 	result := ImagingTaskResult{}
 	for _, record := range request.Records {
-		existing, err := api.ListImaging(ctx, client.ImagingListOptions{})
+		existing, err := service.ListImaging(ctx, health.ImagingListParams{})
 		if err != nil {
 			return ImagingTaskResult{}, err
 		}
@@ -342,13 +322,13 @@ func runImagingRecord(ctx context.Context, api *client.LocalClient, request norm
 			result.Writes = append(result.Writes, imagingWrite(duplicate, "already_exists"))
 			continue
 		}
-		written, err := api.CreateImaging(ctx, client.ImagingRecordInput(record))
+		written, err := service.CreateImaging(ctx, health.ImagingRecordInput(record))
 		if err != nil {
 			return ImagingTaskResult{}, err
 		}
 		result.Writes = append(result.Writes, imagingWrite(written, "created"))
 	}
-	entries, err := listImagingEntries(ctx, api, normalizedImagingTaskRequest{ListMode: ImagingListModeHistory, Limit: 100})
+	entries, err := listImagingEntries(ctx, service, normalizedImagingTaskRequest{ListMode: ImagingListModeHistory, Limit: 100})
 	if err != nil {
 		return ImagingTaskResult{}, err
 	}
@@ -357,8 +337,8 @@ func runImagingRecord(ctx context.Context, api *client.LocalClient, request norm
 	return result, nil
 }
 
-func runImagingCorrect(ctx context.Context, api *client.LocalClient, request normalizedImagingTaskRequest) (ImagingTaskResult, error) {
-	target, rejection, err := imagingTarget(ctx, api, request.Target)
+func runImagingCorrect(ctx context.Context, service health.Service, request normalizedImagingTaskRequest) (ImagingTaskResult, error) {
+	target, rejection, err := imagingTarget(ctx, service, request.Target)
 	if err != nil {
 		return ImagingTaskResult{}, err
 	}
@@ -381,11 +361,11 @@ func runImagingCorrect(ctx context.Context, api *client.LocalClient, request nor
 	if record.Notes == nil {
 		record.Notes = append([]string(nil), target.Notes...)
 	}
-	written, err := api.ReplaceImaging(ctx, target.ID, client.ImagingRecordInput(record))
+	written, err := service.ReplaceImaging(ctx, target.ID, health.ImagingRecordInput(record))
 	if err != nil {
 		return ImagingTaskResult{}, err
 	}
-	entries, err := listImagingEntries(ctx, api, normalizedImagingTaskRequest{ListMode: ImagingListModeHistory, Limit: 100})
+	entries, err := listImagingEntries(ctx, service, normalizedImagingTaskRequest{ListMode: ImagingListModeHistory, Limit: 100})
 	if err != nil {
 		return ImagingTaskResult{}, err
 	}
@@ -396,18 +376,18 @@ func runImagingCorrect(ctx context.Context, api *client.LocalClient, request nor
 	}, nil
 }
 
-func runImagingDelete(ctx context.Context, api *client.LocalClient, request normalizedImagingTaskRequest) (ImagingTaskResult, error) {
-	target, rejection, err := imagingTarget(ctx, api, request.Target)
+func runImagingDelete(ctx context.Context, service health.Service, request normalizedImagingTaskRequest) (ImagingTaskResult, error) {
+	target, rejection, err := imagingTarget(ctx, service, request.Target)
 	if err != nil {
 		return ImagingTaskResult{}, err
 	}
 	if rejection != "" {
 		return ImagingTaskResult{Rejected: true, RejectionReason: rejection, Summary: rejection}, nil
 	}
-	if err := api.DeleteImaging(ctx, target.ID); err != nil {
+	if err := service.DeleteImaging(ctx, target.ID); err != nil {
 		return ImagingTaskResult{}, err
 	}
-	entries, err := listImagingEntries(ctx, api, normalizedImagingTaskRequest{ListMode: ImagingListModeHistory, Limit: 100})
+	entries, err := listImagingEntries(ctx, service, normalizedImagingTaskRequest{ListMode: ImagingListModeHistory, Limit: 100})
 	if err != nil {
 		return ImagingTaskResult{}, err
 	}
@@ -418,8 +398,8 @@ func runImagingDelete(ctx context.Context, api *client.LocalClient, request norm
 	}, nil
 }
 
-func runImagingList(ctx context.Context, api *client.LocalClient, request normalizedImagingTaskRequest) (ImagingTaskResult, error) {
-	entries, err := listImagingEntries(ctx, api, request)
+func runImagingList(ctx context.Context, service health.Service, request normalizedImagingTaskRequest) (ImagingTaskResult, error) {
+	entries, err := listImagingEntries(ctx, service, request)
 	if err != nil {
 		return ImagingTaskResult{}, err
 	}
@@ -429,38 +409,20 @@ func runImagingList(ctx context.Context, api *client.LocalClient, request normal
 	}, nil
 }
 
-func imagingTarget(ctx context.Context, api *client.LocalClient, target normalizedImagingTarget) (client.ImagingRecord, string, error) {
-	items, err := api.ListImaging(ctx, client.ImagingListOptions{})
-	if err != nil {
-		return client.ImagingRecord{}, "", err
-	}
-	matches := []client.ImagingRecord{}
-	for _, item := range items {
-		if target.ID > 0 {
-			if item.ID == target.ID {
-				matches = append(matches, item)
-			}
-			continue
-		}
-		if target.Date != nil && item.PerformedAt.Format(time.DateOnly) == target.Date.Format(time.DateOnly) {
-			matches = append(matches, item)
-		}
-	}
-	switch len(matches) {
-	case 0:
-		return client.ImagingRecord{}, "no matching imaging record", nil
-	case 1:
-		return matches[0], "", nil
-	default:
-		return client.ImagingRecord{}, "multiple matching imaging records; target is ambiguous", nil
-	}
+func imagingTarget(ctx context.Context, service health.Service, target normalizedImagingTarget) (health.ImagingRecord, string, error) {
+	return service.ResolveImagingTarget(ctx, health.ImagingTarget{
+		ID:          target.ID,
+		PerformedAt: target.Date,
+	})
 }
 
-func listImagingEntries(ctx context.Context, api *client.LocalClient, request normalizedImagingTaskRequest) ([]ImagingTaskEntry, error) {
-	items, err := api.ListImaging(ctx, client.ImagingListOptions{
-		From:     request.From,
-		To:       request.To,
-		Limit:    request.Limit,
+func listImagingEntries(ctx context.Context, service health.Service, request normalizedImagingTaskRequest) ([]ImagingTaskEntry, error) {
+	items, err := service.ListImaging(ctx, health.ImagingListParams{
+		HistoryFilter: health.HistoryFilter{
+			From:  request.From,
+			To:    request.To,
+			Limit: limitPointer(request.Limit),
+		},
 		Modality: request.Modality,
 		BodySite: request.BodySite,
 	})
@@ -474,7 +436,7 @@ func listImagingEntries(ctx context.Context, api *client.LocalClient, request no
 	return out, nil
 }
 
-func matchingImagingRecord(items []client.ImagingRecord, input normalizedImagingInput) (client.ImagingRecord, bool) {
+func matchingImagingRecord(items []health.ImagingRecord, input normalizedImagingInput) (health.ImagingRecord, bool) {
 	for _, item := range items {
 		if item.PerformedAt.Format(time.DateOnly) != input.PerformedAt.Format(time.DateOnly) {
 			continue
@@ -489,10 +451,10 @@ func matchingImagingRecord(items []client.ImagingRecord, input normalizedImaging
 			return item, true
 		}
 	}
-	return client.ImagingRecord{}, false
+	return health.ImagingRecord{}, false
 }
 
-func imagingWrite(item client.ImagingRecord, status string) ImagingWrite {
+func imagingWrite(item health.ImagingRecord, status string) ImagingWrite {
 	return ImagingWrite{
 		ID:       item.ID,
 		Date:     item.PerformedAt.Format(time.DateOnly),
@@ -501,7 +463,7 @@ func imagingWrite(item client.ImagingRecord, status string) ImagingWrite {
 	}
 }
 
-func imagingEntry(item client.ImagingRecord) ImagingTaskEntry {
+func imagingEntry(item health.ImagingRecord) ImagingTaskEntry {
 	return ImagingTaskEntry{
 		ID:         item.ID,
 		Date:       item.PerformedAt.Format(time.DateOnly),

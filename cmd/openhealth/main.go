@@ -10,7 +10,7 @@ import (
 	"os"
 	"runtime/debug"
 
-	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	"github.com/yazanabuashour/openhealth/internal/localruntime"
 	runner "github.com/yazanabuashour/openhealth/internal/runner"
 )
 
@@ -180,19 +180,19 @@ func runImaging(args []string, stdin io.Reader, stdout io.Writer) error {
 	return encodeResult(stdout, result)
 }
 
-func parseLocalConfig(name string, args []string) (client.LocalConfig, error) {
+func parseLocalConfig(name string, args []string) (localruntime.Config, error) {
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 
 	databasePath := fs.String("db", "", "SQLite database path")
 	if err := fs.Parse(args); err != nil {
-		return client.LocalConfig{}, err
+		return localruntime.Config{}, err
 	}
 	if fs.NArg() != 0 {
-		return client.LocalConfig{}, fmt.Errorf("%s does not accept positional arguments", name)
+		return localruntime.Config{}, fmt.Errorf("%s does not accept positional arguments", name)
 	}
 
-	return client.LocalConfig{DatabasePath: *databasePath}, nil
+	return localruntime.Config{DatabasePath: *databasePath}, nil
 }
 
 func decodeRequest[T any](stdin io.Reader, request *T) error {

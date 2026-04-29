@@ -5,17 +5,18 @@ import (
 	"fmt"
 	"time"
 
-	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	"github.com/yazanabuashour/openhealth/internal/health"
+	"github.com/yazanabuashour/openhealth/internal/localruntime"
 )
 
 const (
 	WeightTaskActionUpsert   = "upsert_weights"
 	WeightTaskActionList     = "list_weights"
-	WeightTaskActionValidate = "validate"
+	WeightTaskActionValidate = taskActionValidate
 
-	WeightListModeLatest  = "latest"
-	WeightListModeHistory = "history"
-	WeightListModeRange   = "range"
+	WeightListModeLatest  = listModeLatest
+	WeightListModeHistory = listModeHistory
+	WeightListModeRange   = listModeRange
 )
 
 type WeightTaskRequest struct {
@@ -57,7 +58,7 @@ type WeightTaskEntry struct {
 	Note  *string `json:"note,omitempty"`
 }
 
-func RunWeightTask(ctx context.Context, config client.LocalConfig, request WeightTaskRequest) (WeightTaskResult, error) {
+func RunWeightTask(ctx context.Context, config localruntime.Config, request WeightTaskRequest) (WeightTaskResult, error) {
 	normalized, rejection := normalizeWeightTaskRequest(request)
 	if rejection != "" {
 		return WeightTaskResult{
@@ -71,22 +72,16 @@ func RunWeightTask(ctx context.Context, config client.LocalConfig, request Weigh
 		return WeightTaskResult{Summary: "valid"}, nil
 	}
 
-	api, err := client.OpenLocal(config)
-	if err != nil {
-		return WeightTaskResult{}, err
-	}
-	defer func() {
-		_ = api.Close()
-	}()
-
-	switch normalized.Action {
-	case WeightTaskActionUpsert:
-		return runWeightUpsert(ctx, api, normalized)
-	case WeightTaskActionList:
-		return runWeightList(ctx, api, normalized)
-	default:
-		return WeightTaskResult{}, fmt.Errorf("unsupported weight task action %q", normalized.Action)
-	}
+	return withService(ctx, config, func(ctx context.Context, service health.Service) (WeightTaskResult, error) {
+		switch normalized.Action {
+		case WeightTaskActionUpsert:
+			return runWeightUpsert(ctx, service, normalized)
+		case WeightTaskActionList:
+			return runWeightList(ctx, service, normalized)
+		default:
+			return WeightTaskResult{}, fmt.Errorf("unsupported weight task action %q", normalized.Action)
+		}
+	})
 }
 
 type normalizedWeightTaskRequest struct {
@@ -101,7 +96,7 @@ type normalizedWeightTaskRequest struct {
 type normalizedWeightInput struct {
 	RecordedAt time.Time
 	Value      float64
-	Unit       client.WeightUnit
+	Unit       health.WeightUnit
 	Note       *string
 }
 
@@ -115,9 +110,8 @@ func normalizeWeightTaskRequest(request WeightTaskRequest) (normalizedWeightTask
 		ListMode: request.ListMode,
 		Limit:    request.Limit,
 	}
-
-	if request.Limit < 0 {
-		return normalizedWeightTaskRequest{}, "limit must be greater than or equal to 0"
+	if rejection := rejectNegativeLimit(request.Limit); rejection != "" {
+		return normalizedWeightTaskRequest{}, rejection
 	}
 
 	switch action {
@@ -148,34 +142,19 @@ func normalizeWeightTaskRequest(request WeightTaskRequest) (normalizedWeightTask
 }
 
 func normalizeWeightListRequest(normalized normalizedWeightTaskRequest, request WeightTaskRequest) (normalizedWeightTaskRequest, string) {
-	if normalized.ListMode == "" {
-		normalized.ListMode = WeightListModeHistory
+	list, rejection := normalizeTaskListRequest(taskListRequest{
+		ListMode: request.ListMode,
+		FromDate: request.FromDate,
+		ToDate:   request.ToDate,
+		Limit:    request.Limit,
+	}, "weight")
+	if rejection != "" {
+		return normalizedWeightTaskRequest{}, rejection
 	}
-	switch normalized.ListMode {
-	case WeightListModeLatest:
-		normalized.Limit = 1
-	case WeightListModeHistory:
-		if normalized.Limit == 0 {
-			normalized.Limit = 25
-		}
-	case WeightListModeRange:
-		if request.FromDate == "" || request.ToDate == "" {
-			return normalizedWeightTaskRequest{}, "from_date and to_date are required for range"
-		}
-		from, rejection := parseDateOnly(request.FromDate)
-		if rejection != "" {
-			return normalizedWeightTaskRequest{}, rejection
-		}
-		toDate, rejection := parseDateOnly(request.ToDate)
-		if rejection != "" {
-			return normalizedWeightTaskRequest{}, rejection
-		}
-		toEnd := toDate.Add(24*time.Hour - time.Nanosecond)
-		normalized.From = &from
-		normalized.To = &toEnd
-	default:
-		return normalizedWeightTaskRequest{}, fmt.Sprintf("unsupported weight list mode %q", normalized.ListMode)
-	}
+	normalized.ListMode = list.ListMode
+	normalized.From = list.From
+	normalized.To = list.To
+	normalized.Limit = list.Limit
 	return normalized, ""
 }
 
@@ -203,30 +182,19 @@ func normalizeWeightInput(input WeightInput) (normalizedWeightInput, string) {
 	}, ""
 }
 
-func parseDateOnly(value string) (time.Time, string) {
-	if value == "" {
-		return time.Time{}, "date must be YYYY-MM-DD"
-	}
-	parsed, err := time.Parse(time.DateOnly, value)
-	if err != nil || parsed.Format(time.DateOnly) != value {
-		return time.Time{}, "date must be YYYY-MM-DD"
-	}
-	return parsed, ""
-}
-
-func normalizeUnit(value string) (client.WeightUnit, string) {
+func normalizeUnit(value string) (health.WeightUnit, string) {
 	switch value {
 	case "lb", "lbs", "pound", "pounds":
-		return client.WeightUnitLb, ""
+		return health.WeightUnitLb, ""
 	default:
 		return "", "unit must be lb"
 	}
 }
 
-func runWeightUpsert(ctx context.Context, api *client.LocalClient, request normalizedWeightTaskRequest) (WeightTaskResult, error) {
+func runWeightUpsert(ctx context.Context, service health.Service, request normalizedWeightTaskRequest) (WeightTaskResult, error) {
 	result := WeightTaskResult{}
 	for _, weight := range request.Weights {
-		written, err := api.UpsertWeight(ctx, client.WeightRecordInput{
+		written, err := service.UpsertWeight(ctx, health.WeightRecordInput{
 			RecordedAt: weight.RecordedAt,
 			Value:      weight.Value,
 			Unit:       weight.Unit,
@@ -243,7 +211,8 @@ func runWeightUpsert(ctx context.Context, api *client.LocalClient, request norma
 			Status: string(written.Status),
 		})
 	}
-	entries, err := api.ListWeights(ctx, client.WeightListOptions{Limit: 100})
+	limit := 100
+	entries, err := service.ListWeight(ctx, health.HistoryFilter{Limit: &limit})
 	if err != nil {
 		return WeightTaskResult{}, err
 	}
@@ -252,11 +221,11 @@ func runWeightUpsert(ctx context.Context, api *client.LocalClient, request norma
 	return result, nil
 }
 
-func runWeightList(ctx context.Context, api *client.LocalClient, request normalizedWeightTaskRequest) (WeightTaskResult, error) {
-	entries, err := api.ListWeights(ctx, client.WeightListOptions{
+func runWeightList(ctx context.Context, service health.Service, request normalizedWeightTaskRequest) (WeightTaskResult, error) {
+	entries, err := service.ListWeight(ctx, health.HistoryFilter{
 		From:  request.From,
 		To:    request.To,
-		Limit: request.Limit,
+		Limit: limitPointer(request.Limit),
 	})
 	if err != nil {
 		return WeightTaskResult{}, err
@@ -267,7 +236,7 @@ func runWeightList(ctx context.Context, api *client.LocalClient, request normali
 	}, nil
 }
 
-func weightTaskEntries(entries []client.WeightEntry) []WeightTaskEntry {
+func weightTaskEntries(entries []health.WeightEntry) []WeightTaskEntry {
 	out := make([]WeightTaskEntry, 0, len(entries))
 	for _, entry := range entries {
 		out = append(out, WeightTaskEntry{

@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	"github.com/yazanabuashour/openhealth/internal/health"
+	"github.com/yazanabuashour/openhealth/internal/localruntime"
 )
 
 const (
@@ -13,11 +14,11 @@ const (
 	BodyCompositionTaskActionCorrect  = "correct_body_composition"
 	BodyCompositionTaskActionDelete   = "delete_body_composition"
 	BodyCompositionTaskActionList     = "list_body_composition"
-	BodyCompositionTaskActionValidate = "validate"
+	BodyCompositionTaskActionValidate = taskActionValidate
 
-	BodyCompositionListModeLatest  = "latest"
-	BodyCompositionListModeHistory = "history"
-	BodyCompositionListModeRange   = "range"
+	BodyCompositionListModeLatest  = listModeLatest
+	BodyCompositionListModeHistory = listModeHistory
+	BodyCompositionListModeRange   = listModeRange
 )
 
 type BodyCompositionTaskRequest struct {
@@ -87,7 +88,7 @@ type normalizedBodyCompositionInput struct {
 	RecordedAt     time.Time
 	BodyFatPercent *float64
 	WeightValue    *float64
-	WeightUnit     *client.WeightUnit
+	WeightUnit     *health.WeightUnit
 	Method         *string
 	Note           *string
 }
@@ -97,7 +98,7 @@ type normalizedBodyCompositionTarget struct {
 	Date *time.Time
 }
 
-func RunBodyCompositionTask(ctx context.Context, config client.LocalConfig, request BodyCompositionTaskRequest) (BodyCompositionTaskResult, error) {
+func RunBodyCompositionTask(ctx context.Context, config localruntime.Config, request BodyCompositionTaskRequest) (BodyCompositionTaskResult, error) {
 	normalized, rejection := normalizeBodyCompositionTaskRequest(request)
 	if rejection != "" {
 		return BodyCompositionTaskResult{Rejected: true, RejectionReason: rejection, Summary: rejection}, nil
@@ -106,26 +107,20 @@ func RunBodyCompositionTask(ctx context.Context, config client.LocalConfig, requ
 		return BodyCompositionTaskResult{Summary: "valid"}, nil
 	}
 
-	api, err := client.OpenLocal(config)
-	if err != nil {
-		return BodyCompositionTaskResult{}, err
-	}
-	defer func() {
-		_ = api.Close()
-	}()
-
-	switch normalized.Action {
-	case BodyCompositionTaskActionRecord:
-		return runBodyCompositionRecord(ctx, api, normalized)
-	case BodyCompositionTaskActionCorrect:
-		return runBodyCompositionCorrect(ctx, api, normalized)
-	case BodyCompositionTaskActionDelete:
-		return runBodyCompositionDelete(ctx, api, normalized)
-	case BodyCompositionTaskActionList:
-		return runBodyCompositionList(ctx, api, normalized)
-	default:
-		return BodyCompositionTaskResult{}, fmt.Errorf("unsupported body composition task action %q", normalized.Action)
-	}
+	return withService(ctx, config, func(ctx context.Context, service health.Service) (BodyCompositionTaskResult, error) {
+		switch normalized.Action {
+		case BodyCompositionTaskActionRecord:
+			return runBodyCompositionRecord(ctx, service, normalized)
+		case BodyCompositionTaskActionCorrect:
+			return runBodyCompositionCorrect(ctx, service, normalized)
+		case BodyCompositionTaskActionDelete:
+			return runBodyCompositionDelete(ctx, service, normalized)
+		case BodyCompositionTaskActionList:
+			return runBodyCompositionList(ctx, service, normalized)
+		default:
+			return BodyCompositionTaskResult{}, fmt.Errorf("unsupported body composition task action %q", normalized.Action)
+		}
+	})
 }
 
 func normalizeBodyCompositionTaskRequest(request BodyCompositionTaskRequest) (normalizedBodyCompositionTaskRequest, string) {
@@ -138,8 +133,8 @@ func normalizeBodyCompositionTaskRequest(request BodyCompositionTaskRequest) (no
 		ListMode: request.ListMode,
 		Limit:    request.Limit,
 	}
-	if request.Limit < 0 {
-		return normalizedBodyCompositionTaskRequest{}, "limit must be greater than or equal to 0"
+	if rejection := rejectNegativeLimit(request.Limit); rejection != "" {
+		return normalizedBodyCompositionTaskRequest{}, rejection
 	}
 
 	switch action {
@@ -208,34 +203,19 @@ func normalizeBodyCompositionTaskRequest(request BodyCompositionTaskRequest) (no
 }
 
 func normalizeBodyCompositionListRequest(normalized normalizedBodyCompositionTaskRequest, request BodyCompositionTaskRequest) (normalizedBodyCompositionTaskRequest, string) {
-	if normalized.ListMode == "" {
-		normalized.ListMode = BodyCompositionListModeHistory
+	list, rejection := normalizeTaskListRequest(taskListRequest{
+		ListMode: request.ListMode,
+		FromDate: request.FromDate,
+		ToDate:   request.ToDate,
+		Limit:    request.Limit,
+	}, "body composition")
+	if rejection != "" {
+		return normalizedBodyCompositionTaskRequest{}, rejection
 	}
-	switch normalized.ListMode {
-	case BodyCompositionListModeLatest:
-		normalized.Limit = 1
-	case BodyCompositionListModeHistory:
-		if normalized.Limit == 0 {
-			normalized.Limit = 25
-		}
-	case BodyCompositionListModeRange:
-		if request.FromDate == "" || request.ToDate == "" {
-			return normalizedBodyCompositionTaskRequest{}, "from_date and to_date are required for range"
-		}
-		from, rejection := parseDateOnly(request.FromDate)
-		if rejection != "" {
-			return normalizedBodyCompositionTaskRequest{}, rejection
-		}
-		toDate, rejection := parseDateOnly(request.ToDate)
-		if rejection != "" {
-			return normalizedBodyCompositionTaskRequest{}, rejection
-		}
-		toEnd := toDate.Add(24*time.Hour - time.Nanosecond)
-		normalized.From = &from
-		normalized.To = &toEnd
-	default:
-		return normalizedBodyCompositionTaskRequest{}, fmt.Sprintf("unsupported body composition list mode %q", normalized.ListMode)
-	}
+	normalized.ListMode = list.ListMode
+	normalized.From = list.From
+	normalized.To = list.To
+	normalized.Limit = list.Limit
 	return normalized, ""
 }
 
@@ -253,7 +233,7 @@ func normalizeBodyCompositionInput(input BodyCompositionInput) (normalizedBodyCo
 	if (input.WeightValue == nil) != (input.WeightUnit == nil) {
 		return normalizedBodyCompositionInput{}, "weight_value and weight_unit must be provided together"
 	}
-	var weightUnit *client.WeightUnit
+	var weightUnit *health.WeightUnit
 	if input.WeightValue != nil {
 		if *input.WeightValue <= 0 {
 			return normalizedBodyCompositionInput{}, "weight_value must be greater than 0"
@@ -299,10 +279,10 @@ func normalizeBodyCompositionTarget(target BodyCompositionTarget) (normalizedBod
 	return normalizedBodyCompositionTarget{Date: &date}, ""
 }
 
-func runBodyCompositionRecord(ctx context.Context, api *client.LocalClient, request normalizedBodyCompositionTaskRequest) (BodyCompositionTaskResult, error) {
+func runBodyCompositionRecord(ctx context.Context, service health.Service, request normalizedBodyCompositionTaskRequest) (BodyCompositionTaskResult, error) {
 	result := BodyCompositionTaskResult{}
 	for _, record := range request.Records {
-		existing, err := api.ListBodyComposition(ctx, client.BodyCompositionListOptions{})
+		existing, err := service.ListBodyComposition(ctx, health.HistoryFilter{})
 		if err != nil {
 			return BodyCompositionTaskResult{}, err
 		}
@@ -310,13 +290,13 @@ func runBodyCompositionRecord(ctx context.Context, api *client.LocalClient, requ
 			result.Writes = append(result.Writes, bodyCompositionWrite(duplicate, "already_exists"))
 			continue
 		}
-		written, err := api.CreateBodyComposition(ctx, client.BodyCompositionInput(record))
+		written, err := service.CreateBodyComposition(ctx, health.BodyCompositionInput(record))
 		if err != nil {
 			return BodyCompositionTaskResult{}, err
 		}
 		result.Writes = append(result.Writes, bodyCompositionWrite(written, "created"))
 	}
-	entries, err := listBodyCompositionEntries(ctx, api, normalizedBodyCompositionTaskRequest{ListMode: BodyCompositionListModeHistory, Limit: 100})
+	entries, err := listBodyCompositionEntries(ctx, service, normalizedBodyCompositionTaskRequest{ListMode: BodyCompositionListModeHistory, Limit: 100})
 	if err != nil {
 		return BodyCompositionTaskResult{}, err
 	}
@@ -325,8 +305,8 @@ func runBodyCompositionRecord(ctx context.Context, api *client.LocalClient, requ
 	return result, nil
 }
 
-func runBodyCompositionCorrect(ctx context.Context, api *client.LocalClient, request normalizedBodyCompositionTaskRequest) (BodyCompositionTaskResult, error) {
-	target, rejection, err := bodyCompositionTarget(ctx, api, request.Target)
+func runBodyCompositionCorrect(ctx context.Context, service health.Service, request normalizedBodyCompositionTaskRequest) (BodyCompositionTaskResult, error) {
+	target, rejection, err := bodyCompositionTarget(ctx, service, request.Target)
 	if err != nil {
 		return BodyCompositionTaskResult{}, err
 	}
@@ -340,11 +320,11 @@ func runBodyCompositionCorrect(ctx context.Context, api *client.LocalClient, req
 	if record.Note == nil {
 		record.Note = target.Note
 	}
-	written, err := api.ReplaceBodyComposition(ctx, target.ID, client.BodyCompositionInput(record))
+	written, err := service.ReplaceBodyComposition(ctx, target.ID, health.BodyCompositionInput(record))
 	if err != nil {
 		return BodyCompositionTaskResult{}, err
 	}
-	entries, err := listBodyCompositionEntries(ctx, api, normalizedBodyCompositionTaskRequest{ListMode: BodyCompositionListModeHistory, Limit: 100})
+	entries, err := listBodyCompositionEntries(ctx, service, normalizedBodyCompositionTaskRequest{ListMode: BodyCompositionListModeHistory, Limit: 100})
 	if err != nil {
 		return BodyCompositionTaskResult{}, err
 	}
@@ -355,18 +335,18 @@ func runBodyCompositionCorrect(ctx context.Context, api *client.LocalClient, req
 	}, nil
 }
 
-func runBodyCompositionDelete(ctx context.Context, api *client.LocalClient, request normalizedBodyCompositionTaskRequest) (BodyCompositionTaskResult, error) {
-	target, rejection, err := bodyCompositionTarget(ctx, api, request.Target)
+func runBodyCompositionDelete(ctx context.Context, service health.Service, request normalizedBodyCompositionTaskRequest) (BodyCompositionTaskResult, error) {
+	target, rejection, err := bodyCompositionTarget(ctx, service, request.Target)
 	if err != nil {
 		return BodyCompositionTaskResult{}, err
 	}
 	if rejection != "" {
 		return BodyCompositionTaskResult{Rejected: true, RejectionReason: rejection, Summary: rejection}, nil
 	}
-	if err := api.DeleteBodyComposition(ctx, target.ID); err != nil {
+	if err := service.DeleteBodyComposition(ctx, target.ID); err != nil {
 		return BodyCompositionTaskResult{}, err
 	}
-	entries, err := listBodyCompositionEntries(ctx, api, normalizedBodyCompositionTaskRequest{ListMode: BodyCompositionListModeHistory, Limit: 100})
+	entries, err := listBodyCompositionEntries(ctx, service, normalizedBodyCompositionTaskRequest{ListMode: BodyCompositionListModeHistory, Limit: 100})
 	if err != nil {
 		return BodyCompositionTaskResult{}, err
 	}
@@ -377,8 +357,8 @@ func runBodyCompositionDelete(ctx context.Context, api *client.LocalClient, requ
 	}, nil
 }
 
-func runBodyCompositionList(ctx context.Context, api *client.LocalClient, request normalizedBodyCompositionTaskRequest) (BodyCompositionTaskResult, error) {
-	entries, err := listBodyCompositionEntries(ctx, api, request)
+func runBodyCompositionList(ctx context.Context, service health.Service, request normalizedBodyCompositionTaskRequest) (BodyCompositionTaskResult, error) {
+	entries, err := listBodyCompositionEntries(ctx, service, request)
 	if err != nil {
 		return BodyCompositionTaskResult{}, err
 	}
@@ -388,38 +368,18 @@ func runBodyCompositionList(ctx context.Context, api *client.LocalClient, reques
 	}, nil
 }
 
-func bodyCompositionTarget(ctx context.Context, api *client.LocalClient, target normalizedBodyCompositionTarget) (client.BodyCompositionEntry, string, error) {
-	items, err := api.ListBodyComposition(ctx, client.BodyCompositionListOptions{})
-	if err != nil {
-		return client.BodyCompositionEntry{}, "", err
-	}
-	matches := []client.BodyCompositionEntry{}
-	for _, item := range items {
-		if target.ID > 0 {
-			if item.ID == target.ID {
-				matches = append(matches, item)
-			}
-			continue
-		}
-		if target.Date != nil && item.RecordedAt.Format(time.DateOnly) == target.Date.Format(time.DateOnly) {
-			matches = append(matches, item)
-		}
-	}
-	switch len(matches) {
-	case 0:
-		return client.BodyCompositionEntry{}, "no matching body composition entry", nil
-	case 1:
-		return matches[0], "", nil
-	default:
-		return client.BodyCompositionEntry{}, "multiple matching body composition entries; target is ambiguous", nil
-	}
+func bodyCompositionTarget(ctx context.Context, service health.Service, target normalizedBodyCompositionTarget) (health.BodyCompositionEntry, string, error) {
+	return service.ResolveBodyCompositionTarget(ctx, health.BodyCompositionTarget{
+		ID:         target.ID,
+		RecordedAt: target.Date,
+	})
 }
 
-func listBodyCompositionEntries(ctx context.Context, api *client.LocalClient, request normalizedBodyCompositionTaskRequest) ([]BodyCompositionTaskEntry, error) {
-	items, err := api.ListBodyComposition(ctx, client.BodyCompositionListOptions{
+func listBodyCompositionEntries(ctx context.Context, service health.Service, request normalizedBodyCompositionTaskRequest) ([]BodyCompositionTaskEntry, error) {
+	items, err := service.ListBodyComposition(ctx, health.HistoryFilter{
 		From:  request.From,
 		To:    request.To,
-		Limit: request.Limit,
+		Limit: limitPointer(request.Limit),
 	})
 	if err != nil {
 		return nil, err
@@ -431,7 +391,7 @@ func listBodyCompositionEntries(ctx context.Context, api *client.LocalClient, re
 	return out, nil
 }
 
-func matchingBodyComposition(items []client.BodyCompositionEntry, input normalizedBodyCompositionInput) (client.BodyCompositionEntry, bool) {
+func matchingBodyComposition(items []health.BodyCompositionEntry, input normalizedBodyCompositionInput) (health.BodyCompositionEntry, bool) {
 	for _, item := range items {
 		if item.RecordedAt.Format(time.DateOnly) != input.RecordedAt.Format(time.DateOnly) {
 			continue
@@ -444,10 +404,10 @@ func matchingBodyComposition(items []client.BodyCompositionEntry, input normaliz
 			return item, true
 		}
 	}
-	return client.BodyCompositionEntry{}, false
+	return health.BodyCompositionEntry{}, false
 }
 
-func bodyCompositionWrite(item client.BodyCompositionEntry, status string) BodyCompositionWrite {
+func bodyCompositionWrite(item health.BodyCompositionEntry, status string) BodyCompositionWrite {
 	return BodyCompositionWrite{
 		ID:             item.ID,
 		Date:           item.RecordedAt.Format(time.DateOnly),
@@ -458,7 +418,7 @@ func bodyCompositionWrite(item client.BodyCompositionEntry, status string) BodyC
 	}
 }
 
-func bodyCompositionEntry(item client.BodyCompositionEntry) BodyCompositionTaskEntry {
+func bodyCompositionEntry(item health.BodyCompositionEntry) BodyCompositionTaskEntry {
 	return BodyCompositionTaskEntry{
 		ID:             item.ID,
 		Date:           item.RecordedAt.Format(time.DateOnly),
@@ -470,7 +430,7 @@ func bodyCompositionEntry(item client.BodyCompositionEntry) BodyCompositionTaskE
 	}
 }
 
-func bodyCompositionWeightUnitString(unit *client.WeightUnit) *string {
+func bodyCompositionWeightUnitString(unit *health.WeightUnit) *string {
 	if unit == nil {
 		return nil
 	}
@@ -478,7 +438,7 @@ func bodyCompositionWeightUnitString(unit *client.WeightUnit) *string {
 	return &value
 }
 
-func equalWeightUnitPointer(left *client.WeightUnit, right *client.WeightUnit) bool {
+func equalWeightUnitPointer(left *health.WeightUnit, right *health.WeightUnit) bool {
 	if left == nil || right == nil {
 		return left == right
 	}

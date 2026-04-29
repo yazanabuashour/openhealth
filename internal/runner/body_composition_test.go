@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	client "github.com/yazanabuashour/openhealth/client"
 	runner "github.com/yazanabuashour/openhealth/internal/runner"
 )
 

@@ -76,18 +76,23 @@ type Service interface {
 	ListAnalytes(ctx context.Context) ([]AnalyteSummary, error)
 	AnalyteTrend(ctx context.Context, slug AnalyteSlug) (AnalyteTrend, error)
 	ListLabCollections(ctx context.Context) ([]LabCollection, error)
+	ResolveLabCollectionTarget(ctx context.Context, target LabCollectionTarget) (LabCollection, string, error)
 	CreateLabCollection(ctx context.Context, input LabCollectionInput) (LabCollection, error)
 	ReplaceLabCollection(ctx context.Context, id int, input LabCollectionInput) (LabCollection, error)
 	DeleteLabCollection(ctx context.Context, id int) error
 	ListBodyComposition(ctx context.Context, filter HistoryFilter) ([]BodyCompositionEntry, error)
+	ResolveBodyCompositionTarget(ctx context.Context, target BodyCompositionTarget) (BodyCompositionEntry, string, error)
 	CreateBodyComposition(ctx context.Context, input BodyCompositionInput) (BodyCompositionEntry, error)
 	ReplaceBodyComposition(ctx context.Context, id int, input BodyCompositionInput) (BodyCompositionEntry, error)
 	DeleteBodyComposition(ctx context.Context, id int) error
 	ListSleep(ctx context.Context, filter HistoryFilter) ([]SleepEntry, error)
+	ResolveSleepTarget(ctx context.Context, target SleepTarget) (SleepEntry, string, error)
 	UpsertSleep(ctx context.Context, input SleepInput) (SleepWriteResult, error)
 	DeleteSleep(ctx context.Context, id int) error
 	ListImaging(ctx context.Context, params ImagingListParams) ([]ImagingRecord, error)
+	ResolveImagingTarget(ctx context.Context, target ImagingTarget) (ImagingRecord, string, error)
 	CreateImaging(ctx context.Context, input ImagingRecordInput) (ImagingRecord, error)
 	ReplaceImaging(ctx context.Context, id int, input ImagingRecordInput) (ImagingRecord, error)
 	DeleteImaging(ctx context.Context, id int) error
+	ResolveMedicationTarget(ctx context.Context, target MedicationTarget) (MedicationCourse, string, error)
 }

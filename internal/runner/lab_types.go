@@ -3,7 +3,7 @@ package runner
 import (
 	"time"
 
-	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	"github.com/yazanabuashour/openhealth/internal/health"
 )
 
 const (
@@ -12,11 +12,11 @@ const (
 	LabTaskActionPatch    = "patch_labs"
 	LabTaskActionDelete   = "delete_labs"
 	LabTaskActionList     = "list_labs"
-	LabTaskActionValidate = "validate"
+	LabTaskActionValidate = taskActionValidate
 
-	LabListModeLatest  = "latest"
-	LabListModeHistory = "history"
-	LabListModeRange   = "range"
+	LabListModeLatest  = listModeLatest
+	LabListModeHistory = listModeHistory
+	LabListModeRange   = listModeRange
 )
 
 type LabTaskRequest struct {
@@ -117,7 +117,7 @@ type normalizedLabTaskRequest struct {
 	From          *time.Time
 	To            *time.Time
 	Limit         int
-	AnalyteSlug   *client.AnalyteSlug
+	AnalyteSlug   *health.AnalyteSlug
 }
 
 type normalizedLabCollectionInput struct {
@@ -133,7 +133,7 @@ type normalizedLabPanelInput struct {
 
 type normalizedLabResultInput struct {
 	TestName      string
-	CanonicalSlug *client.AnalyteSlug
+	CanonicalSlug *health.AnalyteSlug
 	ValueText     string
 	ValueNumeric  *float64
 	Units         *string
@@ -144,7 +144,7 @@ type normalizedLabResultInput struct {
 
 type normalizedLabResultUpdateInput struct {
 	PanelName          string
-	MatchCanonicalSlug *client.AnalyteSlug
+	MatchCanonicalSlug *health.AnalyteSlug
 	MatchTestName      string
 	Result             normalizedLabResultInput
 }

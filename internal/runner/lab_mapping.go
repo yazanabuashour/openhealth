@@ -3,10 +3,10 @@ package runner
 import (
 	"time"
 
-	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	"github.com/yazanabuashour/openhealth/internal/health"
 )
 
-func normalizedLabCollectionFromClient(item client.LabCollection) normalizedLabCollectionInput {
+func normalizedLabCollectionFromClient(item health.LabCollection) normalizedLabCollectionInput {
 	panels := make([]normalizedLabPanelInput, 0, len(item.Panels))
 	for _, panel := range item.Panels {
 		results := make([]normalizedLabResultInput, 0, len(panel.Results))
@@ -34,26 +34,26 @@ func normalizedLabCollectionFromClient(item client.LabCollection) normalizedLabC
 	}
 }
 
-func toClientLabCollectionInput(input normalizedLabCollectionInput) client.LabCollectionInput {
-	panels := make([]client.LabPanelInput, 0, len(input.Panels))
+func toHealthLabCollectionInput(input normalizedLabCollectionInput) health.LabCollectionInput {
+	panels := make([]health.LabPanelInput, 0, len(input.Panels))
 	for _, panel := range input.Panels {
-		results := make([]client.LabResultInput, 0, len(panel.Results))
+		results := make([]health.LabResultInput, 0, len(panel.Results))
 		for _, result := range panel.Results {
-			results = append(results, client.LabResultInput(result))
+			results = append(results, health.LabResultInput(result))
 		}
-		panels = append(panels, client.LabPanelInput{
+		panels = append(panels, health.LabPanelInput{
 			PanelName: panel.PanelName,
 			Results:   results,
 		})
 	}
-	return client.LabCollectionInput{
+	return health.LabCollectionInput{
 		CollectedAt: input.CollectedAt,
 		Note:        input.Note,
 		Panels:      panels,
 	}
 }
 
-func labCollectionWrite(item client.LabCollection, status string) LabCollectionWrite {
+func labCollectionWrite(item health.LabCollection, status string) LabCollectionWrite {
 	return LabCollectionWrite{
 		ID:     item.ID,
 		Date:   item.CollectedAt.Format(time.DateOnly),
@@ -61,7 +61,7 @@ func labCollectionWrite(item client.LabCollection, status string) LabCollectionW
 	}
 }
 
-func labCollectionEntry(item client.LabCollection, analyteSlug *client.AnalyteSlug) (LabCollectionEntry, bool) {
+func labCollectionEntry(item health.LabCollection, analyteSlug *health.AnalyteSlug) (LabCollectionEntry, bool) {
 	entry := LabCollectionEntry{
 		ID:   item.ID,
 		Date: item.CollectedAt.Format(time.DateOnly),
@@ -85,7 +85,7 @@ func labCollectionEntry(item client.LabCollection, analyteSlug *client.AnalyteSl
 	return entry, true
 }
 
-func labResultEntry(item client.LabResult) LabResultEntry {
+func labResultEntry(item health.LabResult) LabResultEntry {
 	var slug *string
 	if item.CanonicalSlug != nil {
 		value := string(*item.CanonicalSlug)

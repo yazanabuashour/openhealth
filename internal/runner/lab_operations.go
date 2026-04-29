@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	"github.com/yazanabuashour/openhealth/internal/health"
 )
 
-func runLabRecord(ctx context.Context, api *client.LocalClient, request normalizedLabTaskRequest) (LabTaskResult, error) {
+func runLabRecord(ctx context.Context, service health.Service, request normalizedLabTaskRequest) (LabTaskResult, error) {
 	result := LabTaskResult{}
 	for _, collection := range request.Collections {
-		existing, err := matchingLabCollections(ctx, api, normalizedLabTarget{Date: &collection.CollectedAt})
+		existing, err := matchingLabCollections(ctx, service, normalizedLabTarget{Date: &collection.CollectedAt})
 		if err != nil {
 			return LabTaskResult{}, err
 		}
@@ -19,13 +19,13 @@ func runLabRecord(ctx context.Context, api *client.LocalClient, request normaliz
 			result.Writes = append(result.Writes, labCollectionWrite(duplicate, "already_exists"))
 			continue
 		}
-		written, err := api.CreateLabCollection(ctx, toClientLabCollectionInput(collection))
+		written, err := service.CreateLabCollection(ctx, toHealthLabCollectionInput(collection))
 		if err != nil {
 			return LabTaskResult{}, err
 		}
 		result.Writes = append(result.Writes, labCollectionWrite(written, "created"))
 	}
-	entries, err := listLabEntries(ctx, api, normalizedLabTaskRequest{Limit: 100})
+	entries, err := listLabEntries(ctx, service, normalizedLabTaskRequest{Limit: 100})
 	if err != nil {
 		return LabTaskResult{}, err
 	}
@@ -34,8 +34,8 @@ func runLabRecord(ctx context.Context, api *client.LocalClient, request normaliz
 	return result, nil
 }
 
-func runLabCorrect(ctx context.Context, api *client.LocalClient, request normalizedLabTaskRequest) (LabTaskResult, error) {
-	target, rejection, err := labTarget(ctx, api, request.Target)
+func runLabCorrect(ctx context.Context, service health.Service, request normalizedLabTaskRequest) (LabTaskResult, error) {
+	target, rejection, err := labTarget(ctx, service, request.Target)
 	if err != nil {
 		return LabTaskResult{}, err
 	}
@@ -46,11 +46,11 @@ func runLabCorrect(ctx context.Context, api *client.LocalClient, request normali
 	if collection.Note == nil {
 		collection.Note = target.Note
 	}
-	written, err := api.ReplaceLabCollection(ctx, target.ID, toClientLabCollectionInput(collection))
+	written, err := service.ReplaceLabCollection(ctx, target.ID, toHealthLabCollectionInput(collection))
 	if err != nil {
 		return LabTaskResult{}, err
 	}
-	entries, err := listLabEntries(ctx, api, normalizedLabTaskRequest{Limit: 100})
+	entries, err := listLabEntries(ctx, service, normalizedLabTaskRequest{Limit: 100})
 	if err != nil {
 		return LabTaskResult{}, err
 	}
@@ -61,8 +61,8 @@ func runLabCorrect(ctx context.Context, api *client.LocalClient, request normali
 	}, nil
 }
 
-func runLabPatch(ctx context.Context, api *client.LocalClient, request normalizedLabTaskRequest) (LabTaskResult, error) {
-	target, rejection, err := labTarget(ctx, api, request.Target)
+func runLabPatch(ctx context.Context, service health.Service, request normalizedLabTaskRequest) (LabTaskResult, error) {
+	target, rejection, err := labTarget(ctx, service, request.Target)
 	if err != nil {
 		return LabTaskResult{}, err
 	}
@@ -75,11 +75,11 @@ func runLabPatch(ctx context.Context, api *client.LocalClient, request normalize
 			return LabTaskResult{Rejected: true, RejectionReason: rejection, Summary: rejection}, nil
 		}
 	}
-	written, err := api.ReplaceLabCollection(ctx, target.ID, toClientLabCollectionInput(collection))
+	written, err := service.ReplaceLabCollection(ctx, target.ID, toHealthLabCollectionInput(collection))
 	if err != nil {
 		return LabTaskResult{}, err
 	}
-	entries, err := listLabEntries(ctx, api, normalizedLabTaskRequest{Limit: 100})
+	entries, err := listLabEntries(ctx, service, normalizedLabTaskRequest{Limit: 100})
 	if err != nil {
 		return LabTaskResult{}, err
 	}
@@ -90,18 +90,18 @@ func runLabPatch(ctx context.Context, api *client.LocalClient, request normalize
 	}, nil
 }
 
-func runLabDelete(ctx context.Context, api *client.LocalClient, request normalizedLabTaskRequest) (LabTaskResult, error) {
-	target, rejection, err := labTarget(ctx, api, request.Target)
+func runLabDelete(ctx context.Context, service health.Service, request normalizedLabTaskRequest) (LabTaskResult, error) {
+	target, rejection, err := labTarget(ctx, service, request.Target)
 	if err != nil {
 		return LabTaskResult{}, err
 	}
 	if rejection != "" {
 		return LabTaskResult{Rejected: true, RejectionReason: rejection, Summary: rejection}, nil
 	}
-	if err := api.DeleteLabCollection(ctx, target.ID); err != nil {
+	if err := service.DeleteLabCollection(ctx, target.ID); err != nil {
 		return LabTaskResult{}, err
 	}
-	entries, err := listLabEntries(ctx, api, normalizedLabTaskRequest{Limit: 100})
+	entries, err := listLabEntries(ctx, service, normalizedLabTaskRequest{Limit: 100})
 	if err != nil {
 		return LabTaskResult{}, err
 	}
@@ -112,8 +112,8 @@ func runLabDelete(ctx context.Context, api *client.LocalClient, request normaliz
 	}, nil
 }
 
-func runLabList(ctx context.Context, api *client.LocalClient, request normalizedLabTaskRequest) (LabTaskResult, error) {
-	entries, err := listLabEntries(ctx, api, request)
+func runLabList(ctx context.Context, service health.Service, request normalizedLabTaskRequest) (LabTaskResult, error) {
+	entries, err := listLabEntries(ctx, service, request)
 	if err != nil {
 		return LabTaskResult{}, err
 	}
@@ -123,27 +123,19 @@ func runLabList(ctx context.Context, api *client.LocalClient, request normalized
 	}, nil
 }
 
-func labTarget(ctx context.Context, api *client.LocalClient, target normalizedLabTarget) (client.LabCollection, string, error) {
-	matches, err := matchingLabCollections(ctx, api, target)
-	if err != nil {
-		return client.LabCollection{}, "", err
-	}
-	switch len(matches) {
-	case 0:
-		return client.LabCollection{}, "no matching lab collection", nil
-	case 1:
-		return matches[0], "", nil
-	default:
-		return client.LabCollection{}, "multiple matching lab collections; target is ambiguous", nil
-	}
+func labTarget(ctx context.Context, service health.Service, target normalizedLabTarget) (health.LabCollection, string, error) {
+	return service.ResolveLabCollectionTarget(ctx, health.LabCollectionTarget{
+		ID:          target.ID,
+		CollectedAt: target.Date,
+	})
 }
 
-func matchingLabCollections(ctx context.Context, api *client.LocalClient, target normalizedLabTarget) ([]client.LabCollection, error) {
-	items, err := api.ListLabCollections(ctx)
+func matchingLabCollections(ctx context.Context, service health.Service, target normalizedLabTarget) ([]health.LabCollection, error) {
+	items, err := service.ListLabCollections(ctx)
 	if err != nil {
 		return nil, err
 	}
-	matches := []client.LabCollection{}
+	matches := []health.LabCollection{}
 	for _, item := range items {
 		if target.ID > 0 {
 			if item.ID == target.ID {
@@ -158,8 +150,8 @@ func matchingLabCollections(ctx context.Context, api *client.LocalClient, target
 	return matches, nil
 }
 
-func listLabEntries(ctx context.Context, api *client.LocalClient, request normalizedLabTaskRequest) ([]LabCollectionEntry, error) {
-	items, err := api.ListLabCollections(ctx)
+func listLabEntries(ctx context.Context, service health.Service, request normalizedLabTaskRequest) ([]LabCollectionEntry, error) {
+	items, err := service.ListLabCollections(ctx)
 	if err != nil {
 		return nil, err
 	}

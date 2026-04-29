@@ -5,18 +5,19 @@ import (
 	"fmt"
 	"time"
 
-	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	"github.com/yazanabuashour/openhealth/internal/health"
+	"github.com/yazanabuashour/openhealth/internal/localruntime"
 )
 
 const (
 	BloodPressureTaskActionRecord   = "record_blood_pressure"
 	BloodPressureTaskActionCorrect  = "correct_blood_pressure"
 	BloodPressureTaskActionList     = "list_blood_pressure"
-	BloodPressureTaskActionValidate = "validate"
+	BloodPressureTaskActionValidate = taskActionValidate
 
-	BloodPressureListModeLatest  = "latest"
-	BloodPressureListModeHistory = "history"
-	BloodPressureListModeRange   = "range"
+	BloodPressureListModeLatest  = listModeLatest
+	BloodPressureListModeHistory = listModeHistory
+	BloodPressureListModeRange   = listModeRange
 )
 
 type BloodPressureTaskRequest struct {
@@ -61,7 +62,7 @@ type BloodPressureEntry struct {
 	Note      *string `json:"note,omitempty"`
 }
 
-func RunBloodPressureTask(ctx context.Context, config client.LocalConfig, request BloodPressureTaskRequest) (BloodPressureTaskResult, error) {
+func RunBloodPressureTask(ctx context.Context, config localruntime.Config, request BloodPressureTaskRequest) (BloodPressureTaskResult, error) {
 	normalized, rejection := normalizeBloodPressureTaskRequest(request)
 	if rejection != "" {
 		return BloodPressureTaskResult{
@@ -75,24 +76,18 @@ func RunBloodPressureTask(ctx context.Context, config client.LocalConfig, reques
 		return BloodPressureTaskResult{Summary: "valid"}, nil
 	}
 
-	api, err := client.OpenLocal(config)
-	if err != nil {
-		return BloodPressureTaskResult{}, err
-	}
-	defer func() {
-		_ = api.Close()
-	}()
-
-	switch normalized.Action {
-	case BloodPressureTaskActionRecord:
-		return runBloodPressureRecord(ctx, api, normalized)
-	case BloodPressureTaskActionCorrect:
-		return runBloodPressureCorrect(ctx, api, normalized)
-	case BloodPressureTaskActionList:
-		return runBloodPressureList(ctx, api, normalized)
-	default:
-		return BloodPressureTaskResult{}, fmt.Errorf("unsupported blood pressure task action %q", normalized.Action)
-	}
+	return withService(ctx, config, func(ctx context.Context, service health.Service) (BloodPressureTaskResult, error) {
+		switch normalized.Action {
+		case BloodPressureTaskActionRecord:
+			return runBloodPressureRecord(ctx, service, normalized)
+		case BloodPressureTaskActionCorrect:
+			return runBloodPressureCorrect(ctx, service, normalized)
+		case BloodPressureTaskActionList:
+			return runBloodPressureList(ctx, service, normalized)
+		default:
+			return BloodPressureTaskResult{}, fmt.Errorf("unsupported blood pressure task action %q", normalized.Action)
+		}
+	})
 }
 
 type normalizedBloodPressureTaskRequest struct {
@@ -123,8 +118,8 @@ func normalizeBloodPressureTaskRequest(request BloodPressureTaskRequest) (normal
 		Limit:    request.Limit,
 	}
 
-	if request.Limit < 0 {
-		return normalizedBloodPressureTaskRequest{}, "limit must be greater than or equal to 0"
+	if rejection := rejectNegativeLimit(request.Limit); rejection != "" {
+		return normalizedBloodPressureTaskRequest{}, rejection
 	}
 
 	switch action {
@@ -163,34 +158,19 @@ func normalizeBloodPressureTaskRequest(request BloodPressureTaskRequest) (normal
 }
 
 func normalizeBloodPressureListRequest(normalized normalizedBloodPressureTaskRequest, request BloodPressureTaskRequest) (normalizedBloodPressureTaskRequest, string) {
-	if normalized.ListMode == "" {
-		normalized.ListMode = BloodPressureListModeHistory
+	list, rejection := normalizeTaskListRequest(taskListRequest{
+		ListMode: request.ListMode,
+		FromDate: request.FromDate,
+		ToDate:   request.ToDate,
+		Limit:    request.Limit,
+	}, "blood pressure")
+	if rejection != "" {
+		return normalizedBloodPressureTaskRequest{}, rejection
 	}
-	switch normalized.ListMode {
-	case BloodPressureListModeLatest:
-		normalized.Limit = 1
-	case BloodPressureListModeHistory:
-		if normalized.Limit == 0 {
-			normalized.Limit = 25
-		}
-	case BloodPressureListModeRange:
-		if request.FromDate == "" || request.ToDate == "" {
-			return normalizedBloodPressureTaskRequest{}, "from_date and to_date are required for range"
-		}
-		from, rejection := parseDateOnly(request.FromDate)
-		if rejection != "" {
-			return normalizedBloodPressureTaskRequest{}, rejection
-		}
-		toDate, rejection := parseDateOnly(request.ToDate)
-		if rejection != "" {
-			return normalizedBloodPressureTaskRequest{}, rejection
-		}
-		toEnd := toDate.Add(24*time.Hour - time.Nanosecond)
-		normalized.From = &from
-		normalized.To = &toEnd
-	default:
-		return normalizedBloodPressureTaskRequest{}, fmt.Sprintf("unsupported blood pressure list mode %q", normalized.ListMode)
-	}
+	normalized.ListMode = list.ListMode
+	normalized.From = list.From
+	normalized.To = list.To
+	normalized.Limit = list.Limit
 	return normalized, ""
 }
 
@@ -224,10 +204,10 @@ func normalizeBloodPressureInput(input BloodPressureInput) (normalizedBloodPress
 	}, ""
 }
 
-func runBloodPressureRecord(ctx context.Context, api *client.LocalClient, request normalizedBloodPressureTaskRequest) (BloodPressureTaskResult, error) {
+func runBloodPressureRecord(ctx context.Context, service health.Service, request normalizedBloodPressureTaskRequest) (BloodPressureTaskResult, error) {
 	result := BloodPressureTaskResult{}
 	for _, reading := range request.Readings {
-		written, err := api.RecordBloodPressure(ctx, client.BloodPressureRecordInput{
+		written, err := service.RecordBloodPressure(ctx, health.BloodPressureRecordInput{
 			RecordedAt: reading.RecordedAt,
 			Systolic:   reading.Systolic,
 			Diastolic:  reading.Diastolic,
@@ -246,7 +226,8 @@ func runBloodPressureRecord(ctx context.Context, api *client.LocalClient, reques
 			Status:    "created",
 		})
 	}
-	entries, err := api.ListBloodPressure(ctx, client.BloodPressureListOptions{Limit: 100})
+	limit := 100
+	entries, err := service.ListBloodPressure(ctx, health.HistoryFilter{Limit: &limit})
 	if err != nil {
 		return BloodPressureTaskResult{}, err
 	}
@@ -257,11 +238,11 @@ func runBloodPressureRecord(ctx context.Context, api *client.LocalClient, reques
 
 type bloodPressureCorrectionTarget struct {
 	input    normalizedBloodPressureInput
-	existing client.BloodPressureEntry
+	existing health.BloodPressureEntry
 }
 
-func runBloodPressureCorrect(ctx context.Context, api *client.LocalClient, request normalizedBloodPressureTaskRequest) (BloodPressureTaskResult, error) {
-	targets, rejection, err := bloodPressureCorrectionTargets(ctx, api, request.Readings)
+func runBloodPressureCorrect(ctx context.Context, service health.Service, request normalizedBloodPressureTaskRequest) (BloodPressureTaskResult, error) {
+	targets, rejection, err := bloodPressureCorrectionTargets(ctx, service, request.Readings)
 	if err != nil {
 		return BloodPressureTaskResult{}, err
 	}
@@ -279,7 +260,7 @@ func runBloodPressureCorrect(ctx context.Context, api *client.LocalClient, reque
 		if note == nil {
 			note = target.existing.Note
 		}
-		written, err := api.ReplaceBloodPressure(ctx, target.existing.ID, client.BloodPressureRecordInput{
+		written, err := service.ReplaceBloodPressure(ctx, target.existing.ID, health.BloodPressureRecordInput{
 			RecordedAt: target.existing.RecordedAt,
 			Systolic:   target.input.Systolic,
 			Diastolic:  target.input.Diastolic,
@@ -298,7 +279,8 @@ func runBloodPressureCorrect(ctx context.Context, api *client.LocalClient, reque
 			Status:    "updated",
 		})
 	}
-	entries, err := api.ListBloodPressure(ctx, client.BloodPressureListOptions{Limit: 100})
+	limit := 100
+	entries, err := service.ListBloodPressure(ctx, health.HistoryFilter{Limit: &limit})
 	if err != nil {
 		return BloodPressureTaskResult{}, err
 	}
@@ -307,15 +289,16 @@ func runBloodPressureCorrect(ctx context.Context, api *client.LocalClient, reque
 	return result, nil
 }
 
-func bloodPressureCorrectionTargets(ctx context.Context, api *client.LocalClient, readings []normalizedBloodPressureInput) ([]bloodPressureCorrectionTarget, string, error) {
+func bloodPressureCorrectionTargets(ctx context.Context, service health.Service, readings []normalizedBloodPressureInput) ([]bloodPressureCorrectionTarget, string, error) {
 	targets := make([]bloodPressureCorrectionTarget, 0, len(readings))
 	for _, reading := range readings {
 		date := reading.RecordedAt.Format(time.DateOnly)
 		to := reading.RecordedAt.Add(24*time.Hour - time.Nanosecond)
-		existing, err := api.ListBloodPressure(ctx, client.BloodPressureListOptions{
+		limit := 2
+		existing, err := service.ListBloodPressure(ctx, health.HistoryFilter{
 			From:  &reading.RecordedAt,
 			To:    &to,
-			Limit: 2,
+			Limit: &limit,
 		})
 		if err != nil {
 			return nil, "", err
@@ -335,11 +318,11 @@ func bloodPressureCorrectionTargets(ctx context.Context, api *client.LocalClient
 	return targets, "", nil
 }
 
-func runBloodPressureList(ctx context.Context, api *client.LocalClient, request normalizedBloodPressureTaskRequest) (BloodPressureTaskResult, error) {
-	entries, err := api.ListBloodPressure(ctx, client.BloodPressureListOptions{
+func runBloodPressureList(ctx context.Context, service health.Service, request normalizedBloodPressureTaskRequest) (BloodPressureTaskResult, error) {
+	entries, err := service.ListBloodPressure(ctx, health.HistoryFilter{
 		From:  request.From,
 		To:    request.To,
-		Limit: request.Limit,
+		Limit: limitPointer(request.Limit),
 	})
 	if err != nil {
 		return BloodPressureTaskResult{}, err
@@ -350,7 +333,7 @@ func runBloodPressureList(ctx context.Context, api *client.LocalClient, request 
 	}, nil
 }
 
-func bloodPressureTaskEntries(entries []client.BloodPressureEntry) []BloodPressureEntry {
+func bloodPressureTaskEntries(entries []health.BloodPressureEntry) []BloodPressureEntry {
 	out := make([]BloodPressureEntry, 0, len(entries))
 	for _, entry := range entries {
 		out = append(out, BloodPressureEntry{

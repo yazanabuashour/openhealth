@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	client "github.com/yazanabuashour/openhealth/internal/runclient"
+	"github.com/yazanabuashour/openhealth/internal/health"
+	"github.com/yazanabuashour/openhealth/internal/localruntime"
 )
 
 const (
@@ -13,10 +14,10 @@ const (
 	MedicationTaskActionCorrect  = "correct_medication"
 	MedicationTaskActionDelete   = "delete_medication"
 	MedicationTaskActionList     = "list_medications"
-	MedicationTaskActionValidate = "validate"
+	MedicationTaskActionValidate = taskActionValidate
 
-	MedicationStatusActive = "active"
-	MedicationStatusAll    = "all"
+	MedicationStatusActive = string(health.MedicationStatusActive)
+	MedicationStatusAll    = string(health.MedicationStatusAll)
 )
 
 type MedicationTaskRequest struct {
@@ -68,7 +69,7 @@ type MedicationEntry struct {
 	Note       *string `json:"note,omitempty"`
 }
 
-func RunMedicationTask(ctx context.Context, config client.LocalConfig, request MedicationTaskRequest) (MedicationTaskResult, error) {
+func RunMedicationTask(ctx context.Context, config localruntime.Config, request MedicationTaskRequest) (MedicationTaskResult, error) {
 	normalized, rejection := normalizeMedicationTaskRequest(request)
 	if rejection != "" {
 		return MedicationTaskResult{
@@ -82,26 +83,20 @@ func RunMedicationTask(ctx context.Context, config client.LocalConfig, request M
 		return MedicationTaskResult{Summary: "valid"}, nil
 	}
 
-	api, err := client.OpenLocal(config)
-	if err != nil {
-		return MedicationTaskResult{}, err
-	}
-	defer func() {
-		_ = api.Close()
-	}()
-
-	switch normalized.Action {
-	case MedicationTaskActionRecord:
-		return runMedicationRecord(ctx, api, normalized)
-	case MedicationTaskActionCorrect:
-		return runMedicationCorrect(ctx, api, normalized)
-	case MedicationTaskActionDelete:
-		return runMedicationDelete(ctx, api, normalized)
-	case MedicationTaskActionList:
-		return runMedicationList(ctx, api, normalized)
-	default:
-		return MedicationTaskResult{}, fmt.Errorf("unsupported medication task action %q", normalized.Action)
-	}
+	return withService(ctx, config, func(ctx context.Context, service health.Service) (MedicationTaskResult, error) {
+		switch normalized.Action {
+		case MedicationTaskActionRecord:
+			return runMedicationRecord(ctx, service, normalized)
+		case MedicationTaskActionCorrect:
+			return runMedicationCorrect(ctx, service, normalized)
+		case MedicationTaskActionDelete:
+			return runMedicationDelete(ctx, service, normalized)
+		case MedicationTaskActionList:
+			return runMedicationList(ctx, service, normalized)
+		default:
+			return MedicationTaskResult{}, fmt.Errorf("unsupported medication task action %q", normalized.Action)
+		}
+	})
 }
 
 type normalizedMedicationTaskRequest struct {
@@ -109,7 +104,7 @@ type normalizedMedicationTaskRequest struct {
 	Medications []normalizedMedicationInput
 	Medication  normalizedMedicationInput
 	Target      normalizedMedicationTarget
-	Status      client.MedicationStatus
+	Status      health.MedicationStatus
 }
 
 type normalizedMedicationInput struct {
@@ -275,24 +270,24 @@ func normalizeMedicationTarget(target MedicationTarget) (normalizedMedicationTar
 	}, ""
 }
 
-func normalizeMedicationStatus(value string) (client.MedicationStatus, string) {
+func normalizeMedicationStatus(value string) (health.MedicationStatus, string) {
 	if value == "" {
-		return client.MedicationStatusActive, ""
+		return health.MedicationStatusActive, ""
 	}
 	switch value {
 	case MedicationStatusActive:
-		return client.MedicationStatusActive, ""
+		return health.MedicationStatusActive, ""
 	case MedicationStatusAll:
-		return client.MedicationStatusAll, ""
+		return health.MedicationStatusAll, ""
 	default:
 		return "", "status must be active or all"
 	}
 }
 
-func runMedicationRecord(ctx context.Context, api *client.LocalClient, request normalizedMedicationTaskRequest) (MedicationTaskResult, error) {
+func runMedicationRecord(ctx context.Context, service health.Service, request normalizedMedicationTaskRequest) (MedicationTaskResult, error) {
 	result := MedicationTaskResult{}
 	for _, medication := range request.Medications {
-		existing, err := matchingMedicationCourses(ctx, api, normalizedMedicationTarget{
+		existing, err := matchingMedicationCourses(ctx, service, normalizedMedicationTarget{
 			Name:      medication.Name,
 			StartDate: medication.StartDate,
 		})
@@ -311,13 +306,13 @@ func runMedicationRecord(ctx context.Context, api *client.LocalClient, request n
 				Summary:         reason,
 			}, nil
 		}
-		written, err := api.CreateMedicationCourse(ctx, client.MedicationCourseInput(medication))
+		written, err := service.CreateMedicationCourse(ctx, health.MedicationCourseInput(medication))
 		if err != nil {
 			return MedicationTaskResult{}, err
 		}
 		result.Writes = append(result.Writes, medicationWrite(written, "created"))
 	}
-	entries, err := listMedicationEntries(ctx, api, client.MedicationStatusAll)
+	entries, err := listMedicationEntries(ctx, service, health.MedicationStatusAll)
 	if err != nil {
 		return MedicationTaskResult{}, err
 	}
@@ -326,8 +321,8 @@ func runMedicationRecord(ctx context.Context, api *client.LocalClient, request n
 	return result, nil
 }
 
-func runMedicationCorrect(ctx context.Context, api *client.LocalClient, request normalizedMedicationTaskRequest) (MedicationTaskResult, error) {
-	target, rejection, err := medicationTarget(ctx, api, request.Target)
+func runMedicationCorrect(ctx context.Context, service health.Service, request normalizedMedicationTaskRequest) (MedicationTaskResult, error) {
+	target, rejection, err := medicationTarget(ctx, service, request.Target)
 	if err != nil {
 		return MedicationTaskResult{}, err
 	}
@@ -338,11 +333,11 @@ func runMedicationCorrect(ctx context.Context, api *client.LocalClient, request 
 	if medication.Note == nil {
 		medication.Note = target.Note
 	}
-	written, err := api.ReplaceMedicationCourse(ctx, target.ID, client.MedicationCourseInput(medication))
+	written, err := service.ReplaceMedicationCourse(ctx, target.ID, health.MedicationCourseInput(medication))
 	if err != nil {
 		return MedicationTaskResult{}, err
 	}
-	entries, err := listMedicationEntries(ctx, api, client.MedicationStatusAll)
+	entries, err := listMedicationEntries(ctx, service, health.MedicationStatusAll)
 	if err != nil {
 		return MedicationTaskResult{}, err
 	}
@@ -353,18 +348,18 @@ func runMedicationCorrect(ctx context.Context, api *client.LocalClient, request 
 	}, nil
 }
 
-func runMedicationDelete(ctx context.Context, api *client.LocalClient, request normalizedMedicationTaskRequest) (MedicationTaskResult, error) {
-	target, rejection, err := medicationTarget(ctx, api, request.Target)
+func runMedicationDelete(ctx context.Context, service health.Service, request normalizedMedicationTaskRequest) (MedicationTaskResult, error) {
+	target, rejection, err := medicationTarget(ctx, service, request.Target)
 	if err != nil {
 		return MedicationTaskResult{}, err
 	}
 	if rejection != "" {
 		return MedicationTaskResult{Rejected: true, RejectionReason: rejection, Summary: rejection}, nil
 	}
-	if err := api.DeleteMedicationCourse(ctx, target.ID); err != nil {
+	if err := service.DeleteMedicationCourse(ctx, target.ID); err != nil {
 		return MedicationTaskResult{}, err
 	}
-	entries, err := listMedicationEntries(ctx, api, client.MedicationStatusAll)
+	entries, err := listMedicationEntries(ctx, service, health.MedicationStatusAll)
 	if err != nil {
 		return MedicationTaskResult{}, err
 	}
@@ -375,8 +370,8 @@ func runMedicationDelete(ctx context.Context, api *client.LocalClient, request n
 	}, nil
 }
 
-func runMedicationList(ctx context.Context, api *client.LocalClient, request normalizedMedicationTaskRequest) (MedicationTaskResult, error) {
-	entries, err := listMedicationEntries(ctx, api, request.Status)
+func runMedicationList(ctx context.Context, service health.Service, request normalizedMedicationTaskRequest) (MedicationTaskResult, error) {
+	entries, err := listMedicationEntries(ctx, service, request.Status)
 	if err != nil {
 		return MedicationTaskResult{}, err
 	}
@@ -386,27 +381,20 @@ func runMedicationList(ctx context.Context, api *client.LocalClient, request nor
 	}, nil
 }
 
-func medicationTarget(ctx context.Context, api *client.LocalClient, target normalizedMedicationTarget) (client.MedicationCourse, string, error) {
-	matches, err := matchingMedicationCourses(ctx, api, target)
-	if err != nil {
-		return client.MedicationCourse{}, "", err
-	}
-	switch len(matches) {
-	case 0:
-		return client.MedicationCourse{}, "no matching medication", nil
-	case 1:
-		return matches[0], "", nil
-	default:
-		return client.MedicationCourse{}, "multiple matching medications; target is ambiguous", nil
-	}
+func medicationTarget(ctx context.Context, service health.Service, target normalizedMedicationTarget) (health.MedicationCourse, string, error) {
+	return service.ResolveMedicationTarget(ctx, health.MedicationTarget{
+		ID:        target.ID,
+		Name:      target.Name,
+		StartDate: target.StartDate,
+	})
 }
 
-func matchingMedicationCourses(ctx context.Context, api *client.LocalClient, target normalizedMedicationTarget) ([]client.MedicationCourse, error) {
-	items, err := api.ListMedicationCourses(ctx, client.MedicationListOptions{Status: client.MedicationStatusAll})
+func matchingMedicationCourses(ctx context.Context, service health.Service, target normalizedMedicationTarget) ([]health.MedicationCourse, error) {
+	items, err := service.ListMedications(ctx, health.MedicationListParams{Status: health.MedicationStatusAll})
 	if err != nil {
 		return nil, err
 	}
-	matches := []client.MedicationCourse{}
+	matches := []health.MedicationCourse{}
 	for _, item := range items {
 		if target.ID > 0 {
 			if item.ID == target.ID {
@@ -421,8 +409,8 @@ func matchingMedicationCourses(ctx context.Context, api *client.LocalClient, tar
 	return matches, nil
 }
 
-func listMedicationEntries(ctx context.Context, api *client.LocalClient, status client.MedicationStatus) ([]MedicationEntry, error) {
-	items, err := api.ListMedicationCourses(ctx, client.MedicationListOptions{Status: status})
+func listMedicationEntries(ctx context.Context, service health.Service, status health.MedicationStatus) ([]MedicationEntry, error) {
+	items, err := service.ListMedications(ctx, health.MedicationListParams{Status: status})
 	if err != nil {
 		return nil, err
 	}
@@ -433,7 +421,7 @@ func listMedicationEntries(ctx context.Context, api *client.LocalClient, status 
 	return out, nil
 }
 
-func allMedicationMatches(items []client.MedicationCourse, medication normalizedMedicationInput) bool {
+func allMedicationMatches(items []health.MedicationCourse, medication normalizedMedicationInput) bool {
 	for _, item := range items {
 		if !medicationMatches(item, medication) {
 			return false
@@ -442,7 +430,7 @@ func allMedicationMatches(items []client.MedicationCourse, medication normalized
 	return true
 }
 
-func medicationMatches(item client.MedicationCourse, medication normalizedMedicationInput) bool {
+func medicationMatches(item health.MedicationCourse, medication normalizedMedicationInput) bool {
 	return strings.EqualFold(item.Name, medication.Name) &&
 		equalStringPointer(item.DosageText, medication.DosageText) &&
 		item.StartDate == medication.StartDate &&
@@ -450,7 +438,7 @@ func medicationMatches(item client.MedicationCourse, medication normalizedMedica
 		equalStringPointer(item.Note, medication.Note)
 }
 
-func medicationWrite(item client.MedicationCourse, status string) MedicationWrite {
+func medicationWrite(item health.MedicationCourse, status string) MedicationWrite {
 	return MedicationWrite{
 		ID:         item.ID,
 		Name:       item.Name,
@@ -462,7 +450,7 @@ func medicationWrite(item client.MedicationCourse, status string) MedicationWrit
 	}
 }
 
-func medicationEntry(item client.MedicationCourse) MedicationEntry {
+func medicationEntry(item health.MedicationCourse) MedicationEntry {
 	return MedicationEntry{
 		ID:         item.ID,
 		Name:       item.Name,
